@@ -361,13 +361,20 @@ RAW_SOURCES = ("lhm",)
 RAW_MAX = 600              # Obergrenze (Antwortgröße); ein PC hat typisch 150-400 LHM-Werte
 _RAW_BAD = re.compile(r"[^a-z0-9_]+")
 _RAW_ID_MAX = 64           # wie SENSOR_ID in bridge/dashboard.py
+_raw_warned = {}           # Meldungen nur einmal
 
 
-def raw_id(source, path):
-    """Stabile ID [a-z0-9_.] (höchstens 64 Zeichen) aus Quelle und Pfad; zu lange Pfade bekommen eine Prüfsumme."""
+def raw_id(source, path, force_hash=False):
+    """Stabile ID [a-z0-9_.] (höchstens 64 Zeichen) aus Quelle und Pfad; zu lange Pfade (oder bei einer Kollision,
+    force_hash) bekommen eine Prüfsumme des Originalpfads."""
     segs = [s for s in (_RAW_BAD.sub("_", p.lower()).strip("_") for p in str(path).split("/")) if s]
     ident = ".".join([source] + segs)
-    if len(ident) > _RAW_ID_MAX:
+    if force_hash and len(ident) > _RAW_ID_MAX - 9:
+        force_hash = False          # wird unten ohnehin mit Prüfsumme gekürzt
+    if force_hash:
+        import hashlib
+        ident = ident + "." + hashlib.sha1(str(path).encode("utf-8")).hexdigest()[:8]
+    elif len(ident) > _RAW_ID_MAX:
         import hashlib
         h = hashlib.sha1(str(path).encode("utf-8")).hexdigest()[:8]
         ident = ident[:_RAW_ID_MAX - 9].rstrip("._") + "." + h
@@ -378,8 +385,13 @@ def raw_items(raws):
     """Alle Rohwerte der Quellen in RAW_SOURCES als Werteliste [{id, name, value, unit, group}] (Pfadreihenfolge)."""
     out, seen = [], set()
     for r in raws:
-        if r.source not in RAW_SOURCES or len(out) >= RAW_MAX:
+        if r.source not in RAW_SOURCES:
             continue
+        if len(out) >= RAW_MAX:
+            if not _raw_warned.get("cap"):
+                _raw_warned["cap"] = True
+                log.warning("Mehr als %d Rohwerte - der Rest wird nicht weitergegeben", RAW_MAX)
+            break
         try:
             value = float(r.value)
         except (TypeError, ValueError):
@@ -387,8 +399,13 @@ def raw_items(raws):
         if not math.isfinite(value):
             continue
         ident = raw_id(r.source, r.path)
-        if ident in seen:
-            continue
+        if ident in seen:                       # zwei Pfade ergeben dieselbe ID: zweiter mit Prüfsumme
+            ident = raw_id(r.source, r.path, force_hash=True)
+            if ident in seen:
+                continue
+            if not _raw_warned.get(ident):
+                _raw_warned[ident] = True
+                log.info("Rohwert %s: ID-Kollision, eindeutige ID %s", r.path, ident)
         seen.add(ident)
         out.append({"id": ident, "name": str(r.name)[:80] or ident, "value": round(value, 3), "unit": r.unit or "",
                     "min": None, "max": None, "group": (getattr(r, "hw", "") or r.source)[:80]})

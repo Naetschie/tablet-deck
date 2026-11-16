@@ -342,6 +342,15 @@ class ManageTest(unittest.TestCase):
         with self.assertLogs("dashboard", "WARNING"):
             self.m.list()
 
+    def test_raw_ids_benutzte_rohwerte(self):
+        self.assertEqual(self.m.raw_ids(), frozenset())
+        name, d = self.m.create("deck")
+        d["widgets"][0]["sensor"] = "lhm.nvme.0.temperature.0"
+        self.m.save(name, d)                                     # Speichern leert den Zwischenspeicher
+        self.assertEqual(self.m.raw_ids(), frozenset({"lhm.nvme.0.temperature.0"}))
+        self.m.delete(name)
+        self.assertEqual(self.m.raw_ids(), frozenset())
+
     def test_mitgelieferte_schreibgeschuetzt(self):
         for fn in (lambda: self.m.save("deck", good()), lambda: self.m.rename("deck", "x"),
                    lambda: self.m.delete("deck")):

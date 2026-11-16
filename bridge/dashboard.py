@@ -10,6 +10,7 @@ import math
 import os
 import re
 import shutil
+import time
 from pathlib import Path
 
 log = logging.getLogger("dashboard")
@@ -241,6 +242,7 @@ class Dashboards:
         self.cfg = cfg if cfg is not None else {}
         self.cfg_path = cfg_path
         self._warned_hidden = set()   # verdeckte eigene Dashboards nur einmal melden
+        self._raw_cache = None        # (Zeit, benutzte lhm.*-IDs), siehe raw_ids
 
     # ---- Lesen ----
     def origin(self, name):
@@ -270,6 +272,34 @@ class Dashboards:
                     out.append(dict(d, origin=origin))
         return out
 
+    RAW_TTL = 10.0
+
+    def raw_ids(self):
+        """Alle lhm.*-Sensor-IDs, die irgendein Dashboard nutzt (für den Hub: nur diese Rohwerte gehen ans Tablet).
+        Höchstens alle RAW_TTL s neu gelesen; ungültige Dateien werden übersprungen."""
+        now = time.monotonic()
+        if self._raw_cache is not None and now - self._raw_cache[0] < self.RAW_TTL:
+            return self._raw_cache[1]
+        found = set()
+
+        def walk(v):
+            if isinstance(v, str):
+                if v.startswith("lhm.") and SENSOR_ID.fullmatch(v):
+                    found.add(v)
+            elif isinstance(v, dict):
+                for x in v.values():
+                    walk(x)
+            elif isinstance(v, list):
+                for x in v:
+                    walk(x)
+        for d in self.list():
+            try:
+                walk(self.load(d["name"])[0].get("widgets"))
+            except (OSError, ValueError):
+                continue
+        self._raw_cache = (now, frozenset(found))
+        return self._raw_cache[1]
+
     def load(self, name):
         """(Dashboard, Herkunft). FileNotFoundError bei unbekanntem Namen, ValueError bei ungültiger Datei."""
         origin = self.origin(name)
@@ -287,6 +317,7 @@ class Dashboards:
         return self.own / f"{name}.json"
 
     def save(self, name, d):
+        self._raw_cache = None   # benutzte Rohwerte neu ermitteln
         path = self._own_path(name)
         try:
             validate(d)
@@ -328,6 +359,7 @@ class Dashboards:
         return name, d
 
     def rename(self, name, to):
+        self._raw_cache = None   # benutzte Rohwerte neu ermitteln
         src = self._own_path(name)
         if not valid_name(to):
             raise ValueError("Name: 1 bis 40 Zeichen aus a-z, 0-9, _ und -")
@@ -340,6 +372,7 @@ class Dashboards:
             self._follow_default(to)
 
     def delete(self, name):
+        self._raw_cache = None   # benutzte Rohwerte neu ermitteln
         """Eigenes Dashboard in dashboards/eigene/.papierkorb/ verschieben (wiederherstellbar)."""
         src = self._own_path(name)
         trash = self.own / ".papierkorb"

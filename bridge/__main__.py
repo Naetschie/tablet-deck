@@ -127,6 +127,7 @@ class Bridge:
         self.on_tiles_changed = None   # Rückruf (Taskleisten-Menü), wird in main() gesetzt
         self.audio = Audio()
         self.stats = Stats(ROOT, cfg, self.profiles)   # PC-Werte für /stats/ (Sensor-Helfer bzw. psutil)
+        self.stats.raw_filter = self.dashboards.raw_ids   # Rohwerte ans Tablet nur, wenn ein Dashboard sie nutzt
         # Mixer (Apps, Geräte) in einem eigenen Thread mit COM: Abfragen bis ca. 70 ms blockieren sonst den Loop
         self.audio_worker = AudioWorker()
         self._audio_pending = {}   # Schlüssel -> wartender Befehl (siehe run_audio)

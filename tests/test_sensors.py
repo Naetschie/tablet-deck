@@ -1083,6 +1083,18 @@ class RawItemsTest(unittest.TestCase):
         self.assertEqual(items, [{"id": "lhm.intelcpu.0.temperature.1", "name": "Core #1", "value": 50.0, "unit": "°C",
                                   "min": None, "max": None, "group": "Intel Core i7-12700K"}])
 
+    def test_kollision_und_obergrenze(self):
+        from bridge.sensors import mapping
+        raws = [Raw("lhm", "/a-b/0/load/0", "A", 1.0, "%"), Raw("lhm", "/a_b/0/load/0", "B", 2.0, "%")]
+        items = mapping.raw_items(raws)
+        self.assertEqual(items[0]["id"], "lhm.a_b.0.load.0")
+        self.assertTrue(items[1]["id"].startswith("lhm.a_b.0.load.0."))          # zweiter mit Prüfsumme
+        self.assertEqual([i["value"] for i in items], [1.0, 2.0])
+        many = [Raw("lhm", f"/x/0/load/{i}", "x", 1.0) for i in range(mapping.RAW_MAX + 5)]
+        mapping._raw_warned.pop("cap", None)
+        with self.assertLogs("sensors", "WARNING"):
+            self.assertEqual(len(mapping.raw_items(many)), mapping.RAW_MAX)
+
     def test_collector_liefert_feste_und_rohwerte(self):
         clock = Clock()
         c = Collector([LhmSource(lambda: lhm_computer(), admin=True)], DEFAULTS, clock=clock)

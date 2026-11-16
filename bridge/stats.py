@@ -26,6 +26,7 @@ log = logging.getLogger("stats")
 
 DEFAULT_PORT = 8768
 INTERVAL_S = 1.0
+RAW_PREFIX = "lhm."     # Rohwerte des Sensor-Helfers (bridge/sensors/mapping.py raw_items)
 RETRY_S = 5.0
 HTTP_TIMEOUT_S = 1.5   # deutlich unter STALE_MS (4 s) der Seite, sonst flackert sie bei hängendem Helfer
 SEND_TIMEOUT_S = 2.0
@@ -177,7 +178,10 @@ class Stats:
         self._fb_failed = False
         self._paths = paths
         self.interval, self.retry, self.clock = interval, retry, clock
-        self.subs = {}                   # ws -> zuletzt gesendete Meta-Version
+        self.subs = {}                   # ws -> zuletzt gesendeter Meta-Stand
+        # Rohwerte (lhm.*, bis zu 600) gehen ans Tablet nur, wenn ein Dashboard sie nutzt; die volle Liste bekommt
+        # der Editor über sample(). raw_filter() -> Menge der benutzten lhm.*-IDs (vom Hub gesetzt).
+        self.raw_filter = None
         self.meta, self.meta_ver = {}, 0
         self.ok = None                   # Helfer erreichbar? (None = noch unbekannt)
         self.reason = None
@@ -257,12 +261,28 @@ class Stats:
         if self.target_dirty and self.ok:
             await self._deliver()
 
+    def _wanted_raw(self):
+        if self.raw_filter is None:
+            return frozenset()
+        try:
+            return frozenset(self.raw_filter())
+        except Exception as e:  # noqa: BLE001 - kaputte Dashboard-Datei darf die Werte nicht stoppen
+            log.warning("Benutzte Rohwerte nicht ermittelbar: %s", e.__class__.__name__)
+            return frozenset()
+
     async def _distribute(self, values, meta, sources):
+        if any(k.startswith(RAW_PREFIX) for k in values):
+            wanted = self._wanted_raw()
+            values = {k: v for k, v in values.items() if not k.startswith(RAW_PREFIX) or k in wanted}
+            meta = {k: v for k, v in meta.items() if not k.startswith(RAW_PREFIX) or k in wanted}
+        else:
+            wanted = frozenset()
+        state = (self.meta_ver, wanted)          # Meta neu schicken, wenn sie sich ändert oder neue Rohwerte dazukommen
         base = {"t": "stats", "values": values, "sources": sources}
         sends = []
         for ws, ver in list(self.subs.items()):
-            msg = base if ver == self.meta_ver else dict(base, meta=meta)
-            self.subs[ws] = self.meta_ver
+            msg = base if ver == state else dict(base, meta=meta)
+            self.subs[ws] = state
             sends.append(self._send(ws, json.dumps(msg, separators=(",", ":"))))
         if sends:
             await asyncio.gather(*sends)

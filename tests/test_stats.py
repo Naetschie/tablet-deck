@@ -169,6 +169,34 @@ class SubscriptionTest(Env):
         self.assertNotIn("meta", a.sent[4])
         self.assertEqual(a.sent[4]["values"]["cpu.load"], 99)
 
+    async def test_rohwerte_nur_wenn_benutzt(self):
+        s = self.make()
+        self.items.append(dict(item("lhm.nvme.0.temperature.0", 41, "°C", None, None), group="Samsung SSD"))
+        self.items.append(item("lhm.intelcpu.0.load.1", 7, "%", None, None))
+        used = set()
+        s.raw_filter = lambda: used
+        a = FakeWs()
+        s.subscribe(a)
+        await s.tick()
+        self.assertEqual(sorted(a.sent[0]["values"]), ["cpu.load", "ram.used"])      # Tablet: keine Rohwerte
+        self.assertEqual(sorted(a.sent[0]["meta"]), ["cpu.load", "ram.used"])
+        used.add("lhm.nvme.0.temperature.0")                                         # Dashboard nutzt jetzt einen
+        await s.tick()
+        self.assertEqual(a.sent[1]["values"]["lhm.nvme.0.temperature.0"], 41)
+        self.assertNotIn("lhm.intelcpu.0.load.1", a.sent[1]["values"])
+        self.assertEqual(a.sent[1]["meta"]["lhm.nvme.0.temperature.0"]["group"], "Samsung SSD")   # Meta neu
+        await s.tick()
+        self.assertNotIn("meta", a.sent[2])
+        values, meta, _ = await s.sample()                                           # Editor: alles
+        self.assertIn("lhm.intelcpu.0.load.1", values)
+
+        def broken():
+            raise ValueError("kaputt")
+        s.raw_filter = broken                                                        # Fehler: ohne Rohwerte weiter
+        with self.assertLogs("stats", "WARNING"):
+            await s.tick()
+        self.assertEqual(sorted(a.sent[3]["values"]), ["cpu.load", "ram.used"])
+
     async def test_broken_client_is_dropped(self):
         s = self.make()
         ok, bad = FakeWs(), FakeWs(fail=True)
