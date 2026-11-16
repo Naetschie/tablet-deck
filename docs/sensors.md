@@ -136,7 +136,7 @@ Noch zu prüfen für das MSI MPG Z690 Edge WiFi DDR4 (Super-I/O NCT6687D), siehe
 ## Hub und Tablet-Seite
 
 `bridge/stats.py` verbindet den Hub mit dem Helfer, `web/stats/` zeigt die Werte (`/stats/`, Dashboard mit
-`?d=<name>`, Standard `deck`; der MoBro-Nachbau ist `?d=mobro`).
+`?d=<name>`; ohne `?d=` das im Editor gewählte Standard-Dashboard, sonst `deck`; der MoBro-Nachbau ist `?d=mobro`).
 
 - **Abo über `/ws`:** Die Seite sendet `{"t":"stats_sub"}` (nach jedem Verbinden) und `{"t":"stats_unsub"}`;
   beim Trennen meldet der Hub sie selbst ab. Nur solange mindestens eine Seite abonniert hat, fragt der Hub
@@ -151,13 +151,37 @@ Noch zu prüfen für das MSI MPG Z690 Edge WiFi DDR4 (Super-I/O NCT6687D), siehe
   bzw. `{}` ohne Spiel. Der Name stammt aus `games.json` (`exe`) oder aus der Bibliothek (exe-Pfad bzw.
   laufendes Programm im Spielordner); bevorzugt ein gerade laufendes Programm. Ein Fehler stört die
   Spielerkennung nicht; ein neu gestarteter Helfer bekommt das Ziel erneut.
-- `GET /api/dashboards` (Liste) und `GET /api/dashboards/<name>` (geprüftes Dashboard) liefert der Hub
-  loopback bzw. nur gekoppelt wie die Profile.
+- `GET /api/dashboards` (Liste mit `name`, `title`, `origin`), `GET /api/dashboards/<name>` (geprüftes
+  Dashboard, mitgeliefert oder eigen) und `GET /api/dashboards/default` (das gewählte Standard-Dashboard) liefert
+  der Hub loopback bzw. nur gekoppelt wie die Profile.
 
 ## Dashboard
 
-Datei `dashboards/<name>.json` (Name: Kleinbuchstaben, Ziffern, `_`, `-`). Der Hub prüft sie beim Laden
-(`bridge/dashboard.py`); eine fehlerhafte Datei erscheint nicht in der Liste und wird geloggt.
+Datei `<name>.json` (Name: 1 bis 40 Zeichen aus Kleinbuchstaben, Ziffern, `_`, `-`; `default` und Windows-Gerätenamen
+wie `con` sind gesperrt). Der Hub prüft sie beim Laden (`bridge/dashboard.py`); eine fehlerhafte Datei erscheint
+nicht in der Liste und wird geloggt.
+
+**Mitgeliefert und eigen:** Die mitgelieferten Dashboards (`dashboards/deck.json`, `dashboards/mobro.json`) gehören
+zum Projekt, werden bei jedem Update ausgeliefert und sind im Editor schreibgeschützt. „Bearbeiten“ legt eine
+eigene Kopie in `dashboards/eigene/` an (Name automatisch frei: `deck-eigen`, `deck-eigen-2`, …). Eigene
+Dashboards stehen nicht im Git und nicht im Weitergabe-Paket; Updates überschreiben sie nie. Ein eigener Name darf
+nicht wie ein mitgelieferter heißen. Gelöschte eigene Dashboards landen in `dashboards/eigene/.papierkorb/`
+(wiederherstellbar: Datei zurückkopieren).
+
+**Standard:** Die Kachel „PC-Werte“ (`/stats/` ohne `?d=`) zeigt das Dashboard `stats_dashboard` aus `config.json`
+(vom Editor gesetzt, wirkt ohne Hub-Neustart). Fehlt die Einstellung oder das Dashboard (gelöscht), gilt `deck`;
+„zurück zum Standard“ entfernt die Einstellung.
+
+**Editor-Kanal `/edit`** (nach der Token-Anmeldung, Antworten bei Fehlern `{"t":"error","req":…,"msg":…}`):
+`dash_list` → `{"t":"dash_list","dashboards":[{name,title,origin}],"default":name}`;
+`dash_get {name}` → `{"t":"dash_get",name,origin,dashboard}`; `dash_save {name,dashboard}` (nur eigene, geprüft,
+atomar) → `dash_saved`; `dash_create {from?,title?}` (leer 1152×800 oder Kopie) → `dash_created` mit `name`,
+`dashboard` und der Liste; `dash_rename {name,to}` → `dash_renamed`; `dash_delete {name}` → `dash_deleted`;
+`dash_default {name}` (`name` leer/`null` = zurück auf `deck`) → `dash_default`; `dash_schema` → `{"t":"dash_schema",
+"schema":…}` mit Widget-Arten, Feldern, Typen, Grenzen, Auswahlwerten und Pflichtfeldern (dieselbe Quelle wie die
+Prüfung, `dashboard.schema()`); `dash_sensors` → `{"t":"dash_sensors","sensors":[{id,name,unit,value}],"sources":…}`
+mit den aktuellen Werten. Die Antworten auf Anlegen, Umbenennen, Löschen und Standard enthalten `dashboards` und
+`default`.
 
 ```json
 {"title": "…", "width": 1382, "height": 794, "background": "#323232", "widgets": [ {…}, … ]}
@@ -166,7 +190,7 @@ Datei `dashboards/<name>.json` (Name: Kleinbuchstaben, Ziffern, `_`, `-`). Der H
 `width`/`height` sind die Zeichenfläche in beliebigen Einheiten (100 bis 10000). Die Seite skaliert sie auf die
 verfügbare Fläche (Seitenverhältnis bleibt, `meet`). Alle Maße der Widgets liegen in diesen Einheiten.
 Widgets werden in Listenreihenfolge gezeichnet (das letzte liegt vorn). Pflicht je Widget: `type`, `x`, `y`,
-`w`, `h`; bei `value`, `gauge`, `bar`, `line` außerdem `sensor` (ID aus der Tabelle oben), bei `text` `text`.
+`w`, `h`; optional `group` (Gruppenname für den Editor, `[a-z0-9_-]{1,20}`, ohne Wirkung auf die Anzeige); bei `value`, `gauge`, `bar`, `line` außerdem `sensor` (ID aus der Tabelle oben), bei `text` `text`.
 
 | `type` | Zeigt | Weitere Felder |
 |---|---|---|

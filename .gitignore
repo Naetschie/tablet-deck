@@ -40,6 +40,8 @@ web_history.json
 mapgenie_cache.json
 mapgenie_cache.json.tmp
 profiles/.papierkorb/
+# Eigene Dashboards (Editor); mitgelieferte liegen direkt in dashboards/
+dashboards/eigene/
 # Sensor-Helfer: eigene Zuordnung und Log
 sensors.json
 sensors.log*

@@ -93,6 +93,9 @@ UAC-Abfrage beim Einrichten ist deshalb die eigentliche Grenze - nur bestätigen
 selbst gestartet hast. Nach der Einrichtung gilt das nicht mehr: Die Aufgabe startet nur noch die geprüfte
 Kopie im Programmverzeichnis.
 
+Eigene PC-Werte-Dashboards (Editor) liegen in `dashboards\eigene\`; sie sind nicht im Git und nicht im
+Weitergabe-Paket, Updates lassen sie unberührt (sichern: den Ordner kopieren).
+
 Liegt Python unter `%LOCALAPPDATA%` (Standard bei „nur für mich“), bricht die Einrichtung ab. Dann Python für
 alle Benutzer installieren: `winget install -e --id Python.Python.3.13 --scope machine`, neues Terminal,
 `install.ps1` erneut.

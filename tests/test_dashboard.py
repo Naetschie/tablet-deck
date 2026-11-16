@@ -303,5 +303,217 @@ class ImportTest(unittest.TestCase):
         self.assertTrue(any("nicht zugeordnet" in r for r in report))
 
 
+class ManageTest(unittest.TestCase):
+    def setUp(self):
+        self._t = tempfile.TemporaryDirectory()
+        self.d = Path(self._t.name) / "dashboards"
+        self.d.mkdir()
+        for n in ("deck", "mobro"):
+            (self.d / f"{n}.json").write_text(json.dumps(dict(good(), title=n.upper())), encoding="utf-8")
+        self.cfg_path = Path(self._t.name) / "config.json"
+        self.cfg_path.write_text(json.dumps({"port": 8765}), encoding="utf-8")
+        self.cfg = {"port": 8765}
+        self.m = dashboard.Dashboards(self.d, self.cfg, self.cfg_path)
+
+    def tearDown(self):
+        self._t.cleanup()
+
+    def test_auflisten_mit_herkunft(self):
+        self.m.create("deck")
+        l = self.m.list()
+        self.assertEqual([(x["name"], x["origin"]) for x in l],
+                         [("deck", "mitgeliefert"), ("mobro", "mitgeliefert"), ("deck-eigen", "eigen")])
+        self.assertEqual(l[0]["title"], "DECK")
+
+    def test_mitgelieferte_schreibgeschuetzt(self):
+        for fn in (lambda: self.m.save("deck", good()), lambda: self.m.rename("deck", "x"),
+                   lambda: self.m.delete("deck")):
+            with self.assertRaises(ValueError) as c:
+                fn()
+            self.assertIn("schreibgeschützt", str(c.exception))
+        self.assertTrue((self.d / "deck.json").is_file())
+
+    def test_kopie_freier_name(self):
+        self.assertEqual(self.m.create("deck")[0], "deck-eigen")
+        self.assertEqual(self.m.create("deck")[0], "deck-eigen-2")
+        self.assertEqual(self.m.create("deck-eigen")[0], "deck-eigen-3")      # Kopie einer Kopie: Endung nicht stapeln
+        name, d = self.m.create("mobro", title="Mein Titel")
+        self.assertEqual(d["title"], "Mein Titel")
+        self.assertEqual(self.m.load(name)[1], "eigen")
+        self.assertEqual(self.m.load(name)[0]["widgets"], good()["widgets"])
+        self.assertEqual(self.m.load("deck-eigen")[0]["title"], "DECK (eigen)")
+        with self.assertRaises(FileNotFoundError):
+            self.m.create("gibtsnicht")
+
+    def test_leeres_dashboard(self):
+        name, d = self.m.create()
+        self.assertEqual((d["width"], d["height"], d["widgets"]), (1152, 800, []))
+        self.assertEqual(self.m.load(name)[0], d)
+        self.assertEqual(self.m.create()[0], "neu-2")
+
+    def test_eigener_name_nicht_wie_mitgelieferter(self):
+        self.m.create("deck")
+        with self.assertRaises(ValueError):
+            self.m.rename("deck-eigen", "mobro")
+        (self.d / "eigene" / "deck.json").write_text(json.dumps(good()), encoding="utf-8")   # von Hand eingeschleust
+        self.assertEqual([x["origin"] for x in self.m.list() if x["name"] == "deck"], ["mitgeliefert"])
+        self.assertEqual(self.m.origin("deck"), "mitgeliefert")
+
+    def test_speichern_pruefen_atomar(self):
+        name = self.m.create("deck")[0]
+        d = good()
+        d["title"] = "Neu"
+        self.m.save(name, d)
+        self.assertEqual(self.m.load(name)[0]["title"], "Neu")
+        bad = copy.deepcopy(d)
+        bad["widgets"][0]["size"] = 1
+        with self.assertRaises(ValueError) as c:
+            self.m.save(name, bad)
+        self.assertIn("size", str(c.exception))
+        self.assertEqual(self.m.load(name)[0]["title"], "Neu")                 # unverändert
+        self.assertEqual(list((self.d / "eigene").glob("*.tmp")), [])
+        with self.assertRaises(ValueError):
+            self.m.save("gibtsnicht", d)
+
+    def test_umbenennen_loeschen_papierkorb(self):
+        name = self.m.create("deck")[0]
+        self.m.rename(name, "mein_dash")
+        self.assertIsNone(self.m.origin("deck-eigen"))
+        self.assertEqual(self.m.origin("mein_dash"), "eigen")
+        self.m.delete("mein_dash")
+        self.assertIsNone(self.m.origin("mein_dash"))
+        trash = self.d / "eigene" / ".papierkorb"
+        self.assertEqual([p.name for p in trash.iterdir()], ["mein_dash-1.json"])
+        self.m.create("deck")
+        self.m.rename("deck-eigen", "mein_dash")
+        self.m.delete("mein_dash")
+        self.assertEqual(sorted(p.name for p in trash.iterdir()), ["mein_dash-1.json", "mein_dash-2.json"])
+        with self.assertRaises(ValueError):
+            self.m.delete("mein_dash")
+
+    def test_namensregeln_und_traversal(self):
+        name = self.m.create("deck")[0]
+        for bad in ("", "A", "a b", "../x", "..\\x", "a/b", "x" * 41, "default", "con", "nul", "deck.json", None, 5,
+                    "ä"):
+            self.assertFalse(dashboard.valid_name(bad), bad)
+            self.assertIsNone(self.m.origin(bad), bad)
+            with self.assertRaises(ValueError):
+                self.m.rename(name, bad)
+            with self.assertRaises(FileNotFoundError):
+                self.m.load(bad)
+        with self.assertRaises(ValueError):
+            self.m.save("../deck", good())
+        with self.assertRaises(ValueError):
+            self.m.delete("../deck")
+        self.assertTrue(dashboard.valid_name("a_b-9") and dashboard.valid_name("x" * 40))
+
+    def test_standard_setzen_und_rueckfall(self):
+        self.assertEqual(self.m.get_default(), "deck")
+        name = self.m.create("deck")[0]
+        self.m.set_default(name)
+        self.assertEqual(self.m.get_default(), name)
+        self.assertEqual(json.loads(self.cfg_path.read_text(encoding="utf-8")),
+                         {"port": 8765, "stats_dashboard": name})               # übrige Einstellungen bleiben
+        self.assertEqual(self.cfg["stats_dashboard"], name)                     # ohne Neustart wirksam
+        self.assertEqual(list(self.cfg_path.parent.glob("*.tmp")), [])
+        with self.assertRaises(ValueError):
+            self.m.set_default("gibtsnicht")
+        self.m.rename(name, "neuer")                                            # Standard folgt der Umbenennung
+        self.assertEqual(self.m.get_default(), "neuer")
+        self.m.delete("neuer")                                                  # gelöscht: zurück auf deck
+        self.assertEqual(self.m.get_default(), "deck")
+        self.assertNotIn("stats_dashboard", json.loads(self.cfg_path.read_text(encoding="utf-8")))
+        self.cfg["stats_dashboard"] = "verschwunden"                            # von Hand gesetzt, Datei fehlt
+        self.assertEqual(self.m.get_default(), "deck")
+        self.m.set_default("mobro")
+        self.m.set_default(None)                                                # "Zurück zum Standard"
+        self.assertEqual(self.m.get_default(), "deck")
+
+    def test_editor_nachrichten(self):
+        h = self.m.handle
+        r = h({"t": "dash_list"})
+        self.assertEqual((r["t"], r["default"], len(r["dashboards"])), ("dash_list", "deck", 2))
+        r = h({"t": "dash_get", "name": "deck"})
+        self.assertEqual((r["origin"], r["dashboard"]["title"]), ("mitgeliefert", "DECK"))
+        with self.assertRaises(ValueError):
+            h({"t": "dash_get", "name": "../x"})
+        r = h({"t": "dash_create", "from": "deck", "title": "Kopie"})
+        n = r["name"]
+        self.assertEqual((r["t"], n, r["origin"], r["dashboard"]["title"]),
+                         ("dash_created", "deck-eigen", "eigen", "Kopie"))
+        d = r["dashboard"]
+        d["background"] = "#000"
+        self.assertEqual(h({"t": "dash_save", "name": n, "dashboard": d})["t"], "dash_saved")
+        d["background"] = "rot"
+        with self.assertRaises(ValueError) as c:
+            h({"t": "dash_save", "name": n, "dashboard": d})
+        self.assertIn("background", str(c.exception))
+        with self.assertRaises(ValueError):
+            h({"t": "dash_save", "name": "deck", "dashboard": good()})
+        self.assertEqual(h({"t": "dash_default", "name": n})["default"], n)
+        r = h({"t": "dash_rename", "name": n, "to": "x1"})
+        self.assertEqual((r["name"], r["default"]), ("x1", "x1"))
+        r = h({"t": "dash_delete", "name": "x1"})
+        self.assertEqual((r["t"], r["default"]), ("dash_deleted", "deck"))
+        self.assertEqual(h({"t": "dash_schema"})["schema"]["types"].keys(), dashboard.schema()["types"].keys())
+        with self.assertRaises(ValueError):
+            h({"t": "dash_create", "from": 5})
+        with self.assertRaises(ValueError):
+            h({"t": "dash_unbekannt"})
+
+    def test_sensorliste(self):
+        out = dashboard.sensor_list({"b.x": 2.5, "a.y": 1}, {"a.y": {"name": "Alpha", "unit": "%"}})
+        self.assertEqual(out, [{"id": "a.y", "name": "Alpha", "unit": "%", "value": 1},
+                               {"id": "b.x", "name": "b.x", "unit": "", "value": 2.5}])
+
+    def test_mitgelieferte_im_repo(self):
+        m = dashboard.Dashboards(ROOT / "dashboards")
+        names = {x["name"] for x in m.list() if x["origin"] == "mitgeliefert"}
+        self.assertTrue({"deck", "mobro"} <= names)
+        self.assertEqual(m.get_default(), "deck")
+
+
+class SchemaTest(unittest.TestCase):
+    def test_vollstaendig(self):
+        s = json.loads(json.dumps(dashboard.schema()))                           # JSON-fähig
+        self.assertEqual(set(s["types"]), set(dashboard.TYPES))
+        self.assertEqual(set(s["fields"]), set(dashboard.CHECKS))
+        used = set()
+        for t, info in s["types"].items():
+            self.assertTrue(set(info["fields"]) <= set(s["fields"]), t)
+            self.assertTrue(set(info["required"]) <= set(info["fields"]) | {"sensor"}, t)
+            used |= set(info["fields"])
+        self.assertEqual(used | {"sensor"}, set(s["fields"]))
+        self.assertEqual(s["types"]["gauge"]["required"], ["x", "y", "w", "h", "sensor"])
+        self.assertEqual(s["types"]["text"]["required"], ["x", "y", "w", "h", "text"])
+        self.assertEqual(s["types"]["clock"]["required"], ["x", "y", "w", "h"])
+        self.assertEqual(s["fields"]["font"]["values"], ["sans", "mono", "head"])
+        self.assertEqual((s["fields"]["size"]["min"], s["fields"]["size"]["max"]), (4, 400))
+
+    def test_schema_und_pruefung_stimmen_ueberein(self):
+        # jede Grenze der Beschreibung ist gültig, knapp daneben ungültig
+        for k, sp in dashboard.SPEC.items():
+            if sp["kind"] not in ("number", "int"):
+                continue
+            chk = dashboard.CHECKS[k]
+            if "min" in sp:
+                self.assertTrue(chk(sp["min"]), k)
+                self.assertFalse(chk(sp["min"] - 1), k)
+            if "max" in sp:
+                self.assertTrue(chk(sp["max"]), k)
+                self.assertFalse(chk(sp["max"] + 1), k)
+            if "gt" in sp:
+                self.assertFalse(chk(sp["gt"]), k)
+
+    def test_group_feld(self):
+        d = good()
+        d["widgets"][0]["group"] = "cpu-1_a"
+        dashboard.validate(d)
+        for bad in ("", "A", "a b", "x" * 21, 5, None, "../x"):
+            d["widgets"][0]["group"] = bad
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                dashboard.validate(d)
+
+
 if __name__ == "__main__":
     unittest.main()

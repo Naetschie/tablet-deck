@@ -93,6 +93,7 @@ def load_json(path):
 class Bridge:
     def __init__(self, cfg):
         self.cfg = cfg
+        self.dashboards = dashboard.Dashboards(ROOT / "dashboards", cfg)   # cfg_path setzt main()
         self.profiles = Profiles(ROOT / cfg.get("profiles", "profiles"), ROOT / cfg.get("games", "games.json"),
                                  legacy_layout=ROOT / cfg.get("layout", "layout.json"))
         self.game = None       # laufendes Spiel (games.py)
@@ -340,6 +341,12 @@ class Bridge:
                             raise ValueError(f"KI-Vorlage fehlgeschlagen ({type(e).__name__})") from None
                         await ws.send(json.dumps({"t": "draft", "game": gi["id"], "template": "ki",
                                                   "layout": layout, "report": report, "source": source}))
+                    elif t == "dash_sensors":
+                        values, meta, sources = await self.stats.sample()
+                        await ws.send(json.dumps({"t": "dash_sensors", "sensors": dashboard.sensor_list(values, meta),
+                                                  "sources": sources}))
+                    elif isinstance(t, str) and t.startswith("dash_"):
+                        await ws.send(json.dumps(self.dashboards.handle(msg), ensure_ascii=False))
                     elif t == "delete":
                         self.profiles.delete(msg.get("game"), msg.get("panel"))
                         log.info("Editor: Panel %s/%s in den Papierkorb", msg.get("game"), msg.get("panel"))
@@ -676,9 +683,11 @@ class Bridge:
             name = path[len("/api/dashboards/"):] if path != "/api/dashboards" else None
             try:
                 if name is None:
-                    data = dashboard.list_dashboards(ROOT / "dashboards")
+                    data = self.dashboards.list()
                 else:
-                    data = dashboard.load(ROOT / "dashboards", name)
+                    if name == "default":       # gewählter Standard (Editor), sonst deck
+                        name = self.dashboards.get_default()
+                    data = self.dashboards.load(name)[0]
             except FileNotFoundError:
                 return connection.respond(404, "not found\n")
             except ValueError as e:
@@ -1293,6 +1302,7 @@ async def main():
     if cfg.get("log_file", "bridge.log") != "bridge.log":
         setup_logging(cfg.get("log_file"))
     bridge = Bridge(cfg)
+    bridge.dashboards.cfg_path = cfg_path
     port = int(cfg.get("port", 8765))
     host = cfg.get("host", "127.0.0.1")
     # /ws steuert Maus und Tastatur des PCs vollständig. Ohne Kopplung (docs/install.md, WLAN-Betrieb) nur lokal lauschen.

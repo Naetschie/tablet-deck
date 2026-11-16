@@ -24,7 +24,8 @@ APK = "android/build/tablet-deck.apk"
 
 # Ordner (an beliebiger Stelle im Pfad), die nie ins Paket gehören
 EXCLUDE_DIRS = {"secrets", "tls", "tools", "dist", "__pycache__", ".git", ".gradle", ".idea", ".vscode",
-                ".papierkorb", "graphify-out"}
+                ".papierkorb", "graphify-out",
+                "eigene"}   # dashboards/eigene/: eigene Dashboards bleiben beim Nutzer
 # Dateinamen-Muster (ohne Ordner, Groß-/Kleinschreibung egal)
 EXCLUDE_NAMES = ["*.key", "*.keystore", "*.log", "*.log.*", "*.pyc", "*.tmp", "bookmarks.json", "web_history.json",
                  "mapgenie_cache*", "sensors.json", "config.json", "launcher.json", "thumbs.db",

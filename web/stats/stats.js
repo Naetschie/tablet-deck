@@ -371,7 +371,7 @@ window.StatsView = (function () {
 (function () {
   if (typeof Hub === "undefined") return;       // z. B. in einer Testumgebung ohne Hub
   var stage = document.getElementById("stage"), msgEl = document.getElementById("msg");
-  var name = (/[?&]d=([a-z0-9_-]+)/.exec(location.search) || [0, "deck"])[1];
+  var name = (/[?&]d=([a-z0-9_-]+)/.exec(location.search) || [0, "default"])[1];   // "default": Standard-Dashboard des Hubs
   var view = null, values = {}, meta = {}, hist = {}, lastStats = 0;
 
   function say(text) { msgEl.textContent = text || ""; msgEl.hidden = !text; }
