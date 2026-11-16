@@ -14,8 +14,25 @@ Button-Felder:
   slider: Regler {"up": "KEY", "down": "KEY", "steps": 10} (steps 2-20); jede Stufe sendet einen Tipp auf up/down.
       Ohne key/macro/open/page/states, mode tap.
 
+  segment: Auswahlleiste [{"label": "ALLE", "key": "5"}, ...], 2-6 Teile nebeneinander; jeder Teil sendet seine
+      eigene Taste (kein gemerkter Zustand). Ohne key/macro/open/page/states/slider, mode tap, ohne hold.
+      Das Tablet schickt {"seg": Index}; label der Taste ist die optionale Überschrift.
+  mode double: gesicherte Taste - erst der zweite Tipp innerhalb von 400 ms löst aus (entscheidet das Tablet,
+      der Hub sieht nur den Tastendruck). Wie hold-confirm gedacht für style danger (zeigt Schloss und Warnstreifen).
+  look: nur Optik, Verhalten unverändert: switch (Kippschalter, zeigt nie An/Aus), big (großer Hauptknopf),
+      arrow (Pfeilsymbol, dazu dir: up | down | left | right | up2 | down2), pill (schmale Leiste).
+      Ohne look: normale Kachel. Nicht mit slider/states/segment kombinierbar.
+
 Seiten-Typen: grid (Tasten fließen nach Gruppen), shield (Zonen), free (Raster mit cols x rows Zellen,
-Standard 12 x 8; jede Taste mit x, y, w, h in Zellen).
+Standard 12 x 8, bis 24 x 16; jede Taste mit x, y, w, h in Zellen).
+Seiten-Feld section (optional, Text 1-20 Zeichen): Seitengruppe. Gibt es Abschnitte, zeigt das Tablet sie als
+obere Reiter und darunter die Seiten des gewählten Abschnitts; Seiten ohne section kommen unter "Weitere".
+
+Nicht-interaktive Elemente (nur auf free-Seiten, in buttons[], erkennbar an kind; ohne key/mode/...; sie zählen
+nicht als Tasten, der Hub kennt sie nicht):
+  {"kind": "frame", "id", "label" (Titel, optional, bis 40 Zeichen), "x", "y", "w", "h"} - Bereich mit Rahmen und
+      Titel oben; liegt hinter den Tasten.
+  {"kind": "text", "id", "label" (1-120 Zeichen), "x", "y", "w", "h", "align": left|center|right, "size": s|m|l}
 """
 import re
 import json
@@ -25,15 +42,25 @@ import time
 
 from . import keys
 
-MODES = {"tap", "hold-confirm", "toggle"}
+MODES = {"tap", "hold-confirm", "toggle", "double"}
 STYLES = {"", "accent", "danger"}
 PAGE_TYPES = {"grid", "shield", "free"}
-GRID_COLS, GRID_ROWS = (2, 16), (2, 12)   # erlaubte Rastergrößen freier Seiten
+GRID_COLS, GRID_ROWS = (2, 24), (2, 16)   # erlaubte Rastergrößen freier Seiten
 ZONES = {"front", "back", "left", "right", "top", "bottom", "reset"}
 MAX_MACRO = 50
 STATE_COUNT = (2, 6)
 STATE_LABEL_MAX = 20
 SLIDER_STEPS = (2, 20)
+SEGMENT_COUNT = (2, 6)
+LOOKS = {"switch", "big", "arrow", "pill"}
+ARROW_DIRS = {"up", "down", "left", "right", "up2", "down2"}
+KINDS = {"frame", "text"}
+KIND_FIELDS = {"frame": {"kind", "id", "label", "x", "y", "w", "h"},
+               "text": {"kind", "id", "label", "x", "y", "w", "h", "align", "size"}}
+KIND_LABEL_MAX = {"frame": 40, "text": 120}
+TEXT_ALIGN = {"left", "center", "right"}
+TEXT_SIZE = {"s", "m", "l"}
+SECTION_MAX = 20
 
 
 def _check_key(text, where):
@@ -65,6 +92,68 @@ def validate_states(b, where):
         _err(f"{where}: states braucht key an der Taste oder an jedem Zustand")
 
 
+def validate_segment(b, where):
+    sg = b["segment"]
+    if not isinstance(sg, list) or not SEGMENT_COUNT[0] <= len(sg) <= SEGMENT_COUNT[1]:
+        _err(f"{where}: segment muss eine Liste mit {SEGMENT_COUNT[0]}-{SEGMENT_COUNT[1]} Teilen sein")
+    for i, s in enumerate(sg):
+        w = f"{where}: Teil {i + 1}"
+        if not isinstance(s, dict) or set(s) != {"label", "key"}:
+            _err(f"{w} muss {{label, key}} sein")
+        if not isinstance(s["label"], str) or not 1 <= len(s["label"]) <= STATE_LABEL_MAX:
+            _err(f"{w}: label 1-{STATE_LABEL_MAX} Zeichen")
+        if not isinstance(s["key"], str) or not s["key"]:
+            _err(f"{w}: key braucht eine Taste")
+        _check_key(s["key"], w)
+    if any(k in b for k in ("macro", "open", "page", "states", "slider")) or b.get("key") not in (None, ""):
+        _err(f"{where}: segment ohne key/macro/open/page/states/slider")
+    if b.get("mode", "tap") != "tap" or b.get("hold"):
+        _err(f"{where}: segment nur mit mode tap, ohne hold")
+
+
+def validate_look(b, where):
+    look = b.get("look")
+    if "look" in b and look not in LOOKS:
+        _err(f"{where}: look muss {sorted(LOOKS)} sein")
+    if "look" in b and any(k in b for k in ("slider", "states", "segment")):
+        _err(f"{where}: look nicht mit slider/states/segment kombinierbar")
+    if look == "arrow":
+        if b.get("dir") not in ARROW_DIRS:
+            _err(f"{where}: look arrow braucht dir {sorted(ARROW_DIRS)}")
+    elif "dir" in b:
+        _err(f"{where}: dir nur mit look arrow")
+
+
+def validate_decor(b, where, ptype, cols, rows):
+    """frame/text (kind): nicht-interaktive Elemente, nur auf freien Seiten."""
+    kind = b["kind"]
+    if kind not in KINDS:
+        _err(f"{where}: kind muss {sorted(KINDS)} sein")
+    if ptype != "free":
+        _err(f"{where}: {kind} nur auf freien Seiten (type free)")
+    extra = set(b) - KIND_FIELDS[kind]
+    if extra:
+        _err(f"{where}: {kind} kennt kein Feld {sorted(extra)}")
+    lab, mx = b.get("label"), KIND_LABEL_MAX[kind]
+    if lab is None and kind == "frame":
+        lab = ""
+    if not isinstance(lab, str) or len(lab) > mx or (kind == "text" and not lab.strip()):
+        _err(f"{where}: label {0 if kind == 'frame' else 1}-{mx} Zeichen")
+    if kind == "text":
+        if b.get("align", "left") not in TEXT_ALIGN:
+            _err(f"{where}: align muss {sorted(TEXT_ALIGN)} sein")
+        if b.get("size", "m") not in TEXT_SIZE:
+            _err(f"{where}: size muss {sorted(TEXT_SIZE)} sein")
+    _check_cells(b, where, cols, rows)
+
+
+def _check_cells(b, where, cols, rows):
+    x, y, w, h = (b.get(k) for k in ("x", "y", "w", "h"))
+    if not all(type(v) is int for v in (x, y, w, h)) or not (
+            0 <= x and 0 <= y and w >= 1 and h >= 1 and x + w <= cols and y + h <= rows):
+        _err(f"{where}: x, y, w, h müssen ins Raster {cols}x{rows} passen")
+
+
 def validate_slider(b, where):
     sl = b["slider"]
     if not isinstance(sl, dict) or set(sl) != {"up", "down", "steps"}:
@@ -84,7 +173,14 @@ def validate_slider(b, where):
 def button_for_press(btn, msg):
     """Taste, die ein "down" vom Tablet auslöst (Snapshot-Vorlage), oder None.
     states: msg["state"] wählt den Tastendruck des Zustands (ungültig/ohne key: Taste selbst).
-    slider: msg["dir"] up/down wählt slider.up/down; ohne gültiges dir None."""
+    slider: msg["dir"] up/down wählt slider.up/down; ohne gültiges dir None.
+    segment: msg["seg"] (Index) wählt den Teil; ohne gültigen Index None."""
+    sg = btn.get("segment")
+    if isinstance(sg, list):
+        i = msg.get("seg")
+        if type(i) is int and 0 <= i < len(sg) and isinstance(sg[i], dict) and sg[i].get("key"):
+            return dict(btn, key=sg[i]["key"])
+        return None
     sl = btn.get("slider")
     if isinstance(sl, dict):
         d = msg.get("dir")
@@ -99,7 +195,10 @@ def button_for_press(btn, msg):
 
 
 def needed_keys(btn):
-    """Alle Tasten, die der Hub für diese Taste (slider/states) braucht; None bei anderen Tasten."""
+    """Alle Tasten, die der Hub für diese Taste (slider/states/segment) braucht; None bei anderen Tasten."""
+    sg = btn.get("segment")
+    if isinstance(sg, list):
+        return [s.get("key") if isinstance(s, dict) else None for s in sg]
     sl = btn.get("slider")
     if isinstance(sl, dict):
         return [sl.get("up"), sl.get("down")]
@@ -157,7 +256,7 @@ def validate_layout(layout):
     hold = layout.get("holdMs", 1000)
     if not isinstance(hold, int) or not 200 <= hold <= 5000:
         _err("holdMs muss 200-5000 sein")
-    buttons, page_ids, links = {}, set(), []
+    buttons, page_ids, links, decor_ids = {}, set(), [], set()
     for page in layout["pages"]:
         pid = page.get("id") if isinstance(page, dict) else None
         if not isinstance(pid, str) or not pid or pid in page_ids:
@@ -167,6 +266,9 @@ def validate_layout(layout):
             _err(f"Seite {pid}: title und buttons nötig")
         if page.get("type", "grid") not in PAGE_TYPES:
             _err(f"Seite {pid}: type muss grid, shield oder free sein")
+        if "section" in page and not (isinstance(page["section"], str) and page["section"].strip()
+                                      and len(page["section"]) <= SECTION_MAX):
+            _err(f"Seite {pid}: section 1-{SECTION_MAX} Zeichen")
         cols, rows = page.get("cols", 12), page.get("rows", 8)
         if page.get("type") == "free" and not (
                 type(cols) is int and GRID_COLS[0] <= cols <= GRID_COLS[1]
@@ -177,8 +279,12 @@ def validate_layout(layout):
             where = f"Taste {bid!r} (Seite {pid})"
             if not isinstance(bid, str) or not bid:
                 _err(f"Seite {pid}: Taste ohne id")
-            if bid in buttons:
+            if bid in buttons or bid in decor_ids:
                 _err(f"{where}: id doppelt")
+            if "kind" in b:
+                validate_decor(b, where, page.get("type"), cols, rows)
+                decor_ids.add(bid)
+                continue
             if not isinstance(b.get("label"), str):
                 _err(f"{where}: label fehlt")
             if b.get("mode", "tap") not in MODES:
@@ -196,6 +302,10 @@ def validate_layout(layout):
                 validate_states(b, where)
             if "slider" in b:
                 validate_slider(b, where)
+            if "segment" in b:
+                validate_segment(b, where)
+            if "look" in b or "dir" in b:
+                validate_look(b, where)
             if "macro" in b:
                 validate_macro(b["macro"], where)
             if "open" in b:
@@ -203,10 +313,7 @@ def validate_layout(layout):
             if page.get("type") == "shield" and b.get("zone") not in ZONES:
                 _err(f"{where}: zone muss {sorted(ZONES)} sein")
             if page.get("type") == "free":
-                x, y, w, h = (b.get(k) for k in ("x", "y", "w", "h"))
-                if not all(type(v) is int for v in (x, y, w, h)) or not (
-                        0 <= x and 0 <= y and w >= 1 and h >= 1 and x + w <= cols and y + h <= rows):
-                    _err(f"{where}: x, y, w, h müssen ins Raster {cols}x{rows} passen")
+                _check_cells(b, where, cols, rows)
             if "page" in b:
                 if not isinstance(b["page"], str) or any(k in b for k in ("key", "macro", "open")) \
                         or b.get("mode", "tap") != "tap" or b.get("hold"):

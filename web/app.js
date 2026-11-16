@@ -6,7 +6,7 @@
   var games = [], gameId = null, panelId = null;   // aktuelles Spiel/Panel (vom Hub: /api/games)
 
   var $ = function (s) { return document.querySelector(s); };
-  var tabsEl = $("#tabs"), pageEl = $("#page"), connEl = $("#conn"), lastEl = $("#last");
+  var tabsEl = $("#tabs"), sectionsEl = $("#sections"), pageEl = $("#page"), connEl = $("#conn"), lastEl = $("#last");
   var gameEl = $("#game"), panelsEl = $("#panels"), pickEl = $("#pick");
   function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   function stored(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -89,6 +89,25 @@
       st.startX = ev.clientX; st.moved = false;   // reiner Tipp ändert nichts
       return;
     }
+    if (b.segment) {   // Auswahlleiste: der berührte Teil sendet seine eigene Taste
+      var part = ev.target.closest("[data-seg]");
+      if (!part || !el.contains(part)) { delete active[ev.pointerId]; return; }
+      st.part = part; st.fired = true;
+      part.classList.add("down");
+      send({ t: "down", id: id, panel: st.panel, seg: parseInt(part.getAttribute("data-seg"), 10) });
+      showLast({ label: (b.label ? b.label + ": " : "") + part.getAttribute("data-label") });
+      return;
+    }
+    if (b.mode === "double") {   // gesichert: erst der zweite Tipp innerhalb DOUBLE_MS löst aus (entscheidet das Tablet)
+      var now = Date.now(), first = dbl[id];
+      if (!first || now - first.t > DOUBLE_MS) {
+        clearDouble(id);
+        el.classList.add("armed");
+        dbl[id] = { t: now, el: el, timer: setTimeout(function () { clearDouble(id); }, DOUBLE_MS) };
+        return;   // fired bleibt false: kein "up", nichts geht an den PC
+      }
+      clearDouble(id);
+    }
     el.classList.add("down");
     if (b.mode === "hold-confirm") {
       el.classList.remove("down");
@@ -109,8 +128,19 @@
         send({ t: "down", id: id, panel: st.panel, state: ni });
       } else send({ t: "down", id: id, panel: st.panel });
       showLast(b);
-      if (b.mode === "toggle") setToggle(el, id, !el.classList.contains("on"));
+      if (b.mode === "toggle" && b.look !== "switch") setToggle(el, id, !el.classList.contains("on"));
     }
+  }
+
+  // Doppeltipp-Sicherung (mode double): merkt den ersten Tipp je Taste kurz
+  var DOUBLE_MS = 400;
+  var dbl = {};   // id -> { t, el, timer }
+  function clearDouble(id) {
+    var d = dbl[id];
+    if (!d) return;
+    clearTimeout(d.timer);
+    d.el.classList.remove("armed");
+    delete dbl[id];
   }
 
   // Mehrfach-Schalter: Tipp schaltet reihum; der neue Zustand geht mit (state: Index)
@@ -188,14 +218,16 @@
     if (!st) return;
     delete active[ev.pointerId];
     clearTimeout(st.timer);
-    st.el.classList.remove("down", "arming");
+    var tgt = st.part || st.el;   // Auswahlleiste: nur der berührte Teil leuchtet
+    tgt.classList.remove("down", "arming");
     if (st.fired) send({ t: "up", id: st.id, panel: st.panel });
     // gleiche Taste noch von anderem Finger gehalten? Dann Markierung wieder setzen
-    for (var k in active) if (active[k].el === st.el && active[k].fired) st.el.classList.add("down");
+    for (var k in active) if ((active[k].part || active[k].el) === tgt && active[k].fired) tgt.classList.add("down");
   }
 
   function cancelAll() {
     for (var k in active) onUp({ pointerId: k });
+    for (var d in dbl) clearDouble(d);   // halbe Doppeltipps verfallen mit Seiten-/Panelwechsel
     sliderTarget = {};   // ausstehende Regler-Stufen nicht nach Seiten-/Panelwechsel weiter senden
   }
 
@@ -220,11 +252,36 @@
     return e;
   }
 
+  // Symbole (eigener Strich-Stil, 24er-Raster wie icons.svg); Pfeile zeigen nach oben und werden gedreht
+  var ICON_PATHS = {
+    chev: ["M6 15l6-6 6 6"],
+    chev2: ["M6 12l6-6 6 6", "M6 19l6-6 6 6"],
+    lock: ["M5 11h14v10H5z", "M8 11V8a4 4 0 0 1 8 0v3"]
+  };
+  var ARROW_ROT = { up: 0, up2: 0, right: 90, down: 180, down2: 180, left: 270 };
+  function icon(name, cls, rot) {
+    var s = svg("svg", { viewBox: "0 0 24 24", "class": "ic " + (cls || ""), "aria-hidden": "true" });
+    ICON_PATHS[name].forEach(function (d) { s.appendChild(svg("path", { d: d })); });
+    if (rot) s.style.transform = "rotate(" + rot + "deg)";
+    return s;
+  }
+
   function makeBtn(b, extra) {
     if (b.slider) return makeSlider(b, extra);
-    var e = h("div", "key btn " + (b.style || "") + " " + (extra || "") + (b.wide ? " wide" : ""));
+    if (b.segment) return makeSegment(b, extra);
+    var guarded = b.style === "danger" && (b.mode === "hold-confirm" || b.mode === "double");
+    var e = h("div", "key btn " + (b.style || "") + " " + (extra || "") + (b.wide ? " wide" : "") +
+      (b.look ? " look-" + b.look : "") + (guarded ? " guarded" : ""));
     e.setAttribute("data-id", b.id);
-    e.appendChild(h("span", "lbl", b.label));
+    if (b.look === "arrow") {
+      e.appendChild(icon(b.dir === "up2" || b.dir === "down2" ? "chev2" : "chev", "arrow", ARROW_ROT[b.dir] || 0));
+    } else if (b.look === "switch") {
+      var sw = h("span", "swtch");   // Kippschalter: zeigt nie An/Aus, leuchtet nur beim Drücken
+      sw.appendChild(h("span", "knob"));
+      e.appendChild(h("span", "lbl", b.label));
+      e.appendChild(sw);
+    }
+    if (b.look !== "switch" && (b.label || b.look !== "arrow")) e.appendChild(h("span", "lbl", b.label));
     if (b.states) {
       var row = h("span", "sub states");
       b.states.forEach(function (s) { row.appendChild(h("span", "st", s.label)); });
@@ -236,12 +293,35 @@
       e.appendChild(h("span", "hint", "HALTEN"));
       e.appendChild(h("span", "bar"));
     }
-    if (b.mode === "toggle") {
+    if (b.mode === "double") {
+      e.appendChild(h("span", "hint", "2× TIPPEN"));
+      e.appendChild(h("span", "again", "Nochmal tippen"));
+    }
+    if (guarded) e.appendChild(icon("lock", "lockic"));
+    if (b.mode === "toggle" && b.look !== "switch") {
       e.appendChild(h("span", "lamp"));
       var on = false;
       try { on = localStorage.getItem("toggle:" + b.id) === "1"; } catch (err) {}
       e.classList.toggle("on", on);
     }
+    return e;
+  }
+
+  // Auswahlleiste: Teile nebeneinander, jeder sendet seine Taste (kein Zustand)
+  function makeSegment(b, extra) {
+    var e = h("div", "seg " + (b.style || "") + " " + (extra || "") + (b.wide ? " wide" : ""));
+    e.setAttribute("data-id", b.id);
+    if (b.label) e.appendChild(h("span", "seglbl", b.label));
+    var row = h("div", "segrow");
+    b.segment.forEach(function (s, i) {
+      var part = h("div", "segp");
+      part.setAttribute("data-seg", String(i));
+      part.setAttribute("data-label", s.label);
+      part.appendChild(h("span", "lbl", s.label));
+      part.appendChild(h("span", "sub", keyText(s.key)));
+      row.appendChild(part);
+    });
+    e.appendChild(row);
     return e;
   }
 
@@ -328,7 +408,7 @@
       var grid = h("div", "grid");
       map[g].forEach(function (b) {
         var e = makeBtn(b);
-        if (b.slider) e.classList.add("wide");
+        if (b.slider || b.segment) e.classList.add("wide");
         grid.appendChild(e);
       });
       sec.appendChild(grid);
@@ -339,15 +419,31 @@
 
   // Freie Seite: Raster cols x rows, jede Taste über x, y, w, h (füllt die ganze Fläche)
   function renderFree(p) {
-    var root = h("div", "free");
-    root.style.gridTemplateColumns = "repeat(" + (p.cols || 12) + ", minmax(0, 1fr))";
-    root.style.gridTemplateRows = "repeat(" + (p.rows || 8) + ", minmax(0, 1fr))";
-    p.buttons.forEach(function (b) {
-      var e = makeBtn(b);
+    var cols = p.cols || 12, rows = p.rows || 8;
+    var root = h("div", "free" + (cols > 12 || rows > 8 ? " dense" : ""));   // feines Raster: engere Abstände
+    root.style.gridTemplateColumns = "repeat(" + cols + ", minmax(0, 1fr))";
+    root.style.gridTemplateRows = "repeat(" + rows + ", minmax(0, 1fr))";
+    function place(e, b) {
       e.style.gridColumn = (b.x + 1) + " / span " + b.w;
       e.style.gridRow = (b.y + 1) + " / span " + b.h;
       root.appendChild(e);
+    }
+    // Bereiche und Beschriftungen zuerst: sie liegen hinter den Tasten
+    p.buttons.forEach(function (b) {
+      if (b.kind === "frame") {
+        var f = h("div", "frame");
+        if (b.label) f.appendChild(h("span", "ftitle", b.label));
+        place(f, b);
+      }
     });
+    p.buttons.forEach(function (b) {
+      if (b.kind === "text") {
+        var t = h("div", "ftext s-" + (b.size || "m") + " a-" + (b.align || "left"));
+        t.appendChild(h("span", null, b.label));
+        place(t, b);
+      }
+    });
+    p.buttons.forEach(function (b) { if (!b.kind) place(makeBtn(b), b); });
     return root;
   }
 
@@ -356,8 +452,19 @@
     var p = layout.pages.filter(function (x) { return x.id === id; })[0] || layout.pages[0];
     pageId = p.id;
     store("page:" + gameId + "/" + panelId, p.id);
+    var sec = p.section || "";
+    lastInSection[sec] = p.id;
+    var sectioned = hasSections(), visible = 0;
     Array.prototype.forEach.call(tabsEl.children, function (t) {
+      var tp = pageById(t.getAttribute("data-page"));
+      var show = !sectioned || (tp && (tp.section || "") === sec);
+      t.style.display = show ? "" : "none";
+      if (show) visible++;
       t.classList.toggle("on", t.getAttribute("data-page") === p.id);
+    });
+    tabsEl.style.display = sectioned && visible < 2 ? "none" : "";   // eine Seite im Abschnitt: keine zweite Reihe
+    Array.prototype.forEach.call(sectionsEl.children, function (t) {
+      t.classList.toggle("on", t.getAttribute("data-sec") === sec);
     });
     pageEl.innerHTML = "";
     pageEl.classList.toggle("fill", p.type === "free" || p.type === "shield");
@@ -371,8 +478,32 @@
     });
   }
 
+  // Seitengruppen: Seiten mit section bilden die obere Reihe; Seiten ohne section stehen unter "Weitere"
+  var lastInSection = {};   // Abschnitt -> zuletzt gezeigte Seite
+  function pageById(id) { return layout.pages.filter(function (x) { return x.id === id; })[0]; }
+  function hasSections() { return layout.pages.some(function (x) { return x.section; }); }
+
   function renderTabs() {
     tabsEl.innerHTML = "";
+    sectionsEl.innerHTML = "";
+    lastInSection = {};
+    if (hasSections()) {
+      var seen = {};
+      layout.pages.forEach(function (p) {
+        var sec = p.section || "";
+        if (seen[sec]) return;
+        seen[sec] = true;
+        var t = h("button", null, sec || "Weitere");
+        t.setAttribute("data-sec", sec);
+        t.addEventListener("click", function () {
+          var target = pageById(lastInSection[sec]) ||
+            layout.pages.filter(function (x) { return (x.section || "") === sec; })[0];
+          if (target) showPage(target.id);
+        });
+        sectionsEl.appendChild(t);
+      });
+    }
+    sectionsEl.style.display = sectionsEl.children.length ? "" : "none";
     layout.pages.forEach(function (p) {
       var t = h("button", null, p.title);
       t.setAttribute("data-page", p.id);

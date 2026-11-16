@@ -39,7 +39,7 @@ class LayoutTest(unittest.TestCase):
             bad["pages"][0]["buttons"][0].pop("x", None) if "x" not in btn else None
             with self.subTest(btn=btn), self.assertRaises(ValueError):
                 validate_layout(bad)
-        for cols, rows in ((1, 8), (17, 8), (12, 13), (12, "8")):
+        for cols, rows in ((1, 8), (25, 8), (12, 17), (12, "8")):
             bad = json.loads(json.dumps(ok))
             bad["pages"][0].update(cols=cols, rows=rows)
             with self.subTest(cols=cols, rows=rows), self.assertRaises(ValueError):
