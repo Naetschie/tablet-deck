@@ -34,6 +34,7 @@ button { font: inherit; padding: 7px 14px; border-radius: 8px; border: 1px solid
   color: var(--bg); cursor: pointer; }
 button.ghost { background: transparent; color: var(--text); border-color: var(--line); }
 button.small { padding: 2px 8px; font-size: 12px; }
+button:disabled { opacity: .4; cursor: not-allowed; }
 button.del { border-color: var(--bad); color: var(--bad); background: transparent; }
 .props { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
 label { display: flex; flex-direction: column; gap: 4px; color: var(--dim); font-size: 12px; }
@@ -103,6 +104,10 @@ table.rep tr.fehlt td { color: var(--warn); }
 #dashOv .ov-group { fill: none; stroke: var(--ac); stroke-width: 1.5; vector-effect: non-scaling-stroke; pointer-events: none; }
 #dashOv .ov-guide { stroke: var(--warn); stroke-width: 1; vector-effect: non-scaling-stroke; pointer-events: none; }
 #dashOv .ov-handle { fill: var(--ac); stroke: var(--bg); stroke-width: 1; vector-effect: non-scaling-stroke; }
+#dashOv .ov-marquee { fill: var(--acSoft); stroke: var(--ac); stroke-width: 1; vector-effect: non-scaling-stroke; pointer-events: none; }
+#dashElems li.grp { font-weight: 600; background: transparent; }
+#dashElems li.grp .meta { font-weight: 400; }
+#dashElems li.ingroup { margin-left: 16px; }
 .banner { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid var(--warn); background: var(--warnSoft); border-radius: 8px; font-size: 13px; }
 .banner[hidden] { display: none; }
 .banner span { flex: 1; }

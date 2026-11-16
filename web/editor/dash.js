@@ -15,6 +15,8 @@
   var schema = null, list = [], defaultName = null;
   var cur = { name: null, origin: null };
   var doc = null, savedJson = "", hist = null, sel = [], primary = null;
+  var solo = false;           // genau ein Element innerhalb einer Gruppe gewählt (Doppelklick): Gruppe wird nicht erweitert
+  var marquee = null, lastDown = null;
   var grid = 8, active = false, wantName = null, pendingSave = null, loading = false;
   var sensors = [], sources = {}, sensorsAt = 0;
   var vstate = SV.createState(), mounted = null, scale = 1, drag = null, guides = [];
@@ -70,7 +72,7 @@
     doc = Lib.toEditable(dashboard);
     savedJson = saveText();
     hist = new Core.History(200); hist.push(snapshot());
-    sel = []; primary = null; guides = []; pendingSave = null; loading = false;
+    sel = []; primary = null; solo = false; guides = []; pendingSave = null; loading = false;
     try { sessionStorage.setItem("dashName", name); } catch (e) { /* ohne Speicher: Standard */ }
     $("dashErr").textContent = "";
     renderAll();
@@ -79,6 +81,7 @@
     doc = JSON.parse(text);
     sel = sel.filter(function (id) { return !!widgetById(id); });
     if (primary && sel.indexOf(primary) < 0) primary = null;
+    if (sel.length !== 1) solo = false;
   }
   // Änderung abschließen: Verlauf, Anzeige, Status
   function commit() {
@@ -86,14 +89,21 @@
     renderAll();
   }
   function setSel(ids, prim) {
+    solo = false;
     sel = Core.expandSelection(doc.widgets, ids);
     primary = prim && sel.indexOf(prim) >= 0 ? prim : (sel[0] || null);
   }
+  // Ein einzelnes Element innerhalb seiner Gruppe wählen (Eigenschaften, Größe, Verschieben nur dieses Elements)
+  function setSolo(id) {
+    sel = [id]; primary = id; solo = true;
+  }
+  function refreshSel() { renderOverlay(); renderElems(); renderProps(); renderToolbar(); }
 
   // ---------------------------------------------------------------- Nachrichten vom Hub
   function send(o) { api.send(o); }
   function onOpen() {
     if (!doc) loading = false;
+    pendingSave = null; updateStatus();      // Speichern über die alte Verbindung ist verloren
     send({ t: "dash_schema" }); send({ t: "dash_list" });
     if (active) poll();
   }
@@ -113,6 +123,7 @@
 
   function onMessage(m) {
     var t = m.t;
+    if (t === "error" && m.req === "dash_sensors") return true;     // Live-Werte: Fehler alle 2 s still ignorieren
     if (t === "error" && typeof m.req === "string" && m.req.indexOf("dash_") === 0) { onError(m); return true; }
     if (typeof t !== "string" || t.indexOf("dash_") !== 0) return false;
     if (t === "dash_schema") { schema = m.schema; renderPalette(); renderProps(); }
@@ -235,24 +246,42 @@
   function renderElems() {
     var ul = $("dashElems"); clear(ul);
     if (!doc) return;
-    for (var i = doc.widgets.length - 1; i >= 0; i--) {
-      (function (w) {
-        var li = h("li", { cls: sel.indexOf(w.id) >= 0 ? "sel" : "" }, [
-          h("span", { cls: "name", text: Lib.describe(w) }),
-          w.group ? h("span", { cls: "meta", text: w.group }) : null
+    Lib.listRows(doc.widgets).forEach(function (row) {
+      if (row.kind === "group") {
+        var gm = doc.widgets.filter(function (x) { return x.group === row.group; }).map(function (x) { return x.id; });
+        var gsel = gm.length && gm.every(function (i) { return sel.indexOf(i) >= 0; }) && !solo;
+        var gl = h("li", { cls: "grp" + (gsel ? " sel" : ""), title: "Gruppe wählen" }, [
+          h("span", { cls: "name", text: "Gruppe " + row.group }), h("span", { cls: "meta", text: row.count + " Elemente" })
         ]);
-        li.addEventListener("click", function () { setSel([w.id], w.id); renderOverlay(); renderElems(); renderProps(); renderToolbar(); });
-        ul.appendChild(li);
-      })(doc.widgets[i]);
-    }
+        gl.addEventListener("click", function () { setSel(gm, gm[0]); refreshSel(); });
+        ul.appendChild(gl);
+        return;
+      }
+      var w = row.w;
+      var li = h("li", { cls: (sel.indexOf(w.id) >= 0 ? "sel" : "") + (row.grouped ? " ingroup" : "") }, [
+        h("span", { cls: "name", text: Lib.describe(w) })
+      ]);
+      // Mitglied einer Gruppe: Klick wählt die Gruppe, Doppelklick das einzelne Element
+      li.addEventListener("click", function (e) {
+        if (e.detail >= 2 && w.group) setSolo(w.id); else setSel([w.id], w.id);
+        refreshSel();
+      });
+      ul.appendChild(li);
+    });
   }
 
   // ---------------------------------------------------------------- Werkzeugleiste
+  // Anordnen-Knöpfe: [Knopf-ID, Zustandsfeld von Lib.arrangeState]
+  var ARRANGE = [["dAlL", "align"], ["dAlC", "align"], ["dAlR", "align"], ["dAlT", "align"], ["dAlM", "align"], ["dAlB", "align"],
+    ["dDistH", "distribute"], ["dDistV", "distribute"], ["dSameW", "sameSize"], ["dSameH", "sameSize"],
+    ["dGroup", "group"], ["dUngroup", "ungroup"]];
   function renderToolbar() {
     var ro = readOnly(), has = !!doc, some = sel.length > 0;
     $("dUndo").disabled = !hist || !hist.canUndo() || ro;
     $("dRedo").disabled = !hist || !hist.canRedo() || ro;
     ["dDup", "dDel", "dFront", "dFwd", "dBack", "dBackAll"].forEach(function (id) { $(id).disabled = !has || !some || ro; });
+    var st = has && !ro ? Lib.arrangeState(doc.widgets, sel, solo) : {};
+    ARRANGE.forEach(function (a) { $(a[0]).disabled = !st[a[1]]; });
     $("dSave").disabled = !has || ro;
     $("dRevert").disabled = !has || ro;
     $("dGrid").value = String(grid);
@@ -267,7 +296,7 @@
     var src = Object.keys(sources).map(function (k) { return k + ": " + sources[k]; }).join(" · ");
     var live = sensorsAt ? sensors.length + " Sensoren live" + (src ? " (" + src + ")" : "") : "Live-Werte werden geladen …";
     p.textContent = doc.width + " × " + doc.height + " px · Raster " + (grid || "aus") + " · " + live +
-      " · Alt beim Ziehen: ohne Einrasten";
+      " · Alt beim Ziehen: ohne Einrasten · Umschalt/Strg-Klick oder Rahmen: mehrere wählen";
   }
 
   // ---------------------------------------------------------------- Vorschau und Bearbeitungsebene
@@ -309,10 +338,12 @@
     ov.setAttribute("viewBox", "0 0 " + doc.width + " " + doc.height);
     var picked = sel.map(widgetById).filter(Boolean);
     picked.forEach(function (w) { s("rect", { x: w.x, y: w.y, width: w.w, height: w.h, "class": "ov-frame" }, ov); });
-    if (picked.length > 1) {
+    if (picked.length > 1) {      // Rahmen um die ganze Auswahl (ohne Größen-Griffe)
       var b = Core.boundsOf(picked);
       s("rect", { x: b.x, y: b.y, width: b.w, height: b.h, "class": "ov-group" }, ov);
     }
+    if (marquee) s("rect", { x: Math.min(marquee.x, marquee.x + marquee.w), y: Math.min(marquee.y, marquee.y + marquee.h),
+      width: Math.abs(marquee.w), height: Math.abs(marquee.h), "class": "ov-marquee" }, ov);
     guides.forEach(function (g) {
       if (g.axis === "x") s("line", { x1: g.pos, x2: g.pos, y1: 0, y2: doc.height, "class": "ov-guide" }, ov);
       else s("line", { y1: g.pos, y2: g.pos, x1: 0, x2: doc.width, "class": "ov-guide" }, ov);
@@ -343,14 +374,28 @@
     e.preventDefault();
     var p = toDash(e), hd = e.target.getAttribute && e.target.getAttribute("data-h");
     var start = JSON.parse(JSON.stringify(doc.widgets));
+    var extra = e.shiftKey || e.ctrlKey || e.metaKey;
+    drag = null;
     if (hd && sel.length === 1) {
       drag = { mode: "resize", handle: hd, p: p, cx: e.clientX, cy: e.clientY, start: start, id: sel[0], moved: false };
     } else {
       var hit = Lib.hitTest(doc.widgets, p.x, p.y);
-      if (!hit) { if (sel.length) { setSel([]); renderAll(); } drag = null; return; }
-      if (sel.indexOf(hit.id) < 0) setSel([hit.id], hit.id); else primary = hit.id;
-      renderOverlay(); renderElems(); renderProps(); renderToolbar();
-      drag = { mode: "move", p: p, cx: e.clientX, cy: e.clientY, start: start, ids: sel.slice(), moved: false };
+      if (!hit) {          // freie Fläche: Rahmen aufziehen (mit Umschalt/Strg zur Auswahl hinzufügen)
+        drag = { mode: "marquee", p: p, cx: e.clientX, cy: e.clientY, base: extra ? sel.slice() : [], extra: extra, moved: false };
+      } else if (extra) {  // Umschalt-/Strg-Klick: Element samt Gruppe hinzufügen bzw. abwählen
+        sel = Core.toggleSelection(doc.widgets, solo ? [] : sel, [hit.id]); solo = false;
+        primary = sel.indexOf(hit.id) >= 0 ? hit.id : (sel[0] || null);
+        refreshSel(); lastDown = null; return;
+      } else {
+        var now = Date.now();
+        var dbl = lastDown && lastDown.id === hit.id && now - lastDown.t < 450 && Math.hypot(e.clientX - lastDown.x, e.clientY - lastDown.y) < 6;
+        lastDown = { id: hit.id, t: now, x: e.clientX, y: e.clientY };
+        if (dbl && hit.group) { setSolo(hit.id); lastDown = null; }     // Doppelklick: Einzelelement der Gruppe
+        else if (sel.indexOf(hit.id) < 0 || (solo && sel[0] !== hit.id)) setSel([hit.id], hit.id);
+        else primary = hit.id;
+        refreshSel();
+        drag = { mode: "move", p: p, cx: e.clientX, cy: e.clientY, start: start, ids: sel.slice(), solo: solo, moved: false };
+      }
     }
     try { $("dashOv").setPointerCapture(e.pointerId); } catch (x) { /* egal */ }
   }
@@ -358,18 +403,26 @@
     if (!doc) return;
     if (!drag) {
       var q = toDash(e), over = e.target.getAttribute && e.target.getAttribute("data-h");
-      $("dashOv").style.cursor = over ? "" : (Lib.hitTest(doc.widgets, q.x, q.y) ? "move" : "default");
+      $("dashOv").style.cursor = over ? "" : (Lib.hitTest(doc.widgets, q.x, q.y) ? "move" : "crosshair");
       return;
     }
     if (!drag.moved) {
       if (Math.hypot(e.clientX - drag.cx, e.clientY - drag.cy) < DRAG_PX) return;
-      if (readOnly()) { drag = null; ensureEditable(); return; }
+      if (readOnly() && drag.mode !== "marquee") { drag = null; ensureEditable(); return; }
       drag.moved = true;
     }
     var p = toDash(e), dx = p.x - drag.p.x, dy = p.y - drag.p.y;
+    if (drag.mode === "marquee") {
+      marquee = { x: drag.p.x, y: drag.p.y, w: dx, h: dy };
+      var hits = Core.selectInRect(doc.widgets, marquee);
+      var ids = drag.extra ? Core.expandSelection(doc.widgets, drag.base.concat(hits)) : hits;
+      solo = false; sel = ids; primary = sel[0] || null;
+      renderOverlay();
+      return;
+    }
     var step = e.altKey ? 0 : grid, thr = e.altKey ? 0 : SNAP_PX / scale, bounds = { w: doc.width, h: doc.height };
     if (drag.mode === "move") {
-      var r = Lib.snapMove(drag.start, drag.ids, dx, dy, step, thr, bounds);
+      var r = Lib.snapMove(drag.start, drag.ids, dx, dy, step, thr, bounds, drag.solo);
       doc.widgets = r.items; guides = r.guides;
     } else {
       var item = drag.start.filter(function (w) { return w.id === drag.id; })[0];
@@ -381,8 +434,11 @@
   }
   function onUp() {
     if (!drag) return;
-    var moved = drag.moved; drag = null; guides = [];
-    if (moved) commit(); else renderOverlay();
+    var d = drag, moved = d.moved; drag = null; guides = []; marquee = null;
+    if (d.mode === "marquee") {
+      if (!moved && !d.extra && sel.length) { setSel([]); }      // Klick ins Leere hebt die Auswahl auf
+      refreshSel();
+    } else if (moved) commit(); else renderOverlay();
   }
 
   // x/y/w/h der Auswahl in den Feldern nachführen (während des Ziehens)
@@ -404,16 +460,38 @@
     if (!schema) { box.appendChild(h("p", { cls: "dim", text: "Feldbeschreibung wird geladen …" })); return; }
     var ro = readOnly(), w = primaryWidget();
     if (!w) { renderDashProps(box, ro); return; }
+    if (sel.length > 1) { renderMultiProps(box, ro); return; }
     var spec = schema.types[w.type];
     var head = Lib.TYPE_LABELS[w.type] || w.type;
-    if (sel.length > 1) head += " (Auswahl: " + sel.length + " Elemente" + (w.group ? ", Gruppe " + w.group : "") + ")";
     box.appendChild(h("h2", { text: head }));
-    if (sel.length > 1) box.appendChild(h("p", { cls: "hint", text: "Eine Gruppe bewegt sich gemeinsam; die Felder gelten für das zuletzt angeklickte Element." }));
+    if (solo) box.appendChild(h("p", { cls: "hint", text: "Einzelnes Element der Gruppe " + w.group + " (Esc oder Klick daneben: Auswahl aufheben)." }));
     var req = spec ? spec.required : [];
-    var keys = spec ? spec.fields.slice() : [];
-    if (req.indexOf("sensor") >= 0 && keys.indexOf("sensor") < 0) keys.splice(Math.min(keys.length, 5), 0, "sensor");   // älterer Hub
+    var keys = Lib.fieldKeys(spec);
     keys.forEach(function (key) {
       var row = fieldRow(w, key, req.indexOf(key) >= 0, ro);
+      if (row) box.appendChild(row);
+    });
+  }
+
+  // Mehrfachauswahl: nur Felder, die alle gewählten Elemente haben; Ändern setzt den Wert bei allen.
+  // Das Proxy-Objekt leitet Lesen/Setzen/Entfernen an alle gewählten Widgets weiter (gleiche Feldbausteine wie einzeln).
+  function renderMultiProps(box, ro) {
+    var ws = sel.map(widgetById).filter(Boolean);
+    box.appendChild(h("h2", { text: sel.length + " Elemente ausgewählt" }));
+    var common = Lib.commonFields(ws, schema);
+    if (!common.length) {
+      box.appendChild(h("p", { cls: "hint", text: sel.length + " Elemente ausgewählt - die Arten haben keine gemeinsamen Felder. Verschieben, Ausrichten und Gruppieren gehen trotzdem." }));
+      return;
+    }
+    box.appendChild(h("p", { cls: "hint", text: "Gemeinsame Felder; eine Änderung gilt für alle " + sel.length + " Elemente. „verschieden“ = die Werte unterscheiden sich." }));
+    var ids = sel.slice();
+    var proxy = new Proxy({}, {
+      get: function (t, k) { var f = Lib.commonFields(ids.map(widgetById).filter(Boolean), schema).filter(function (c) { return c.key === k; })[0]; return f ? f.value : undefined; },
+      set: function (t, k, v) { doc.widgets = Lib.setField(doc.widgets, ids, k, v); return true; },
+      deleteProperty: function (t, k) { doc.widgets = Lib.setField(doc.widgets, ids, k, undefined); return true; }
+    });
+    common.forEach(function (c) {
+      var row = fieldRow(proxy, c.key, c.required, ro, c.mixed);
       if (row) box.appendChild(row);
     });
   }
@@ -450,8 +528,9 @@
   }
 
   // Text-/Zahl-Feld für ein Objekt (Widget oder Dashboard)
-  function simpleField(label, obj, key, sp, req, ro, after) {
+  function simpleField(label, obj, key, sp, req, ro, after, mixed) {
     var inp = h("input", { type: "text", autocomplete: "off", spellcheck: "false" });
+    if (mixed) inp.setAttribute("placeholder", "verschieden");
     if (sp.kind === "text" && sp.max_len) inp.setAttribute("maxlength", sp.max_len);
     inp.value = sp.kind === "number" || sp.kind === "int" ? fmt(obj[key]) : (obj[key] == null ? "" : obj[key]);
     inp.disabled = ro;
@@ -476,8 +555,9 @@
     return labelled(label, key, req, inp, null);
   }
 
-  function colorField(label, obj, key, sp, req, ro) {
+  function colorField(label, obj, key, sp, req, ro, mixed) {
     var txt = h("input", { type: "text", autocomplete: "off", spellcheck: "false", cls: "ctext" });
+    if (mixed) txt.setAttribute("placeholder", "verschieden");
     var pick = h("input", { type: "color", cls: "cpick" });
     txt.value = obj[key] == null ? "" : obj[key];
     pick.value = Lib.colorToPicker(obj[key]);
@@ -502,15 +582,17 @@
     return labelled(label, key, req, h("span", { cls: "crow" }, [pick, txt]), null, true);
   }
 
-  function selectField(label, w, key, sp, req, ro, options) {
+  function selectField(label, w, key, sp, req, ro, options, mixed) {
     var sel1 = h("select");
-    if (!req) sel1.appendChild(h("option", { value: "", text: "(Standard)" }));
+    if (mixed) sel1.appendChild(h("option", { value: "__mixed", text: "(verschieden)" }));
+    else if (!req) sel1.appendChild(h("option", { value: "", text: "(Standard)" }));
     options.forEach(function (o) { sel1.appendChild(h("option", { value: o[0], text: o[1] })); });
     var curv = w[key];
-    sel1.value = curv === undefined ? "" : (typeof curv === "boolean" ? (curv ? "1" : "0") : String(curv));
+    sel1.value = mixed ? "__mixed" : (curv === undefined ? "" : (typeof curv === "boolean" ? (curv ? "1" : "0") : String(curv)));
     sel1.disabled = ro;
     sel1.addEventListener("change", function () {
       var v = sel1.value;
+      if (v === "__mixed") return;
       if (v === "") delete w[key];
       else if (sp.kind === "bool") w[key] = v === "1";
       else w[key] = v;
@@ -590,16 +672,26 @@
     var box = h("div", { cls: "sensbox" }, [inp, q, ul]);
     return labelled(label, key, req, box, null, true);
   }
+  // Die Liste wird nur neu aufgebaut, wenn sich Suchtext, Auswahl oder die Menge der Treffer ändert; sonst werden
+  // nur die Werte nachgeführt (Scrollposition und Klicks bleiben erhalten).
   function renderSensorList() {
     if (!sensorPick) return;
-    var sp = sensorPick, ul = sp.ul; clear(ul);
-    if (!sensorsAt) { ul.appendChild(h("li", { cls: "dim", text: "Werte werden geladen …" })); return; }
+    var sp = sensorPick, ul = sp.ul;
+    if (!sensorsAt) { if (sp.sig !== "wait") { clear(ul); ul.appendChild(h("li", { cls: "dim", text: "Werte werden geladen …" })); sp.sig = "wait"; } return; }
     var found = Lib.filterSensors(sensors, sp.q.value, 80);
+    var sig = sp.q.value + "|" + sp.w[sp.key] + "|" + sp.ro + "|" + found.map(function (x) { return x.id + "/" + x.name; }).join(";");
+    if (sig === sp.sig && sp.vals) {
+      found.forEach(function (x) { var el = sp.vals[x.id]; var t = Lib.formatSensorValue(x); if (el && el.textContent !== t) el.textContent = t; });
+      return;
+    }
+    sp.sig = sig; sp.vals = {}; clear(ul);
     found.forEach(function (x) {
+      var val = h("span", { cls: "val", text: Lib.formatSensorValue(x) });
+      sp.vals[x.id] = val;
       var li = h("li", { cls: x.id === sp.w[sp.key] ? "sel" : "", title: x.id }, [
         h("span", { cls: "name", text: x.name !== x.id ? x.name : x.id }),
         h("span", { cls: "meta", text: x.name !== x.id ? x.id : "" }),
-        h("span", { cls: "val", text: Lib.formatSensorValue(x) })
+        val
       ]);
       if (!sp.ro) li.addEventListener("click", function () { sp.pick(x.id); });
       ul.appendChild(li);
@@ -607,16 +699,16 @@
     if (!found.length) ul.appendChild(h("li", { cls: "dim", text: sensors.length ? "Kein Treffer" : "Keine Sensoren verfügbar" }));
   }
 
-  function fieldRow(w, key, req, ro) {
+  function fieldRow(w, key, req, ro, mixed) {
     var sp = schema.fields[key];
     if (!sp) return null;
     var label = Lib.FIELD_LABELS[key] || key;
     switch (sp.kind) {
-      case "number": case "int": case "text": return simpleField(label, w, key, sp, req, ro);
-      case "color": return colorField(label, w, key, sp, req, ro);
+      case "number": case "int": case "text": return simpleField(label, w, key, sp, req, ro, null, mixed);
+      case "color": return colorField(label, w, key, sp, req, ro, mixed);
       case "sensor": return sensorField(label, w, key, sp, req, ro);
-      case "bool": return selectField(label, w, key, sp, req, ro, [["1", "Ja"], ["0", "Nein"]]);
-      case "enum": return selectField(label, w, key, sp, req, ro, sp.values.map(function (v) { return [v, Lib.ENUM_LABELS[v] || v]; }));
+      case "bool": return selectField(label, w, key, sp, req, ro, [["1", "Ja"], ["0", "Nein"]], mixed);
+      case "enum": return selectField(label, w, key, sp, req, ro, sp.values.map(function (v) { return [v, Lib.ENUM_LABELS[v] || v]; }), mixed);
       case "zones": return zonesField(label, w, key, sp, ro);
     }
     return null;
@@ -625,12 +717,12 @@
   // ---------------------------------------------------------------- Bearbeiten (Tastatur, Werkzeugleiste)
   function nudge(dx, dy) {
     if (!sel.length || !ensureEditable()) return;
-    doc.widgets = Core.move(doc.widgets, sel, dx, dy, { w: doc.width, h: doc.height });
+    doc.widgets = Core.move(doc.widgets, sel, dx, dy, { w: doc.width, h: doc.height }, solo);
     commit();
   }
   function removeSel() {
     if (!sel.length || !ensureEditable()) return;
-    var gone = {}; Core.expandSelection(doc.widgets, sel).forEach(function (i) { gone[i] = true; });
+    var gone = {}; (solo ? sel : Core.expandSelection(doc.widgets, sel)).forEach(function (i) { gone[i] = true; });
     doc.widgets = doc.widgets.filter(function (w) { return !gone[w.id]; });
     sel = []; primary = null;
     commit();
@@ -639,7 +731,11 @@
     if (!sel.length || !ensureEditable()) return;
     if (doc.widgets.length + sel.length > schema.max_widgets) { api.status("Höchstens " + schema.max_widgets + " Elemente", "err"); return; }
     var off = grid > 0 ? grid : 8;
-    var r = Core.duplicate(doc.widgets, sel, { x: off, y: off }, function (it, all) { return Lib.nextId(all); });
+    var src = doc.widgets;
+    if (solo) src = Lib.setField(src, sel, "group", undefined);       // Einzelelement: Kopie ohne die Gruppe
+    var r = Core.duplicate(src, sel, { x: off, y: off }, function (it, all) { return Lib.nextId(all); });
+    var orig = {}; doc.widgets.forEach(function (w) { orig[w.id] = w; });
+    r.items = r.items.map(function (w) { return orig[w.id] || w; });  // Originale unverändert (mit Gruppe)
     doc.widgets = Core.move(r.items, r.ids, 0, 0, { w: doc.width, h: doc.height });
     setSel(r.ids, r.ids[r.ids.length - 1]);
     commit();
@@ -648,6 +744,25 @@
     if (!sel.length || !ensureEditable()) return;
     doc.widgets = fn(doc.widgets, sel);
     commit();
+  }
+  // Anordnen: fn(items) -> neue Liste; ein Verlaufsschritt je Aktion
+  function arrange(fn, key) {
+    if (!doc || !sel.length || !ensureEditable()) return false;
+    if (!Lib.arrangeState(doc.widgets, sel, solo)[key]) return false;
+    doc.widgets = fn(doc.widgets);
+    commit();
+    return true;
+  }
+  function alignSel(mode) { arrange(function (it) { return Core.alignUnits(it, sel, mode, canvas(), solo); }, "align"); }
+  function distSel(axis) { arrange(function (it) { return Core.distributeUnits(it, sel, axis, solo); }, "distribute"); }
+  function sameSel(dim) { arrange(function (it) { return Core.sameSize(it, sel, dim); }, "sameSize"); }
+  function groupSel() {
+    if (arrange(function (it) { return Core.group(it, sel); }, "group")) { setSel(sel, primary); refreshSel(); }
+  }
+  function ungroupSel() {
+    arrange(function (it) {
+      return solo ? Lib.setField(it, sel, "group", undefined) : Core.ungroup(it, sel);
+    }, "ungroup");
   }
   function undo(redo) {
     if (!hist || readOnly()) return;
@@ -684,11 +799,13 @@
       if (k === "z" || k === "Z") undo(e.shiftKey);
       else if (k === "y" || k === "Y") undo(true);
       else if (k === "d" || k === "D") duplicateSel();
+      else if (k === "a" || k === "A") { setSel(doc.widgets.map(function (w) { return w.id; })); refreshSel(); }
+      else if (k === "g" || k === "G") { if (e.shiftKey) ungroupSel(); else groupSel(); }
       else if (k === "]") layer(e.shiftKey ? Core.toFront : Core.bringForward);
       else if (k === "[") layer(e.shiftKey ? Core.toBack : Core.sendBackward);
       else handled = false;
     } else if (k === "Delete") removeSel();
-    else if (k === "Escape") { if (sel.length) { setSel([]); renderAll(); } }
+    else if (k === "Escape") { if (sel.length) { setSel([]); refreshSel(); } }
     else if (k.indexOf("Arrow") === 0) {
       var d = e.shiftKey ? 10 : 1;
       nudge(k === "ArrowLeft" ? -d : k === "ArrowRight" ? d : 0, k === "ArrowUp" ? -d : k === "ArrowDown" ? d : 0);
@@ -733,6 +850,14 @@
     $("dFwd").onclick = function () { layer(Core.bringForward); };
     $("dBack").onclick = function () { layer(Core.sendBackward); };
     $("dBackAll").onclick = function () { layer(Core.toBack); };
+    var AR = { dAlL: ["a", "left"], dAlC: ["a", "hcenter"], dAlR: ["a", "right"], dAlT: ["a", "top"], dAlM: ["a", "vcenter"],
+      dAlB: ["a", "bottom"], dDistH: ["d", "x"], dDistV: ["d", "y"], dSameW: ["s", "w"], dSameH: ["s", "h"] };
+    Object.keys(AR).forEach(function (id) {
+      var a = AR[id];
+      $(id).onclick = function () { if (a[0] === "a") alignSel(a[1]); else if (a[0] === "d") distSel(a[1]); else sameSel(a[1]); };
+    });
+    $("dGroup").onclick = groupSel;
+    $("dUngroup").onclick = ungroupSel;
     $("dSave").onclick = save;
     $("dRevert").onclick = revert;
     $("dGrid").onchange = function () { grid = parseInt(this.value, 10) || 0; renderHint(); };
@@ -757,6 +882,8 @@
     return !isDirty() || confirm("Das Dashboard hat ungespeicherte Änderungen.\nTrotzdem den Reiter wechseln? (Die Änderungen bleiben hier erhalten.)");
   }
 
-  window.DashEditor = { init: init, onOpen: onOpen, onMessage: onMessage, activate: activate, deactivate: deactivate,
+  function onClose() { pendingSave = null; updateStatus(); }
+
+  window.DashEditor = { init: init, onOpen: onOpen, onClose: onClose, onMessage: onMessage, activate: activate, deactivate: deactivate,
     canLeave: canLeave, isDirty: isDirty, save: save };
 })();

@@ -73,6 +73,7 @@
       }
     };
     ws.onclose = function (ev) {
+      DashEditor.onClose();
       // laufende KI-Anfrage: Antwort geht verloren - Knopf wieder freigeben
       if ($("genAiRun").disabled) { $("genAiRun").disabled = false; $("genReport").textContent = "Verbindung unterbrochen – KI-Ergebnis verloren, bitte erneut erzeugen."; }
       if (ev.code === 4001) { status("Zugangstoken ungültig (Bridge neu gestartet?) – Editor neu über das Taskleisten-Symbol öffnen.", "err"); return; }

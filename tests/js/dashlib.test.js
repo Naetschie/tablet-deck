@@ -164,3 +164,61 @@ test("snapResize: bewegte Kanten rasten ein, Mindestgröße, Grenzen", () => {
   assert.equal(r.rect.x + r.rect.w, 203);
   assert.ok(r.guides.some((g) => g.axis === "x" && g.pos === 203));
 });
+
+test("commonFields: gemeinsame Felder, gleiche Werte, gemischte Werte", needSchema, () => {
+  const ws = [
+    { id: "a", type: "value", x: 0, y: 0, w: 1, h: 1, color: "#fff", size: 20, sensor: "cpu.load" },
+    { id: "b", type: "text", x: 0, y: 0, w: 1, h: 1, color: "#fff", size: 30, text: "x" }];
+  const f = L.commonFields(ws, schema), by = (k) => f.find((x) => x.key === k);
+  assert.ok(by("color") && by("size"));
+  assert.equal(by("color").mixed, false);
+  assert.equal(by("color").value, "#fff");
+  assert.equal(by("size").mixed, true);
+  assert.equal(by("size").value, undefined);
+  assert.equal(by("sensor"), undefined);        // nicht in beiden Arten und nur einzeln
+  assert.equal(by("text"), undefined);
+  assert.equal(by("x"), undefined);
+  assert.equal(by("group"), undefined);
+  assert.deepEqual(L.commonFields([], schema), []);
+});
+
+test("setField setzt bei den gewählten, undefined entfernt", () => {
+  const ws = [{ id: "a", color: "#111" }, { id: "b", color: "#222" }, { id: "c", color: "#333" }];
+  const r = L.setField(ws, ["a", "b"], "color", "#fff");
+  assert.deepEqual(r.map((w) => w.color), ["#fff", "#fff", "#333"]);
+  assert.equal(ws[0].color, "#111");
+  assert.equal("color" in L.setField(ws, ["c"], "color", undefined)[2], false);
+});
+
+test("arrangeState: Werkzeuge nur wenn sinnvoll", () => {
+  const R = (id, x, group) => Object.assign({ id, x, y: 0, w: 10, h: 10 }, group ? { group } : {});
+  const it = [R("a", 0, "g"), R("b", 20, "g"), R("c", 40), R("d", 60), R("e", 80)];
+  let s = L.arrangeState(it, [], false);
+  assert.deepEqual(s, { align: false, distribute: false, sameSize: false, group: false, ungroup: false });
+  s = L.arrangeState(it, ["c"], false);
+  assert.deepEqual(s, { align: true, distribute: false, sameSize: false, group: false, ungroup: false });
+  s = L.arrangeState(it, ["a"], false);                       // ganze Gruppe: eine Einheit
+  assert.deepEqual(s, { align: true, distribute: false, sameSize: false, group: false, ungroup: true });
+  s = L.arrangeState(it, ["c", "d", "e"], false);
+  assert.deepEqual(s, { align: true, distribute: true, sameSize: true, group: true, ungroup: false });
+  s = L.arrangeState(it, ["a", "c", "d"], false);             // Gruppe + 2 = 3 Einheiten, aber Größe nicht
+  assert.deepEqual(s, { align: true, distribute: true, sameSize: false, group: true, ungroup: true });
+  s = L.arrangeState(it, ["a"], true);                        // Einzelelement in der Gruppe
+  assert.deepEqual(s, { align: true, distribute: false, sameSize: false, group: false, ungroup: true });
+});
+
+test("listRows: Gruppenkopf vor den Mitgliedern, oben zuerst", () => {
+  const ws = [{ id: "a", group: "g" }, { id: "b" }, { id: "c", group: "g" }];
+  const rows = L.listRows(ws);
+  assert.deepEqual(rows.map((r) => r.kind === "group" ? "G:" + r.group + r.count : r.w.id), ["G:g2", "c", "a", "b"]);
+  assert.equal(rows[1].grouped, true);
+  assert.equal(rows[3].grouped, false);
+});
+
+test("snapMove exact: Einzelelement einer Gruppe bewegt nur sich", () => {
+  const items = [{ id: "a", x: 0, y: 0, w: 10, h: 10, group: "g" }, { id: "b", x: 50, y: 0, w: 10, h: 10, group: "g" }];
+  const r = L.snapMove(items, ["a"], 20, 0, 0, 0, null, true);
+  assert.deepEqual(r.items.map((i) => i.x), [20, 50]);
+  const g = L.snapMove(items, ["a"], 20, 0, 0, 0, null);
+  assert.deepEqual(g.items.map((i) => i.x), [20, 70]);
+});

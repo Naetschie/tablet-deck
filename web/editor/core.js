@@ -98,8 +98,9 @@
   // ---------------------------------------------------------------- Bewegen und Größe
   // Verschiebt die Auswahl (Gruppen gemeinsam) um dx/dy. bounds {w,h} (optional): die Auswahl bleibt als Ganzes
   // innerhalb der Fläche; die Verschiebung wird dafür begrenzt, die Anordnung untereinander bleibt erhalten.
-  function move(items, ids, dx, dy, bounds) {
-    var sel = toSet(expandSelection(items, ids)), moving = items.filter(function (it) { return sel[it.id]; });
+  // exact = true: nur genau diese Elemente (Gruppen nicht erweitern), z. B. ein Einzelelement innerhalb einer Gruppe.
+  function move(items, ids, dx, dy, bounds, exact) {
+    var sel = toSet(exact ? ids : expandSelection(items, ids)), moving = items.filter(function (it) { return sel[it.id]; });
     if (!moving.length) return items.map(copy);
     dx = num(dx, 0); dy = num(dy, 0);
     if (bounds) {
@@ -187,6 +188,83 @@
       }
       return c;
     });
+  }
+
+  // ---------------------------------------------------------------- Einheiten (Gruppen als Block)
+  // Zerlegt die Auswahl in Einheiten: eine Gruppe (auf alle Mitglieder erweitert) ist ein Block mit dem umgebenden
+  // Rechteck, ein Element ohne Gruppe steht für sich. exact = true: jedes gewählte Element zählt einzeln.
+  // Ergebnis: [{id, x, y, w, h, members: [ids]}] in Array-Reihenfolge des ersten Mitglieds.
+  function units(items, ids, exact) {
+    var sel = toSet(exact ? ids : expandSelection(items, ids)), out = [], byGroup = Object.create(null);
+    items.forEach(function (it) {
+      if (!sel[it.id]) return;
+      if (!exact && it.group) {
+        var u = byGroup[it.group];
+        if (!u) { u = byGroup[it.group] = { id: "group:" + it.group, members: [], items: [] }; out.push(u); }
+        u.members.push(it.id); u.items.push(it);
+      } else out.push({ id: it.id, members: [it.id], items: [it] });
+    });
+    return out.map(function (u) {
+      var b = boundsOf(u.items);
+      return { id: u.id, x: b.x, y: b.y, w: b.w, h: b.h, members: u.members };
+    });
+  }
+
+  // Wendet neue Positionen der Einheiten (gleiche Reihenfolge/IDs wie units) als Verschiebung der Mitglieder an.
+  function applyUnits(items, before, after) {
+    var d = Object.create(null);
+    before.forEach(function (u, i) {
+      u.members.forEach(function (m) { d[m] = { x: after[i].x - u.x, y: after[i].y - u.y }; });
+    });
+    return items.map(function (it) {
+      var c = copy(it);
+      if (it.id in d) { c.x = it.x + d[it.id].x; c.y = it.y + d[it.id].y; }
+      return c;
+    });
+  }
+
+  // Ausrichten mit Gruppen als Block. Mindestens 2 Einheiten: am Umgebenden der Auswahl; genau eine Einheit und
+  // bounds {w,h}: an der Fläche.
+  function alignUnits(items, ids, mode, bounds, exact) {
+    var us = units(items, ids, exact);
+    if (!us.length) return items.map(copy);
+    var moved;
+    if (us.length === 1) {
+      if (!bounds) return items.map(copy);
+      var u = us[0], c = copy(u);
+      if (mode === "left") c.x = 0;
+      else if (mode === "hcenter") c.x = (bounds.w - u.w) / 2;
+      else if (mode === "right") c.x = bounds.w - u.w;
+      else if (mode === "top") c.y = 0;
+      else if (mode === "vcenter") c.y = (bounds.h - u.h) / 2;
+      else if (mode === "bottom") c.y = bounds.h - u.h;
+      moved = [c];
+    } else {
+      var al = align(us, us.map(function (x) { return x.id; }), mode), m = Object.create(null);
+      al.forEach(function (x) { m[x.id] = x; });
+      moved = us.map(function (x) { return m[x.id]; });
+    }
+    return applyUnits(items, us, moved);
+  }
+
+  // Verteilen mit Gruppen als Block (ab 3 Einheiten).
+  function distributeUnits(items, ids, axis, exact) {
+    var us = units(items, ids, exact);
+    if (us.length < 3) return items.map(copy);
+    var di = distribute(us, us.map(function (x) { return x.id; }), axis), m = Object.create(null);
+    di.forEach(function (x) { m[x.id] = x; });
+    return applyUnits(items, us, us.map(function (x) { return m[x.id]; }));
+  }
+
+  // Auswahl aufnehmen/abwählen (Umschalt-/Strg-Klick): ids samt Gruppen; sind sie schon gewählt, werden sie
+  // entfernt, sonst ergänzt. Ergebnis: neue Auswahl (IDs, Array-Reihenfolge).
+  function toggleSelection(items, current, ids) {
+    var add = toSet(expandSelection(items, ids)), cur = toSet(current), allIn = true;
+    Object.keys(add).forEach(function (i) { if (!cur[i]) allIn = false; });
+    if (!Object.keys(add).length) return expandSelection(items, current);
+    return items.filter(function (it) {
+      return allIn ? (cur[it.id] && !add[it.id]) : (cur[it.id] || add[it.id]);
+    }).map(function (it) { return it.id; });
   }
 
   // ---------------------------------------------------------------- Ebenen (Reihenfolge im Array)
@@ -281,6 +359,7 @@
   return {
     snap: snap, snapRect: snapRect, boundsOf: boundsOf, move: move, resize: resize,
     align: align, distribute: distribute, sameSize: sameSize,
+    units: units, alignUnits: alignUnits, distributeUnits: distributeUnits, toggleSelection: toggleSelection,
     group: group, ungroup: ungroup, expandSelection: expandSelection,
     bringForward: bringForward, sendBackward: sendBackward, toFront: toFront, toBack: toBack,
     selectInRect: selectInRect, History: History, duplicate: duplicate

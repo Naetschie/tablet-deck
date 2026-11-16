@@ -206,8 +206,9 @@
 
   // Auswahl (auf Gruppen erweitert) um dx/dy verschieben; das Umgebende rastet an Raster und anderen Widgets ein.
   // Ergebnis {items, guides, dx, dy}.
-  function snapMove(items, ids, dx, dy, step, thr, bounds) {
-    var sel = Core.expandSelection(items, ids), mark = {};
+  // exact = true: Gruppen nicht erweitern (Einzelelement in einer Gruppe).
+  function snapMove(items, ids, dx, dy, step, thr, bounds, exact) {
+    var sel = exact ? ids : Core.expandSelection(items, ids), mark = {};
     sel.forEach(function (i) { mark[i] = true; });
     var moving = items.filter(function (it) { return mark[it.id]; });
     if (!moving.length) return { items: items.slice(), guides: [], dx: 0, dy: 0 };
@@ -215,7 +216,7 @@
     var r = Core.snapRect({ id: "__sel", x: b.x + dx, y: b.y + dy, w: b.w, h: b.h }, step,
       items.filter(function (it) { return !mark[it.id]; }), thr);
     var sx = r.rect.x - b.x, sy = r.rect.y - b.y;
-    return { items: Core.move(items, ids, sx, sy, bounds), guides: r.guides, dx: sx, dy: sy };
+    return { items: Core.move(items, ids, sx, sy, bounds, exact), guides: r.guides, dx: sx, dy: sy };
   }
 
   // Größe eines Widgets am Griff ändern (n, s, e, w, ne, …); bewegte Kanten rasten ein. Ergebnis {rect, guides}.
@@ -236,7 +237,83 @@
     return { rect: Core.resize(item, h, dx, dy, min || { w: 2, h: 2 }, bounds), guides: guides };
   }
 
+  // ---------------------------------------------------------------- Mehrfachauswahl
+  // Feldnamen einer Widget-Art in Anzeigereihenfolge (aus dash_schema.types[art]); ältere Hubs ohne "sensor" in
+  // der Feldliste bekommen ihn ergänzt, wenn er Pflicht ist.
+  function fieldKeys(spec) {
+    var keys = spec ? spec.fields.slice() : [], req = spec ? spec.required : [];
+    if (req.indexOf("sensor") >= 0 && keys.indexOf("sensor") < 0) keys.splice(Math.min(keys.length, 5), 0, "sensor");
+    return keys;
+  }
+  // Arten, die sich in der Mehrfachbearbeitung setzen lassen (Sensor und Zonen nur einzeln).
+  var MULTI_KINDS = ["number", "int", "text", "color", "bool", "enum"];
+  var NO_MULTI = ["x", "y", "w", "h", "group"];
+
+  // Gemeinsame Felder der Widgets: [{key, required, mixed, value}] - nur Felder, die jede gewählte Art hat (und die
+  // sich mehrfach setzen lassen). mixed = Werte unterscheiden sich (value dann undefined); Fehlen zählt als Wert.
+  function commonFields(widgets, schema) {
+    if (!widgets.length || !schema) return [];
+    var specs = widgets.map(function (w) { return schema.types[w.type]; });
+    if (specs.some(function (sp) { return !sp; })) return [];
+    var keys = fieldKeys(specs[0]).filter(function (k) {
+      if (NO_MULTI.indexOf(k) >= 0) return false;
+      var f = schema.fields[k];
+      if (!f || MULTI_KINDS.indexOf(f.kind) < 0) return false;
+      return specs.every(function (sp) { return fieldKeys(sp).indexOf(k) >= 0; });
+    });
+    return keys.map(function (k) {
+      var first = widgets[0][k], same = widgets.every(function (w) { return JSON.stringify(w[k]) === JSON.stringify(first); });
+      return { key: k, required: specs.every(function (sp) { return sp.required.indexOf(k) >= 0; }),
+        mixed: !same, value: same ? first : undefined };
+    });
+  }
+  // Setzt ein Feld bei den Widgets mit den IDs (value undefined: Feld entfernen). Neue Liste.
+  function setField(widgets, ids, key, value) {
+    var m = {};
+    ids.forEach(function (i) { m[i] = true; });
+    return widgets.map(function (w) {
+      var c = {}, k;
+      for (k in w) c[k] = w[k];
+      if (m[w.id]) { if (value === undefined) delete c[key]; else c[key] = value; }
+      return c;
+    });
+  }
+
+  // Welche Anordnen-Werkzeuge sinnvoll sind. solo = ein Einzelelement innerhalb einer Gruppe.
+  function arrangeState(items, ids, solo) {
+    var sel = solo ? ids.slice() : Core.expandSelection(items, ids), mark = {};
+    sel.forEach(function (i) { mark[i] = true; });
+    var chosen = items.filter(function (it) { return mark[it.id]; });
+    var us = Core.units(items, sel, solo);
+    var groups = Object.create(null), grouped = 0;
+    chosen.forEach(function (it) { if (it.group) { groups[it.group] = true; grouped++; } });
+    return {
+      align: us.length >= 1,                                       // eine Einheit: an der Fläche
+      distribute: us.length >= 3,
+      sameSize: chosen.length >= 2 && grouped === 0,               // Gruppen werden nicht skaliert
+      group: !solo && chosen.length >= 2 && !(Object.keys(groups).length === 1 && grouped === chosen.length),
+      ungroup: grouped > 0
+    };
+  }
+
+  // Zeilen der Elementliste (oben nach unten): vor dem ersten Mitglied einer Gruppe eine Kopfzeile, danach alle
+  // Mitglieder (eingerückt). [{kind: "group", group, count} | {kind: "item", w, grouped}]
+  function listRows(widgets) {
+    var rows = [], done = Object.create(null);
+    for (var i = widgets.length - 1; i >= 0; i--) {
+      var w = widgets[i];
+      if (!w.group) { rows.push({ kind: "item", w: w, grouped: false }); continue; }
+      if (done[w.group]) continue;
+      done[w.group] = true;
+      var mem = widgets.filter(function (x) { return x.group === w.group; }).reverse();
+      rows.push({ kind: "group", group: w.group, count: mem.length });
+      mem.forEach(function (x) { rows.push({ kind: "item", w: x, grouped: true }); });
+    }
+    return rows;
+  }
+
   return {
+    fieldKeys: fieldKeys, commonFields: commonFields, setField: setField, arrangeState: arrangeState, listRows: listRows,
     TYPE_LABELS: TYPE_LABELS, FIELD_LABELS: FIELD_LABELS, ENUM_LABELS: ENUM_LABELS, FIELD_HINTS: FIELD_HINTS,
     TYPE_DEFAULTS: TYPE_DEFAULTS, fitScale: fitScale, toEditable: toEditable, toSave: toSave, nextId: nextId,
     newWidget: newWidget, hitTest: hitTest, describe: describe, fieldError: fieldError, parseInput: parseInput,

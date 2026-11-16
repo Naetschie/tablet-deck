@@ -300,3 +300,50 @@ test("Review: zweimal duplizieren ergibt verschiedene IDs, zwei Gruppen bleiben 
   assert.strictEqual(groups.size, 2);
   assert.ok(!groups.has("g1") && !groups.has("g2"));
 });
+
+test("units: Gruppe als ein Block, exact zerlegt", () => {
+  const it = [R("a", 0, 0, 10, 10, { group: "g1" }), R("b", 50, 0, 10, 10), R("c", 20, 30, 10, 10, { group: "g1" })];
+  const u = C.units(it, ["a", "b"]);
+  assert.equal(u.length, 2);
+  assert.deepEqual(u[0].members, ["a", "c"]);
+  assert.deepEqual([u[0].x, u[0].y, u[0].w, u[0].h], [0, 0, 30, 40]);
+  assert.equal(C.units(it, ["a", "b"], true).length, 2);
+  assert.deepEqual(C.units(it, ["a"], true)[0].members, ["a"]);
+});
+
+test("alignUnits: Gruppe bleibt zusammen, eine Einheit richtet sich an der Fläche aus", () => {
+  const it = [R("a", 10, 0, 10, 10, { group: "g1" }), R("c", 30, 20, 10, 10, { group: "g1" }), R("b", 100, 50, 20, 20)];
+  const r = C.alignUnits(it, ["a", "b"], "left");
+  assert.deepEqual([byId(r, "a").x, byId(r, "c").x, byId(r, "b").x], [10, 30, 10]);
+  assert.equal(byId(r, "c").y, 20);
+  const s = C.alignUnits(it, ["a"], "right", { w: 200, h: 100 });
+  assert.deepEqual([byId(s, "a").x, byId(s, "c").x], [170, 190]);        // Gruppe 10..40 -> bis 200
+  const m = C.alignUnits(it, ["b"], "vcenter", { w: 200, h: 100 });
+  assert.equal(byId(m, "b").y, 40);
+  assert.deepEqual(C.alignUnits(it, ["b"], "left"), it);                 // ohne Fläche und mit einer Einheit: nichts
+  const one = C.alignUnits(it, ["a"], "left", { w: 200, h: 100 }, true);  // exact: nur a
+  assert.deepEqual([byId(one, "a").x, byId(one, "c").x], [0, 30]);
+});
+
+test("distributeUnits: Gruppen zählen als Block, ab drei Einheiten", () => {
+  const it = [R("a", 0, 0, 10, 10, { group: "g" }), R("a2", 10, 0, 10, 10, { group: "g" }),
+    R("b", 30, 0, 10, 10), R("c", 100, 0, 10, 10)];
+  const r = C.distributeUnits(it, ["a", "b", "c"], "x");
+  // Einheiten: g (0..20), b (10 breit), c (10 breit) in 0..110: Lücke (110-40)/2 = 35
+  assert.deepEqual([byId(r, "a").x, byId(r, "a2").x, byId(r, "b").x, byId(r, "c").x], [0, 10, 55, 100]);
+  assert.deepEqual(C.distributeUnits(it, ["b", "c"], "x"), it);
+});
+
+test("toggleSelection: ergänzt und entfernt samt Gruppe", () => {
+  const it = [R("a", 0, 0, 5, 5, { group: "g" }), R("b", 9, 0, 5, 5, { group: "g" }), R("c", 20, 0, 5, 5)];
+  assert.deepEqual(C.toggleSelection(it, ["c"], ["a"]), ["a", "b", "c"]);
+  assert.deepEqual(C.toggleSelection(it, ["a", "b", "c"], ["b"]), ["c"]);
+  assert.deepEqual(C.toggleSelection(it, [], ["c"]), ["c"]);
+});
+
+test("move exact verschiebt nur das Einzelelement einer Gruppe", () => {
+  const it = [R("a", 0, 0, 5, 5, { group: "g" }), R("b", 9, 0, 5, 5, { group: "g" })];
+  const r = C.move(it, ["a"], 3, 0, null, true);
+  assert.deepEqual([byId(r, "a").x, byId(r, "b").x], [3, 9]);
+  assert.deepEqual([byId(C.move(it, ["a"], 3, 0), "b").x], [12]);
+});
