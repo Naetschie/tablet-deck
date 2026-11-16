@@ -9,8 +9,10 @@ Panels strengere Regeln - ein Panel aus fremder Hand darf am PC nichts tun, was 
 Spiel hinausgeht. Die Windows-Taste kennt das Panel ohnehin nicht (bridge/keys.py).
 - kein "open" (Programme, Pfade oder Webseiten am PC öffnen): das trägt jeder nur für sich selbst ein
 - keine Systemkürzel: Esc mit Zusatztaste (Startmenü, Task-Manager), Alt+F4, Alt+Tab, Alt+Leertaste
-- Makros dürfen nichts "tippen": höchstens 12 Schritte, ein "text"-Schritt, zwei einzelne Zeichentasten ohne
-  Zusatztaste und zwei Enter - sonst ließe sich z. B. ein Befehl Buchstabe für Buchstabe eingeben
+- keine Taste, die nur Zusatztasten hält oder umschaltet (hold/toggle mit z. B. nur LCTRL): zusammen mit einer
+  zweiten Taste ergäbe sie sonst doch ein Systemkürzel
+- Makros dürfen nichts "tippen": höchstens 12 Schritte, ein "text"-Schritt, zwei einzelne Zeichentasten (auch
+  mit Shift) und zwei Enter - sonst ließe sich z. B. ein Befehl Buchstabe für Buchstabe eingeben
 - "text" höchstens 60 Zeichen, nur Buchstaben, Ziffern, Leerzeichen und harmlose Satzzeichen, ohne typische
   Befehlsnamen (cmd, powershell, curl, …) - Chat-Grüße wie "o7" gehen, Befehle nicht
 Das ist eine Hürde, keine Garantie: Jeder Beitrag wird zusätzlich von Hand geprüft (CONTRIBUTING.md).
@@ -34,8 +36,11 @@ OK_TEXT = re.compile(r"[A-Za-z0-9ÄÖÜäöüß .,!?:;+\-#*=()]+")
 # typische Befehle/Programme: auch ohne Sonderzeichen gefährlich, wenn eine Kommandozeile den Fokus hat
 BAD_WORDS = re.compile(r"(?i)(cmd|powershell|pwsh|iex|irm|iwr|invoke|curl|wget|bitsadmin|certutil|mshta|"
                        r"rundll32|regsvr32|wscript|cscript|msiexec|schtasks|taskkill|shutdown|notepad|explorer|"
-                       r"\b(?:reg|start|del|erase|rmdir|rd|format|net|sc|bash|sh|python|py|node|run)\b)")
+                       r"wmic|mstsc|attrib|robocopy|xcopy|"
+                       r"\b(?:reg|start|del|erase|rmdir|rd|format|net|sc|bash|sh|python|py|node|run|ping|copy|move|"
+                       r"ren|calc|ftp|tftp|ssh)\b)")
 MODIFIERS = {"LCTRL", "RCTRL", "LALT", "RALT", "LSHIFT", "RSHIFT"}
+SHIFT = {"LSHIFT", "RSHIFT"}
 ALT = {"LALT", "RALT"}
 ENTER = {"ENTER", "NUMPADENTER"}
 # Tasten, die ohne Zusatztaste ein Zeichen tippen (Buchstaben, Ziffern, Satzzeichen, Leertaste)
@@ -54,6 +59,17 @@ def _walk(obj, path=""):
     elif isinstance(obj, list):
         for i, v in enumerate(obj):
             yield from _walk(v, f"{path}[{i}]")
+
+
+def _objects(obj, path=""):
+    """Alle dicts (auch Listenelemente wie Buttons) mit ihrem Pfad."""
+    if isinstance(obj, dict):
+        yield path, obj
+        for k, v in obj.items():
+            yield from _objects(v, f"{path}.{k}" if path else str(k))
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            yield from _objects(v, f"{path}[{i}]")
 
 
 def _names(combo):
@@ -85,9 +101,10 @@ def _macro_rules(where, steps):
         k = st.get("key")
         if isinstance(k, str):
             n = _names(k)
-            if not set(n) & MODIFIERS and len(n) == 1:
-                typing += n[0] in TYPING
-                enters += n[0] in ENTER
+            base = [x for x in n if x not in SHIFT]            # Shift tippt ebenfalls (Großbuchstaben)
+            if len(base) == 1 and not set(n) & (MODIFIERS - SHIFT):
+                typing += base[0] in TYPING
+                enters += base[0] in ENTER
     if texts > 1:
         errs.append(f"{where}: Makro mit mehr als einem text-Schritt")
     if typing > MAX_TYPING_KEYS:
@@ -118,6 +135,13 @@ def community_rules(data):
                             "enthalten")
             elif BAD_WORDS.search(v):
                 errs.append(f"{here}: text enthält einen Befehlsnamen ({BAD_WORDS.search(v).group(0)})")
+    for where, o in _objects(data):
+        k = o.get("key")
+        if isinstance(k, str) and (o.get("hold") or o.get("mode") == "toggle"):
+            n = _names(k)
+            if n and set(n) <= MODIFIERS:
+                errs.append(f"{where or '(oben)'}: Taste hält/schaltet nur Zusatztasten ({k}) - mit einer zweiten "
+                            "Taste ergäbe das ein Systemkürzel")
     return errs
 
 

@@ -54,6 +54,17 @@ class CommunityRulesTest(unittest.TestCase):
         ok = [{"key": "LALT+1"}, {"wait": 200}, {"key": "F"}, {"key": "LSHIFT+G"}, {"media": "playpause"}]
         self.assertEqual(cc.community_rules(panel({"id": "a", "label": "A", "macro": ok})), [])
 
+    def test_zusatztaste_halten_und_shift_tippen(self):
+        for b in ({"id": "a", "label": "Strg", "key": "LCTRL", "hold": True},
+                  {"id": "a", "label": "Alt", "key": "LALT", "mode": "toggle"},
+                  {"id": "a", "label": "x", "key": "CTRL+SHIFT", "hold": True}):
+            self.assertTrue(cc.community_rules(panel(b)), b)
+        self.assertEqual(cc.community_rules(panel({"id": "a", "label": "Boost", "key": "LSHIFT"})), [])   # Tipp
+        self.assertEqual(cc.community_rules(panel({"id": "a", "label": "Feuer", "key": "F", "hold": True})), [])
+        shifted = [{"key": f"SHIFT+{c}"} for c in "CMD"]
+        self.assertTrue(cc.community_rules(panel({"id": "a", "label": "A", "macro": shifted})))
+        self.assertTrue(cc.community_rules(panel({"id": "a", "label": "A", "macro": [{"text": "ping x"}]})))
+
     def test_eingecheckte_dateien_sind_sauber(self):
         self.assertEqual(cc.main([]), 0)
 

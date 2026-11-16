@@ -13,13 +13,20 @@ der Hub prüft – Programmieren ist dafür nicht nötig.
 4. Prüfen: `python scripts/check_contrib.py profiles/<spiel-id>/<panel>.json`
 
 ### Was in beigetragenen Panels nicht erlaubt ist
-Ein Panel aus fremder Hand darf am PC nichts tun, was über Tastendrücke im Spiel hinausgeht:
+Ein Panel sendet Tastendrücke an das Fenster, das am PC gerade vorn ist – normalerweise das Spiel. Damit ein
+Panel aus fremder Hand dabei möglichst wenig anrichten kann:
 - **kein `open`** (Programme, Pfade oder Webseiten öffnen) – das trägt jeder nur für sich selbst ein
-- **`text` in Makros** nur kurz (höchstens 60 Zeichen), nur Buchstaben, Ziffern, Leerzeichen und harmlose
-  Satzzeichen, keine Befehlsnamen. Chat-Grüße wie „o7“ gehen, Befehle nicht.
+- **keine Systemkürzel** (Esc mit Zusatztaste, Alt+F4, Alt+Tab, Alt+Leertaste) und keine Taste, die nur
+  Strg/Alt/Shift hält oder umschaltet
+- **Makros tippen nichts:** höchstens 12 Schritte, ein `text`-Schritt, zwei einzelne Zeichentasten, zweimal
+  Enter; `text` höchstens 60 Zeichen, nur Buchstaben, Ziffern, Leerzeichen und harmlose Satzzeichen, keine
+  Befehlsnamen. Chat-Grüße wie „o7“ gehen, Befehle nicht.
 
-Die Prüfung läuft bei jedem Pull Request automatisch. Sie ist eine Hürde, keine Garantie: **Jeder Beitrag
-wird zusätzlich von Hand gelesen**, bevor er übernommen wird.
+Die Prüfung läuft bei jedem Pull Request automatisch. Sie ist eine Hürde, keine Garantie: Mehrere Tasten, die
+der Nutzer nacheinander drückt, können zusammen mehr bewirken als jede einzeln, und hat ein anderes Fenster
+den Fokus (Explorer, Browser), wirken auch gewöhnliche Kürzel wie Strg+L oder Entf dort. Ein Pull Request kann
+außerdem Code und die Prüfung selbst ändern. **Deshalb wird jeder Beitrag von Hand gelesen**, besonders
+Makros, `hold`/`toggle` und alles außerhalb von `profiles/` und `dashboards/`.
 
 ## Dashboard für die PC-Werte
 Dateien unter `dashboards/<name>.json`, Aufbau und Widget-Arten in [docs/sensors.md](docs/sensors.md).
