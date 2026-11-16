@@ -99,6 +99,8 @@ def convert(items):
         meta[it["id"]] = {"name": it.get("name") if isinstance(it.get("name"), str) else it["id"],
                           "unit": it.get("unit") if isinstance(it.get("unit"), str) else "",
                           "min": _num(it.get("min")), "max": _num(it.get("max"))}
+        if isinstance(it.get("group"), str) and it["group"]:
+            meta[it["id"]]["group"] = it["group"][:80]     # Bauteil der Rohwerte (lhm.*), Gruppe im Editor
     return values, meta
 
 

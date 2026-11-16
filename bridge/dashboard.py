@@ -437,6 +437,8 @@ def sensor_list(values, meta):
     for i in sorted(values):
         m = meta.get(i) or {}
         item = {"id": i, "name": m.get("name", i), "unit": m.get("unit", ""), "value": values[i]}
+        if isinstance(m.get("group"), str):
+            item["group"] = m["group"]
         for k in ("min", "max"):
             if _num(m.get(k)):
                 item[k] = m[k]

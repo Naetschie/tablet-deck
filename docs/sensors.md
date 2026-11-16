@@ -113,6 +113,16 @@ ohne dass `sensors.json` gepflegt werden muss. Quelle der LHM-Namen: der LibreHa
 
 Eigene Einträge in `sensors.json` gewinnen immer gegen erzeugte IDs.
 
+## Alle Werte (`lhm.*`)
+Zusätzlich zu den festen IDs gibt der Helfer **jeden** Rohwert von LibreHardwareMonitor weiter (höchstens 600). Die
+ID entsteht aus dem LHM-Pfad: `/intelcpu/0/temperature/3` → `lhm.intelcpu.0.temperature.3` (Zeichen außer
+`a-z0-9_` werden zu `_`, zu lange Pfade bekommen eine Prüfsumme; höchstens 64 Zeichen). Der Pfad ist in LHM stabil
+(Bauteil, Index, Typ, Nummer). Name und Einheit kommen von LHM, dazu das Bauteil als Gruppe.
+
+Im Dashboard-Editor stehen sie in der Sensor-Auswahl unter **„Alle Werte · <Bauteil>“** hinter den festen Gruppen.
+Für Dashboards, die man weitergibt, sind die festen IDs besser (gleich auf jedem PC); `lhm.*` passt, wenn ein Wert
+nur hier gebraucht wird (z. B. eine bestimmte SSD-Temperatur). Ohne Adminrechte fehlen CPU- und Mainboard-Werte.
+
 ## Zuordnung (`sensors.json`)
 
 Die eingebauten Zuordnungen stehen in `bridge/sensors/mapping.py`. Eine eigene `sensors.json` neben

@@ -63,6 +63,7 @@ class LhmSource(Adapter):
         return out
 
     def _walk(self, hw, out):
+        hw_name = str(getattr(hw, "Name", "") or "")
         try:
             hw.Update()
         except Exception:  # noqa: BLE001 - ein Baustein hakt: die übrigen trotzdem lesen
@@ -76,6 +77,6 @@ class LhmSource(Adapter):
             # CPU-Leistung (RAPL) meldet LHM ohne Admin als 0 W statt leer: lieber kein Wert als ein falscher
             if not self.admin and kind == "Power" and "cpu" in ident.split("/power/")[0].lower():
                 continue
-            out.append(Raw(self.name, ident, str(s.Name), float(v), UNITS.get(kind, ""), kind))
+            out.append(Raw(self.name, ident, str(s.Name), float(v), UNITS.get(kind, ""), kind, hw_name))
         for sub in hw.SubHardware:
             self._walk(sub, out)

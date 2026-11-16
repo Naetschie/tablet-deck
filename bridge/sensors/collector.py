@@ -9,7 +9,7 @@ import threading
 import time
 
 from . import Unavailable
-from .mapping import resolve
+from .mapping import raw_items, resolve
 
 log = logging.getLogger("sensors")
 
@@ -99,6 +99,7 @@ class Collector:
             raws.extend(self._read(st))
         try:
             values = resolve(self.mapping, raws)
+            values += raw_items(raws)       # zusätzlich alle Rohwerte (lhm.*) für „Alle Werte“ im Editor
         except Exception as e:  # noqa: BLE001 - kaputte Zuordnung darf den Dienst nicht beenden
             if self._logged != repr(e):
                 self._logged = repr(e)

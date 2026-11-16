@@ -19,6 +19,7 @@ class Raw:
     value: float
     unit: str = ""
     kind: str = ""      # Sensortyp, z. B. bei LHM „Temperature“, „Fan“, „Voltage“
+    hw: str = ""        # Bauteil, z. B. „Intel Core i7-12700K“ (LHM), für die Gruppierung im Editor
 
 
 class Unavailable(Exception):

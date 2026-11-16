@@ -1057,5 +1057,42 @@ class ServerTest(unittest.TestCase):
             self.assertEqual(load_or_create_token(p), token)    # bleibt über Neustarts gleich
 
 
+class RawItemsTest(unittest.TestCase):
+    """Alle LHM-Rohwerte als lhm.*-IDs (Auswahl „Alle Werte“ im Dashboard-Editor)."""
+
+    def test_ids_gueltig_und_stabil(self):
+        from bridge.sensors.mapping import raw_id
+        from bridge.dashboard import SENSOR_ID
+        self.assertEqual(raw_id("lhm", "/intelcpu/0/temperature/3"), "lhm.intelcpu.0.temperature.3")
+        self.assertEqual(raw_id("lhm", "/gpu-nvidia/0/load/0"), "lhm.gpu_nvidia.0.load.0")
+        long = "/nic/%7B5A2E7F11-AAAA-BBBB-CCCC-0123456789AB%7D/throughput/7"
+        a = raw_id("lhm", long)
+        self.assertEqual(a, raw_id("lhm", long))                       # stabil
+        self.assertNotEqual(a, raw_id("lhm", long.replace("/7", "/8")))
+        for p in ("/intelcpu/0/clock/1", long, "/ÄÖÜ/ß/0", "/" + "x" * 200):
+            self.assertTrue(SENSOR_ID.fullmatch(raw_id("lhm", p)), p)
+
+    def test_alle_lhm_werte_mit_bauteil(self):
+        from bridge.sensors.mapping import raw_items
+        cpu = FakeHardware([lhm_sensor("Core #1", "Temperature", "/intelcpu/0/temperature/1", 50.0)])
+        cpu.Name = "Intel Core i7-12700K"
+        src = LhmSource(lambda: FakeComputer([cpu]), admin=True)
+        src.start()
+        raws = src.read() + [Raw("psutil", "cpu.load", "CPU", 3.0, "%"), Raw("lhm", "/x/0/load/0", "NaN", float("nan"))]
+        items = raw_items(raws)
+        self.assertEqual(items, [{"id": "lhm.intelcpu.0.temperature.1", "name": "Core #1", "value": 50.0, "unit": "°C",
+                                  "min": None, "max": None, "group": "Intel Core i7-12700K"}])
+
+    def test_collector_liefert_feste_und_rohwerte(self):
+        clock = Clock()
+        c = Collector([LhmSource(lambda: lhm_computer(), admin=True)], DEFAULTS, clock=clock)
+        c.sample()
+        ids = [v["id"] for v in c.snapshot()["values"]]
+        self.assertIn("cpu.temp.package", ids)
+        self.assertIn("lhm.intelcpu.0.temperature.14", ids)
+        self.assertLess(ids.index("cpu.temp.package"), ids.index("lhm.intelcpu.0.temperature.14"))   # feste zuerst
+        c.close()
+
+
 if __name__ == "__main__":
     unittest.main()

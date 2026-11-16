@@ -353,6 +353,48 @@ def resolve(mapping, raws):
     return list(found.values())
 
 
+# ---------------------------------------------------------------- alle Rohwerte (Auswahl „Alle Werte“ im Editor)
+# Neben den festen IDs (cpu.load, gpu.temp, …) gibt der Helfer jeden LHM-Rohsensor unter einer aus seinem Pfad
+# gebildeten ID weiter, z. B. /intelcpu/0/temperature/3 -> lhm.intelcpu.0.temperature.3. Der Pfad ist in LHM
+# stabil (Bauteil/Index/Typ/Nummer); so kann man im Dashboard jeden Wert anzeigen, den LHM kennt.
+RAW_SOURCES = ("lhm",)
+RAW_MAX = 600              # Obergrenze (Antwortgröße); ein PC hat typisch 150-400 LHM-Werte
+_RAW_BAD = re.compile(r"[^a-z0-9_]+")
+_RAW_ID_MAX = 64           # wie SENSOR_ID in bridge/dashboard.py
+
+
+def raw_id(source, path):
+    """Stabile ID [a-z0-9_.] (höchstens 64 Zeichen) aus Quelle und Pfad; zu lange Pfade bekommen eine Prüfsumme."""
+    segs = [s for s in (_RAW_BAD.sub("_", p.lower()).strip("_") for p in str(path).split("/")) if s]
+    ident = ".".join([source] + segs)
+    if len(ident) > _RAW_ID_MAX:
+        import hashlib
+        h = hashlib.sha1(str(path).encode("utf-8")).hexdigest()[:8]
+        ident = ident[:_RAW_ID_MAX - 9].rstrip("._") + "." + h
+    return ident
+
+
+def raw_items(raws):
+    """Alle Rohwerte der Quellen in RAW_SOURCES als Werteliste [{id, name, value, unit, group}] (Pfadreihenfolge)."""
+    out, seen = [], set()
+    for r in raws:
+        if r.source not in RAW_SOURCES or len(out) >= RAW_MAX:
+            continue
+        try:
+            value = float(r.value)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(value):
+            continue
+        ident = raw_id(r.source, r.path)
+        if ident in seen:
+            continue
+        seen.add(ident)
+        out.append({"id": ident, "name": str(r.name)[:80] or ident, "value": round(value, 3), "unit": r.unit or "",
+                    "min": None, "max": None, "group": (getattr(r, "hw", "") or r.source)[:80]})
+    return out
+
+
 def assigned(mapping, raws):
     """{(Quelle, Pfad): [ID, …]} - welche Rohsensoren gerade welcher ID dienen (für --list)."""
     out = {}

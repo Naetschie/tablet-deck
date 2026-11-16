@@ -135,6 +135,17 @@ test("groupSensors: feste Gruppenreihenfolge, Kerntakte nach Kern, Unbekanntes u
     "Spannungen", "Spiel (FPS)", "Sonstiges"]);
   assert.deepEqual(g[1].items.map((s) => s.id), ["cpu.clock.p2", "cpu.clock.p10", "cpu.clock.e8"]);
   assert.equal(L.sensorGroup("bridge.game"), "Spiel (FPS)");
+  // Rohwerte: eigene Gruppen je Bauteil hinter den festen, Nummern numerisch sortiert
+  const raw = L.groupSensors([
+    { id: "cpu.load", name: "CPU" },
+    { id: "lhm.intelcpu.0.clock.10", name: "Core #10", group: "Intel i7" },
+    { id: "lhm.intelcpu.0.clock.2", name: "Core #2", group: "Intel i7" },
+    { id: "lhm.nvme.0.temperature.0", name: "Temperatur", group: "Samsung SSD" },
+    { id: "lhm.x.0.load.0", name: "ohne Bauteil" }
+  ]);
+  assert.deepEqual(raw.map((x) => x.label), ["Prozessor", "Alle Werte · Intel i7", "Alle Werte · Samsung SSD",
+    "Alle Werte · LibreHardwareMonitor"]);
+  assert.deepEqual(raw[1].items.map((s) => s.id), ["lhm.intelcpu.0.clock.2", "lhm.intelcpu.0.clock.10"]);
   assert.deepEqual(L.groupSensors([]), []);
 });
 

@@ -201,6 +201,7 @@
   var GROUP_ORDER = ["Prozessor", "Prozessor – Kerntakte", "Grafikkarte", "Arbeitsspeicher", "Netzwerk", "Laufwerke",
     "Lüfter (Mainboard)", "Spannungen", "Spiel (FPS)", "Sonstiges"];
   function sensorGroup(id) {
+    if (isRaw(id)) return "Alle Werte";
     for (var i = 0; i < SENSOR_GROUPS.length; i++) if (String(id).indexOf(SENSOR_GROUPS[i][0]) === 0) return SENSOR_GROUPS[i][1];
     return "Sonstiges";
   }
@@ -208,14 +209,21 @@
     var m = /^cpu\.clock\.([a-z]?)(\d+)$/.exec(id);
     return m ? [m[1] === "e" ? 1 : 0, +m[2]] : null;
   }
+  // Rohwerte (lhm.*): eigene Gruppen „Alle Werte · <Bauteil>“ hinter den festen Gruppen, in Bauteil-Reihenfolge
+  function isRaw(id) { return String(id).indexOf("lhm.") === 0; }
   function groupSensors(list) {
-    var by = Object.create(null);
-    (list || []).forEach(function (s) { var g = sensorGroup(s.id); (by[g] = by[g] || []).push(s); });
-    return GROUP_ORDER.filter(function (g) { return by[g]; }).map(function (g) {
+    var by = Object.create(null), rawOrder = [];
+    (list || []).forEach(function (s) {
+      var g = isRaw(s.id) ? "Alle Werte · " + (s.group || "LibreHardwareMonitor") : sensorGroup(s.id);
+      if (isRaw(s.id) && !by[g]) rawOrder.push(g);
+      (by[g] = by[g] || []).push(s);
+    });
+    return GROUP_ORDER.concat(rawOrder).filter(function (g) { return by[g]; }).map(function (g) {
       var items = by[g].slice().sort(function (a, b) {
         var ka = coreKey(a.id), kb = coreKey(b.id);
         if (ka && kb) return ka[0] - kb[0] || ka[1] - kb[1];
-        return String(a.name || a.id).localeCompare(String(b.name || b.id), "de");
+        if (isRaw(a.id)) return a.id.localeCompare(b.id, "en", { numeric: true });   // Rohwerte: nach Typ und Nummer
+        return String(a.name || a.id).localeCompare(String(b.name || b.id), "de", { numeric: true });
       });
       return { label: g, items: items };
     });
