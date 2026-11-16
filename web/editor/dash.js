@@ -667,15 +667,25 @@
     return labelled(label, key, false, wrap, "ab = Anteil der Skala (0 bis 1), aufsteigend", true);
   }
 
-  // Sensor: ID-Feld plus durchsuchbare Liste aus den Live-Werten (ID, Name, aktueller Wert, Einheit)
+  // Sensor: Auswahlliste nach Gruppen (Prozessor, Grafikkarte, …) mit Klarnamen und aktuellem Wert; darunter unter
+  // „Erweitert“ das ID-Feld und die Suche (für Sensoren, die gerade nicht live sind, z. B. FPS ohne Spiel)
   function sensorField(label, w, key, sp, req, ro) {
+    var dd = h("select", { cls: "sensdd" }); dd.disabled = ro;
+    var cur = h("span", { cls: "sensval" });
+    dd.addEventListener("change", function () { if (dd.value) pick(dd.value); });
     var inp = h("input", { type: "text", autocomplete: "off", spellcheck: "false" });
     inp.value = w[key] || ""; inp.disabled = ro;
     var q = h("input", { type: "search", placeholder: "Suchen (ID oder Name) …", autocomplete: "off" });
     q.disabled = ro;
     var ul = h("ul", { cls: "sens" });
     function pick(id) {
+      // Einheit mitziehen, wenn sie zum bisherigen Sensor gehörte (z. B. „%“ der GPU-Last -> „W“ der Leistung)
+      var was = sensorById(w[key]), now = sensorById(id);
+      if (key === "sensor" && was && now && w.unit === was.unit && now.unit !== was.unit) {
+        if (now.unit) w.unit = now.unit; else delete w.unit;
+      }
       w[key] = id; inp.value = id; mark(inp, null); renderLight(); commitField(); renderSensorList();
+      if (key === "sensor" && propsInputs.unit) propsInputs.unit.value = w.unit || "";
     }
     inp.addEventListener("input", function () {
       var res = Lib.parseInput(sp, inp.value, schema, req);
@@ -689,17 +699,40 @@
       commitField();
     });
     q.addEventListener("input", renderSensorList);
-    sensorPick = { ul: ul, q: q, w: w, key: key, pick: pick, ro: ro };
+    sensorPick = { ul: ul, q: q, w: w, key: key, pick: pick, ro: ro, dd: dd, cur: cur };
     renderSensorList();
     propsInputs[key] = inp;
-    var box = h("div", { cls: "sensbox" }, [inp, q, ul]);
+    var adv = h("details", { cls: "sensadv" }, [h("summary", { text: "Erweitert: ID eingeben oder suchen" }), inp, q, ul]);
+    var box = h("div", { cls: "sensbox" }, [h("div", { cls: "row" }, [dd, cur]), adv]);
     return labelled(label, key, req, box, null, true);
+  }
+  // Auswahlliste nur neu füllen, wenn sich die Menge der Sensoren oder die Auswahl ändert (eine offene Liste
+  // klappte sonst alle 2 s zu); der aktuelle Wert steht daneben und wird jedes Mal nachgeführt.
+  function sensorById(id) { for (var i = 0; i < sensors.length; i++) if (sensors[i].id === id) return sensors[i]; return null; }
+  function renderSensorDropdown(sp) {
+    var id = sp.w[sp.key] || "", s = null;
+    sensors.forEach(function (x) { if (x.id === id) s = x; });
+    sp.cur.textContent = s ? Lib.formatSensorValue(s) : "";
+    var sig = id + "|" + sensors.map(function (x) { return x.id + "/" + x.name; }).join(";");
+    if (sig === sp.ddSig) return;
+    sp.ddSig = sig; clear(sp.dd);
+    if (!id) sp.dd.appendChild(h("option", { value: "", text: "– Wert auswählen –" }));
+    else if (!s) sp.dd.appendChild(h("option", { value: id, text: id + " (gerade nicht verfügbar)" }));
+    Lib.groupSensors(sensors).forEach(function (g) {
+      var og = h("optgroup", { label: g.label });
+      g.items.forEach(function (x) {
+        og.appendChild(h("option", { value: x.id, text: (x.name && x.name !== x.id ? x.name : x.id) + (x.unit ? " (" + x.unit + ")" : "") }));
+      });
+      sp.dd.appendChild(og);
+    });
+    sp.dd.value = id;
   }
   // Die Liste wird nur neu aufgebaut, wenn sich Suchtext, Auswahl oder die Menge der Treffer ändert; sonst werden
   // nur die Werte nachgeführt (Scrollposition und Klicks bleiben erhalten).
   function renderSensorList() {
     if (!sensorPick) return;
     var sp = sensorPick, ul = sp.ul;
+    renderSensorDropdown(sp);
     if (!sensorsAt) { if (sp.sig !== "wait") { clear(ul); ul.appendChild(h("li", { cls: "dim", text: "Werte werden geladen …" })); sp.sig = "wait"; } return; }
     var found = Lib.filterSensors(sensors, sp.q.value, 80);
     var sig = sp.q.value + "|" + sp.w[sp.key] + "|" + sp.ro + "|" + found.map(function (x) { return x.id + "/" + x.name; }).join(";");

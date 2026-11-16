@@ -190,6 +190,36 @@
     });
     return limit > 0 ? out.slice(0, limit) : out;
   }
+  // Sensoren für die Auswahl gruppieren (nach dem ID-Präfix), damit niemand die IDs kennen muss.
+  // Ergebnis: [{label, items:[…]}] in fester Reihenfolge, leere Gruppen fehlen, innerhalb nach Name sortiert
+  // (Kerntakte nach Kernnummer).
+  var SENSOR_GROUPS = [
+    ["cpu.clock.", "Prozessor – Kerntakte"], ["cpu.", "Prozessor"], ["gpu.", "Grafikkarte"],
+    ["ram.", "Arbeitsspeicher"], ["net.", "Netzwerk"], ["disk.", "Laufwerke"], ["fan.", "Lüfter (Mainboard)"],
+    ["volt.", "Spannungen"], ["fps.", "Spiel (FPS)"], ["bridge.", "Spiel (FPS)"]
+  ];
+  var GROUP_ORDER = ["Prozessor", "Prozessor – Kerntakte", "Grafikkarte", "Arbeitsspeicher", "Netzwerk", "Laufwerke",
+    "Lüfter (Mainboard)", "Spannungen", "Spiel (FPS)", "Sonstiges"];
+  function sensorGroup(id) {
+    for (var i = 0; i < SENSOR_GROUPS.length; i++) if (String(id).indexOf(SENSOR_GROUPS[i][0]) === 0) return SENSOR_GROUPS[i][1];
+    return "Sonstiges";
+  }
+  function coreKey(id) {   // cpu.clock.p7 / e11 / 3 -> sortierbar (P-Kerne vor E-Kernen, dann Nummer)
+    var m = /^cpu\.clock\.([a-z]?)(\d+)$/.exec(id);
+    return m ? [m[1] === "e" ? 1 : 0, +m[2]] : null;
+  }
+  function groupSensors(list) {
+    var by = Object.create(null);
+    (list || []).forEach(function (s) { var g = sensorGroup(s.id); (by[g] = by[g] || []).push(s); });
+    return GROUP_ORDER.filter(function (g) { return by[g]; }).map(function (g) {
+      var items = by[g].slice().sort(function (a, b) {
+        var ka = coreKey(a.id), kb = coreKey(b.id);
+        if (ka && kb) return ka[0] - kb[0] || ka[1] - kb[1];
+        return String(a.name || a.id).localeCompare(String(b.name || b.id), "de");
+      });
+      return { label: g, items: items };
+    });
+  }
   function formatSensorValue(s) {
     if (!s || !num(s.value)) return "–";
     var d = Math.abs(s.value) >= 100 ? 0 : 1;
@@ -317,7 +347,7 @@
     TYPE_LABELS: TYPE_LABELS, FIELD_LABELS: FIELD_LABELS, ENUM_LABELS: ENUM_LABELS, FIELD_HINTS: FIELD_HINTS,
     TYPE_DEFAULTS: TYPE_DEFAULTS, fitScale: fitScale, toEditable: toEditable, toSave: toSave, nextId: nextId,
     newWidget: newWidget, hitTest: hitTest, describe: describe, fieldError: fieldError, parseInput: parseInput,
-    colorToPicker: colorToPicker, pickerToColor: pickerToColor, filterSensors: filterSensors,
+    colorToPicker: colorToPicker, pickerToColor: pickerToColor, filterSensors: filterSensors, groupSensors: groupSensors, sensorGroup: sensorGroup,
     formatSensorValue: formatSensorValue, snapMove: snapMove, snapResize: snapResize
   };
 });

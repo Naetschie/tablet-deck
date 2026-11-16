@@ -124,6 +124,20 @@ test("Farbwähler: Umrechnung und Alpha", () => {
   assert.equal(L.pickerToColor("#112233", "#fff"), "#112233");
 });
 
+test("groupSensors: feste Gruppenreihenfolge, Kerntakte nach Kern, Unbekanntes unter Sonstiges", () => {
+  const l = [
+    { id: "gpu.temp", name: "GPU Kern" }, { id: "cpu.clock.e8", name: "E8" }, { id: "cpu.clock.p10", name: "P10" },
+    { id: "cpu.clock.p2", name: "P2" }, { id: "cpu.load", name: "CPU-Last" }, { id: "fps.displayed", name: "FPS" },
+    { id: "foo.bar", name: "Foo" }, { id: "fan.cpu", name: "CPU-Lüfter" }, { id: "volt.12v", name: "+12 V" }
+  ];
+  const g = L.groupSensors(l);
+  assert.deepEqual(g.map((x) => x.label), ["Prozessor", "Prozessor – Kerntakte", "Grafikkarte", "Lüfter (Mainboard)",
+    "Spannungen", "Spiel (FPS)", "Sonstiges"]);
+  assert.deepEqual(g[1].items.map((s) => s.id), ["cpu.clock.p2", "cpu.clock.p10", "cpu.clock.e8"]);
+  assert.equal(L.sensorGroup("bridge.game"), "Spiel (FPS)");
+  assert.deepEqual(L.groupSensors([]), []);
+});
+
 test("filterSensors und Wertanzeige", () => {
   const l = [{ id: "cpu.load", name: "CPU-Last", unit: "%", value: 12.34 }, { id: "gpu.temp", name: "GPU Temperatur", unit: "°C", value: 61 },
     { id: "fan.cpu", name: "CPU Fan", unit: "RPM", value: 1200 }];

@@ -108,6 +108,10 @@ input.cpick { width: 40px; height: 34px; padding: 2px; flex: none; cursor: point
 .zrow .ctext { flex: 1; min-width: 0; font-family: var(--fm); }
 .sensbox { display: flex; flex-direction: column; gap: 6px; }
 ul.sens { max-height: 200px; overflow: auto; margin: 0; gap: 3px; }
+.sensbox select.sensdd { flex: 1; min-width: 0; }
+.sensbox .sensval { font-family: var(--fm); color: var(--ac); white-space: nowrap; align-self: center; font-size: 12px; }
+.sensadv > summary { cursor: pointer; font-size: 12px; color: var(--dim); margin: 2px 0 6px; }
+.sensadv[open] { display: flex; flex-direction: column; gap: 6px; }
 ul.sens li { padding: 4px 8px; font-size: 12px; color: var(--tx); }
 ul.sens li .val { font-family: var(--fm); color: var(--ac); white-space: nowrap; }
 ul.sens li .meta { font-family: var(--fm); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45%; }
