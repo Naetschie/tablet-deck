@@ -468,6 +468,118 @@
     return { done: comboOf(st.mods, n) };
   }
 
+  // ---------------------------------------------------------------- Makro-Baukasten
+  // Grenzen wie bridge/layout.py (validate_macro): 1-50 Schritte, wait 0-5000 ms (ganzzahlig), text 1-500 Zeichen.
+  var MACRO_MAX = 50, MACRO_WAIT_MAX = 5000, MACRO_TEXT_MAX = 500;
+  var REC_MIN_GAP = 50, REC_ROUND = 10;   // Aufnahme: Pausen darunter entfallen, Rest wird auf 10 ms gerundet
+  var STEP_KINDS = [
+    { kind: "key", label: "Taste", add: "+ Taste", icon: "⌨", hint: "Tastendruck oder Kombination" },
+    { kind: "text", label: "Text tippen", add: "+ Text", icon: "Aa", hint: "Text wird getippt (1–500 Zeichen)" },
+    { kind: "wait", label: "Warten", add: "+ Warten", icon: "⏱", hint: "Pause in Millisekunden (0–5000)" },
+    { kind: "media", label: "Medien", add: "+ Medien", icon: "♪", hint: "Medientaste (Wiedergabe, Lautstärke …)" }
+  ];
+  var MEDIA_FALLBACK = ["playpause", "next", "prev", "stop", "mute", "voldown", "volup"];
+
+  function stepKind(s) {
+    if (!s || typeof s !== "object" || Array.isArray(s)) return "";
+    var ks = Object.keys(s);
+    return ks.length === 1 && STEP_KINDS.some(function (k) { return k.kind === ks[0]; }) ? ks[0] : "";
+  }
+  // Fehlertext zu einem Schritt ("" = gültig). keyNames/mediaNames: Listen des Hubs (leer = nur Grundprüfung).
+  function stepError(s, keyNames, mediaNames) {
+    var k = stepKind(s);
+    if (!k) return "Unbekannter Schritt";
+    var v = s[k];
+    if (k === "key") {
+      if (typeof v !== "string" || !v.trim()) return "Taste fehlt";
+      var parts = v.toUpperCase().replace(/\s+/g, "").split("+");
+      if (parts.some(function (p) { return !p; })) return "Taste unvollständig";
+      if (keyNames && keyNames.length && parts.some(function (p) { return keyNames.indexOf(ALIAS[p] || p) < 0 && keyNames.indexOf(p) < 0; })) return "Unbekannter Tastenname";
+      return "";
+    }
+    if (k === "text") return typeof v === "string" && v.length > 0 && v.length <= MACRO_TEXT_MAX ? "" : "Text: 1–" + MACRO_TEXT_MAX + " Zeichen";
+    if (k === "wait") return typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= MACRO_WAIT_MAX ? "" : "Warten: ganze Zahl 0–" + MACRO_WAIT_MAX + " ms";
+    var list = mediaNames && mediaNames.length ? mediaNames : MEDIA_FALLBACK;
+    return list.indexOf(v) >= 0 ? "" : "Unbekannte Medienfunktion";
+  }
+  // Fehler je Schritt (Feld index + text) für das ganze Makro; [] = gültig
+  function macroErrors(m, keyNames, mediaNames) {
+    var out = [];
+    if (!Array.isArray(m) || !m.length) return [{ index: -1, text: "Mindestens ein Schritt nötig" }];
+    if (m.length > MACRO_MAX) out.push({ index: -1, text: "Höchstens " + MACRO_MAX + " Schritte" });
+    m.forEach(function (s, i) { var e = stepError(s, keyNames, mediaNames); if (e) out.push({ index: i, text: e }); });
+    return out;
+  }
+  // Ein einzelner Medien-Schritt gilt als Art „Medien“ (artOf) – der Baukasten lässt das nicht zu, weil die Tasten-
+  // Eigenschaften dann auf die Medien-Auswahl umspringen würden.
+  function isSoloMedia(m) { return Array.isArray(m) && m.length === 1 && stepKind(m[0]) === "media"; }
+  var SOLO_HINT = "Ein einzelner Medien-Schritt wäre die Art „Medien“ – für ein Makro noch einen Schritt dazu.";
+  function newStep(kind, mediaNames) {
+    if (kind === "key") return { key: "ENTER" };
+    if (kind === "text") return { text: "Text" };
+    if (kind === "wait") return { wait: 200 };
+    if (kind === "media") return { media: (mediaNames && mediaNames[0]) || MEDIA_FALLBACK[0] };
+    return null;
+  }
+  // Alle folgenden Operationen arbeiten auf einer Kopie und liefern {macro, index} (index = neu gewählter Schritt)
+  // oder {err: "Grund"}; das Makro selbst bleibt dann unverändert.
+  function macroInsert(m, step, at) {   // hinter Position at (-1 = vorn; undefined = ans Ende)
+    if (m.length >= MACRO_MAX) return { err: "Höchstens " + MACRO_MAX + " Schritte." };
+    var i = at === undefined || at === null ? m.length : Math.max(0, Math.min(m.length, at + 1));
+    var out = copy(m); out.splice(i, 0, copy(step));
+    return isSoloMedia(out) ? { err: SOLO_HINT } : { macro: out, index: i };
+  }
+  function macroInsertMany(m, steps, at) {   // mehrere Schritte hinter at einfügen (Aufnahme); passt nur alles oder nichts
+    if (!steps.length) return { err: "Nichts aufgenommen." };
+    if (m.length + steps.length > MACRO_MAX) return { err: "Höchstens " + MACRO_MAX + " Schritte." };
+    var i = at === undefined || at === null ? m.length : Math.max(0, Math.min(m.length, at + 1));
+    var out = copy(m); Array.prototype.splice.apply(out, [i, 0].concat(copy(steps)));
+    return { macro: out, index: i + steps.length - 1 };
+  }
+  function macroDuplicate(m, i) {
+    if (!m[i]) return { err: "Kein Schritt gewählt." };
+    return macroInsert(m, m[i], i);
+  }
+  function macroRemove(m, i) {
+    if (!m[i]) return { err: "Kein Schritt gewählt." };
+    if (m.length <= 1) return { err: "Der letzte Schritt bleibt – ein Makro braucht mindestens einen." };
+    var out = copy(m); out.splice(i, 1);
+    if (isSoloMedia(out)) return { err: SOLO_HINT };
+    return { macro: out, index: Math.min(i, out.length - 1) };
+  }
+  function macroMove(m, from, to) {
+    if (!m[from] || to < 0 || to >= m.length) return { err: "Nicht verschiebbar." };
+    var out = copy(m); out.splice(to, 0, out.splice(from, 1)[0]);
+    return { macro: out, index: to };
+  }
+  // Art eines Schritts wechseln (Neuer Wert mit Standard der neuen Art)
+  function macroSetKind(m, i, kind, mediaNames) {
+    if (!m[i]) return { err: "Kein Schritt gewählt." };
+    var out = copy(m); out[i] = newStep(kind, mediaNames);
+    return isSoloMedia(out) ? { err: SOLO_HINT } : { macro: out, index: i };
+  }
+  // Aufnahme -> Schritte. events: [{t: Millisekunden, key: "LALT+1"}] in zeitlicher Reihenfolge.
+  // Zwischen zwei Tasten kommt ein Warten-Schritt, wenn die Pause > minGap ist (auf 10 ms gerundet, höchstens 5000).
+  // room: wie viele Schritte noch Platz haben; Ergebnis {steps, cut: true bei Abschneiden}.
+  function recordToSteps(events, room, minGap) {
+    var gap = minGap === undefined ? REC_MIN_GAP : minGap;
+    var steps = [], prev = null, cut = false;
+    var limit = room === undefined ? MACRO_MAX : room;
+    (events || []).forEach(function (ev) {
+      if (cut || !ev || typeof ev.key !== "string" || !ev.key) return;
+      var need = 1, w = 0;
+      if (prev !== null && steps.length) {
+        var d = ev.t - prev;
+        if (d > gap) { w = Math.min(MACRO_WAIT_MAX, Math.round(d / REC_ROUND) * REC_ROUND); need = 2; }
+      }
+      if (steps.length + need > limit) { cut = true; return; }
+      if (w) steps.push({ wait: w });
+      steps.push({ key: ev.key });
+      prev = ev.t;
+    });
+    return { steps: steps, cut: cut };
+  }
+
   // ---------------------------------------------------------------- Doppelbelegung
   var ALIAS = { CTRL: "LCTRL", SHIFT: "LSHIFT", ALT: "LALT", RETURN: "ENTER", NP_ENTER: "NUMPADENTER" };
   for (var ai = 0; ai < 10; ai++) { ALIAS["NP_" + ai] = "NUMPAD" + ai; ALIAS["KP_" + ai] = "NUMPAD" + ai; }
@@ -580,6 +692,10 @@
     resizeCells: resizeCells, selectInRect: selectInRect, duplicate: duplicate,
     ARTS: ARTS, artOf: artOf, convertArt: convertArt, carryKeys: carryKeys, codeName: codeName,
     newCapture: newCapture, captureEvent: captureEvent, normKey: normKey, sentKeys: sentKeys, duplicates: duplicates,
+    MACRO_MAX: MACRO_MAX, MACRO_WAIT_MAX: MACRO_WAIT_MAX, MACRO_TEXT_MAX: MACRO_TEXT_MAX, STEP_KINDS: STEP_KINDS, SOLO_HINT: SOLO_HINT,
+    stepKind: stepKind, stepError: stepError, macroErrors: macroErrors, isSoloMedia: isSoloMedia, newStep: newStep,
+    macroInsert: macroInsert, macroInsertMany: macroInsertMany, macroDuplicate: macroDuplicate, macroRemove: macroRemove, macroMove: macroMove,
+    macroSetKind: macroSetKind, recordToSteps: recordToSteps,
     kindOf: kindOf, isMapped: isMapped, metaText: metaText,
     applies: applies, commonFields: commonFields, setShared: setShared
   };

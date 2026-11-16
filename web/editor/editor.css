@@ -222,3 +222,15 @@ ul.sens li .meta { font-family: var(--fm); font-size: 11px; overflow: hidden; te
 li.dup .name::before { content: "\26A0  "; color: #e6b800; }
 .dup-note, .dup-hint { color: #e6b800; }
 #dupNote { text-align: center; }
+/* Makro-Baukasten */
+.msteps { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
+.mstep { border: 1px solid var(--line); border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 4px; background: var(--bg); }
+.mstep.sel { border-color: var(--accent); } .mstep.dragover { border-style: dashed; border-color: var(--accent); }
+.mhead { display: flex; align-items: center; gap: 4px; } .mhead select { flex: 1; min-width: 0; }
+.mhead button { padding: 3px 7px; flex: none; } .mhead button:disabled, .madd button:disabled { opacity: .35; cursor: default; }
+.mh { cursor: grab; color: var(--dim); padding: 0 4px; user-select: none; } .mi { width: 24px; text-align: center; color: var(--dim); }
+.kin { display: flex; flex-direction: column; gap: 3px; } .kin input { width: 100%; }
+input.bad { border-color: var(--bad) !important; } .hint.warn { color: var(--bad); }
+.madd { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+button.recording { border-color: var(--danger); color: var(--danger); }
+.mview button { padding: 5px 10px; }

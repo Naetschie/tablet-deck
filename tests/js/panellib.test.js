@@ -488,3 +488,119 @@ test("duplicates: gleiche Taste auch über Seiten, Regler/Zustände zählen, Mak
   assert.equal(d.byId.a6, undefined);
   assert.equal(L.duplicates(lay({ id: "a", title: "A", buttons: [{ id: "q", label: "q", key: "A", states: st }] })).count, 0);
 });
+
+// ---------------------------------------------------------------- Makro-Baukasten
+const macroLay = (macro) => lay({ id: "a", title: "A", buttons: [{ id: "m", label: "M", macro }] });
+const KEYS = ["A", "B", "ENTER", "LALT", "LCTRL", "1", "F5", "SPACE"], MEDIA = ["playpause", "next", "prev", "stop", "mute", "voldown", "volup"];
+
+test("Makro: Grenzen wie layout.py (Anzahl, Warten, Text)", needPy, () => {
+  assert.equal(L.MACRO_MAX, 50); assert.equal(L.MACRO_WAIT_MAX, 5000); assert.equal(L.MACRO_TEXT_MAX, 500);
+  const ok = (m) => assert.equal(pyValid(macroLay(m)), null, JSON.stringify(m).slice(0, 60));
+  const bad = (m) => assert.match(pyValid(macroLay(m)), /^ERR/, JSON.stringify(m).slice(0, 60));
+  ok(Array.from({ length: 50 }, () => ({ wait: 0 }))); bad(Array.from({ length: 51 }, () => ({ wait: 0 }))); bad([]);
+  ok([{ wait: 5000 }]); bad([{ wait: 5001 }]); bad([{ wait: -1 }]); bad([{ wait: 1.5 }]);
+  ok([{ text: "x".repeat(500) }]); bad([{ text: "x".repeat(501) }]); bad([{ text: "" }]);
+});
+
+test("stepError stimmt mit layout.py überein", needPy, () => {
+  const cases = [{ key: "LALT+1" }, { key: "lalt + f5" }, { key: "" }, { key: "LALT+" }, { key: "+A" }, { key: "UNSINN" }, { key: "ALT+A" },
+    { text: "o7" }, { text: "" }, { text: "x".repeat(501) }, { wait: 0 }, { wait: 5000 }, { wait: 5001 }, { wait: -5 }, { wait: 2.5 },
+    { wait: NaN }, { wait: "5" }, { media: "mute" }, { media: "foo" }, { foo: 1 }, { key: "A", wait: 1 }, {}];
+  const names = ["A", "F5", "1", "LALT", "ALT", "ENTER", "LCTRL"];
+  for (const s of cases) {
+    const py = pyValid(macroLay([s, { wait: 1 }]));
+    const js = L.stepError(s, [], MEDIA);
+    // Ohne Namensliste prüft JS nur die Form; unbekannte Tastennamen kennt nur der Hub
+    if (s.key === "UNSINN") { assert.equal(js, ""); assert.notEqual(L.stepError(s, names, MEDIA), ""); continue; }
+    assert.equal(js === "", py === null, JSON.stringify(s) + " js=" + js + " py=" + py);
+  }
+});
+
+test("newStep: Standardschritte sind gültig", needPy, () => {
+  for (const k of L.STEP_KINDS) {
+    const s = L.newStep(k.kind, MEDIA);
+    assert.equal(L.stepKind(s), k.kind);
+    assert.equal(L.stepError(s, KEYS, MEDIA), "");
+    assert.equal(pyValid(macroLay([s, { wait: 1 }])), null, k.kind);
+  }
+});
+
+test("Makro-Operationen: einfügen, duplizieren, verschieben, löschen (gültig, Original unverändert)", needPy, () => {
+  const m0 = [{ key: "A" }, { text: "hi" }, { wait: 100 }];
+  const snap = JSON.stringify(m0);
+  let r = L.macroInsert(m0, { wait: 10 }, 0);
+  assert.deepEqual(r.macro, [{ key: "A" }, { wait: 10 }, { text: "hi" }, { wait: 100 }]); assert.equal(r.index, 1);
+  assert.equal(L.macroInsert(m0, { wait: 10 }).index, 3);
+  assert.equal(L.macroInsert(m0, { wait: 10 }, -1).index, 0);
+  r = L.macroDuplicate(m0, 1); assert.deepEqual(r.macro[2], { text: "hi" }); assert.notEqual(r.macro[2], r.macro[1]); assert.equal(r.index, 2);
+  r = L.macroMove(m0, 0, 2); assert.deepEqual(r.macro, [{ text: "hi" }, { wait: 100 }, { key: "A" }]); assert.equal(r.index, 2);
+  assert.ok(L.macroMove(m0, 0, -1).err); assert.ok(L.macroMove(m0, 2, 3).err);
+  r = L.macroRemove(m0, 1); assert.deepEqual(r.macro, [{ key: "A" }, { wait: 100 }]);
+  assert.equal(JSON.stringify(m0), snap);
+  for (const x of [L.macroInsert(m0, { wait: 10 }, 0), L.macroDuplicate(m0, 0), L.macroMove(m0, 0, 2), L.macroRemove(m0, 0)])
+    assert.equal(pyValid(macroLay(x.macro)), null);
+});
+
+test("Makro: Höchstzahl wird eingehalten", () => {
+  const full = Array.from({ length: L.MACRO_MAX }, () => ({ wait: 1 }));
+  assert.ok(L.macroInsert(full, { wait: 1 }).err);
+  assert.ok(L.macroDuplicate(full, 0).err);
+  assert.ok(L.macroInsertMany(full.slice(0, 49), [{ key: "A" }, { key: "B" }]).err);
+  assert.equal(L.macroInsertMany(full.slice(0, 48), [{ key: "A" }, { key: "B" }]).macro.length, 50);
+});
+
+test("Makro: letzter Schritt und einzelner Medien-Schritt sind geschützt", () => {
+  assert.ok(L.macroRemove([{ key: "A" }], 0).err);
+  assert.ok(L.macroRemove([{ media: "mute" }, { wait: 5 }], 1).err);              // bliebe einzelner Medien-Schritt
+  assert.ok(L.macroSetKind([{ key: "A" }], 0, "media", MEDIA).err);
+  assert.equal(L.macroRemove([{ media: "mute" }, { wait: 5 }, { key: "A" }], 2).macro.length, 2);
+  assert.equal(L.macroSetKind([{ key: "A" }, { wait: 1 }], 0, "media", MEDIA).macro[0].media, "playpause");
+  assert.equal(L.isSoloMedia([{ media: "mute" }]), true);
+  assert.equal(L.isSoloMedia([{ media: "mute" }, { wait: 1 }]), false);
+  // Jede vom Baukasten erreichbare Operation lässt ein Makro ein Makro bleiben
+  const m = [{ key: "A" }, { wait: 200 }];
+  for (const r of [L.macroInsert(m, L.newStep("media", MEDIA)), L.macroRemove(m, 0), L.macroDuplicate(m, 1), L.macroMove(m, 0, 1)])
+    if (r.macro) assert.equal(L.artOf({ macro: r.macro }), "macro");
+});
+
+test("macroErrors: je Schritt, leer und zu lang", () => {
+  assert.deepEqual(L.macroErrors([{ key: "A" }, { wait: 9999 }, { media: "x" }], KEYS, MEDIA).map((e) => e.index), [1, 2]);
+  assert.equal(L.macroErrors([], KEYS, MEDIA)[0].index, -1);
+  assert.equal(L.macroErrors(Array.from({ length: 51 }, () => ({ wait: 1 })), KEYS, MEDIA)[0].index, -1);
+  assert.deepEqual(L.macroErrors([{ key: "LALT+1" }, { text: "o7" }], KEYS, MEDIA), []);
+});
+
+test("recordToSteps: Pausen werden Warten-Schritte (gerundet, Mindestpause, Kappung)", needPy, () => {
+  const ev = (...a) => a.map(([t, key]) => ({ t, key }));
+  assert.deepEqual(L.recordToSteps([]).steps, []);
+  assert.deepEqual(L.recordToSteps(ev([500, "A"])).steps, [{ key: "A" }]);            // Anlaufzeit vor der ersten Taste entfällt
+  assert.deepEqual(L.recordToSteps(ev([0, "A"], [40, "B"], [300, "LALT+1"])).steps,
+    [{ key: "A" }, { key: "B" }, { wait: 260 }, { key: "LALT+1" }]);                  // 40 ms < 50: keine Pause
+  assert.deepEqual(L.recordToSteps(ev([0, "A"], [51, "B"])).steps, [{ key: "A" }, { wait: 50 }, { key: "B" }]);
+  assert.deepEqual(L.recordToSteps(ev([0, "A"], [1234, "B"])).steps[1], { wait: 1230 });
+  assert.deepEqual(L.recordToSteps(ev([0, "A"], [99999, "B"])).steps[1], { wait: 5000 });
+  assert.deepEqual(L.recordToSteps(ev([0, "A"], [50, "B"])).steps, [{ key: "A" }, { key: "B" }]);   // genau minGap: keine Pause
+  const res = L.recordToSteps(ev([0, "A"], [1000, "B"], [2000, "A"]), 4);               // A w B | w A passt nicht mehr
+  assert.equal(res.cut, true); assert.equal(res.steps.length, 3);
+  const many = Array.from({ length: 80 }, (_, i) => ({ t: i * 500, key: "A" }));
+  const big = L.recordToSteps(many);
+  assert.ok(big.cut && big.steps.length <= 50);
+  assert.equal(pyValid(macroLay(big.steps)), null);
+  assert.equal(L.macroInsertMany([{ wait: 200 }], big.steps.slice(0, 49)).macro.length, 50);
+});
+
+test("Profile: artOf aller Makros unverändert (Medien nur bei genau einem media-Schritt)", () => {
+  const fs = require("node:fs");
+  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(path.join(d, e.name)) : e.name.endsWith(".json") ? [path.join(d, e.name)] : []);
+  const dir = path.join(ROOT, "profiles");
+  if (!fs.existsSync(dir)) return;
+  for (const f of walk(dir)) {
+    let j; try { j = JSON.parse(fs.readFileSync(f, "utf8")); } catch (e) { continue; }
+    for (const p of j.pages || []) for (const b of p.buttons || []) {
+      if (!b.macro) continue;
+      const media = b.macro.length === 1 && b.macro[0].media !== undefined;
+      assert.equal(L.artOf(b), media ? "media" : "macro", f + " " + b.id);
+      assert.deepEqual(L.macroErrors(b.macro, [], MEDIA), [], f + " " + b.id);   // bestehende Makros bestehen die Prüfung
+    }
+  }
+});

@@ -748,15 +748,23 @@
 
   // Tastenfeld mit „Aufnehmen“: get/set lesen und schreiben den Wert an der Taste (set("") = entfernen).
   // Die Übersetzung KeyboardEvent.code -> Name (Zusatztasten, AltGr, Esc = Abbruch) liegt in panellib.js.
-  function keyInput(label, get, set, ph, hintText) {
+  // opts.live (Makro-Schritte): geprüft wird der getippte Text; ungültige Eingaben werden nicht übernommen (set nur bei gültig).
+  function keyInput(label, get, set, ph, hintText, opts) {
+    opts = opts || {};
     var warn = h("span", { cls: "hint", text: "" });
     function chk() {
-      var v = get();
-      var bad = v && v.split("+").some(function (k) { return keyNames.indexOf(PL.normKey(k)) < 0 && keyNames.indexOf(k) < 0; });
-      warn.textContent = bad ? "Unbekannter Tastenname – Speichern würde abgelehnt." : "";
+      var v = opts.live ? inp.value.toUpperCase().replace(/\s+/g, "") : get();
+      var bad = opts.live ? !!PL.stepError({ key: v }, keyNames, null)
+        : v && v.split("+").some(function (k) { return keyNames.indexOf(PL.normKey(k)) < 0 && keyNames.indexOf(k) < 0; });
+      warn.textContent = bad ? (opts.live ? "Ungültig – nicht übernommen (bleibt " + get() + ")." : "Unbekannter Tastenname – Speichern würde abgelehnt.") : "";
       warn.classList.toggle("warn", !!bad);
+      inp.classList.toggle("bad", !!bad && !!opts.live);
     }
-    var inp = input(get(), function (v) { set(v.toUpperCase().replace(/\s+/g, "")); chk(); refresh(); },
+    var inp = input(get(), function (v) {
+      v = v.toUpperCase().replace(/\s+/g, "");
+      if (!opts.live || !PL.stepError({ key: v }, keyNames, null)) { set(v); refresh(); }
+      chk();
+    },
       { list: "keyNames", placeholder: ph || "z. B. LALT+F oder NUMPAD8" });
     var rec = h("button", { cls: "ghost", text: "Aufnehmen", title: "Taste oder Kombination auf der PC-Tastatur drücken (Esc bricht ab)" });
     function onEv(type) {
@@ -784,6 +792,7 @@
       };
     };
     chk();
+    if (opts.compact) return h("div", { cls: "kin" }, [h("div", { cls: "row" }, [inp, rec]), warn]);
     var f = field(label, h("div", { cls: "row" }, [inp, rec]), hintText);
     f.appendChild(warn);
     return f;
@@ -969,18 +978,172 @@
       box.appendChild(field("Öffnen am PC", inp, "URL öffnet im Standardbrowser, ein Pfad startet Programm/Datei/Ordner."));
       box.appendChild(oerr);
     } else {
-      var ta = h("textarea"); ta.value = macroToText(b.macro);
-      var errBox = h("div", { cls: "err-box" });
-      ta.addEventListener("input", function () {
-        var r = textToMacro(ta.value);
-        if (!r.macro.length && !r.errs.length) r.errs.push("Makro ist leer – mindestens ein Schritt nötig (alter Stand bleibt).");
-        errBox.textContent = r.errs.join("\n");
-        if (!r.errs.length && r.macro.length) { b.macro = r.macro; refresh(); }
-      });
-      box.appendChild(field("Makro – eine Zeile pro Schritt", ta,
-        "key LALT+1 · text o7 · wait 200 (ms) · media playpause. Läuft beim Drücken einmal ab."));
-      box.appendChild(errBox);
+      macroBuilder(box, b);
     }
+  }
+
+  // ---------------------------------------------------------------- Makro-Baukasten (Art „Makro“)
+  // Schrittliste (Taste / Text tippen / Warten / Medien) oder Textansicht; Logik und Grenzen in panellib.js
+  // (wie bridge/layout.py validate_macro). Ungültige Eingaben werden rot markiert und nicht übernommen.
+  var macroView = "list", macroSel = -1, macroSelFor = "", macroMsg = "", macroDrag = -1;
+  function mediaList() { return mediaNames.length ? mediaNames : Object.keys(MEDIA_LABELS); }
+  // Ergebnis einer Operation übernehmen: ein Verlaufsschritt, bei Ablehnung nur der Hinweis
+  function macroApply(b, r) {
+    if (r.err) { macroMsg = r.err; renderProps(); return; }
+    macroMsg = ""; b.macro = r.macro; macroSel = r.index; commit();
+  }
+  function macroStepValue(b, i) {
+    var st = b.macro[i], kind = PL.stepKind(st), box;
+    if (kind === "key") {
+      return keyInput("", function () { return st.key || ""; }, function (v) { st.key = v; }, "z. B. LALT+1", null, { compact: true, live: true });
+    }
+    var err = h("span", { cls: "hint warn", text: "" });
+    function mark(inp, step, shown) {
+      var e = PL.stepError(step, keyNames, mediaNames);
+      err.textContent = e ? e + " – nicht übernommen (bleibt " + shown + ")." : "";
+      inp.classList.toggle("bad", !!e);
+      return !e;
+    }
+    if (kind === "text") {
+      var ti = input(st.text, function (v) { if (mark(ti, { text: v }, JSON.stringify(st.text))) { st.text = v; refresh(); } }, { placeholder: "Text, der getippt wird" });
+      box = h("div", { cls: "kin" }, [ti, err]);
+    } else if (kind === "wait") {
+      var wi = input(st.wait, function (v) {
+        var n = v.trim() === "" ? NaN : Number(v);
+        if (mark(wi, { wait: n }, st.wait + " ms")) { st.wait = n; refresh(); }
+      }, { type: "number", min: 0, max: PL.MACRO_WAIT_MAX, step: 10, title: "Pause in Millisekunden (0–" + PL.MACRO_WAIT_MAX + ")" });
+      box = h("div", { cls: "kin" }, [h("div", { cls: "row" }, [wi, h("span", { cls: "hint", text: "ms" })]), err]);
+    } else {
+      var opts = mediaList(); if (opts.indexOf(st.media) < 0) opts = opts.concat([st.media]);
+      box = select(st.media, opts.map(function (m) { return [m, MEDIA_LABELS[m] || m]; }), function (v) { st.media = v; refresh(); });
+    }
+    return box;
+  }
+  function macroRow(b, i) {
+    var st = b.macro[i], kind = PL.stepKind(st), m = b.macro;
+    var def = PL.STEP_KINDS.filter(function (k) { return k.kind === kind; })[0] || { icon: "?", label: "?" };
+    var row = h("div", { cls: "mstep" + (i === macroSel ? " sel" : "") });
+    function sel1() {
+      if (macroSel === i) return;
+      macroSel = i;
+      Array.prototype.forEach.call(row.parentNode.children, function (c, j) { c.classList.toggle("sel", j === i); });
+    }
+    row.addEventListener("focusin", sel1);
+    row.addEventListener("mousedown", sel1);
+    var handle = h("span", { cls: "mh", text: "⠿", title: "Ziehen zum Umsortieren" });
+    handle.addEventListener("mousedown", function () { row.draggable = true; });
+    row.addEventListener("dragstart", function (e) {
+      if (!row.draggable) return;
+      macroDrag = i; try { e.dataTransfer.setData("text/plain", "schritt"); } catch (x) { /* egal */ }
+    });
+    row.addEventListener("dragover", function (e) { if (macroDrag >= 0) { e.preventDefault(); row.classList.add("dragover"); } });
+    row.addEventListener("dragleave", function () { row.classList.remove("dragover"); });
+    row.addEventListener("drop", function (e) {
+      e.preventDefault(); row.classList.remove("dragover");
+      var from = macroDrag; macroDrag = -1;
+      if (from >= 0 && from !== i) macroApply(b, PL.macroMove(b.macro, from, i));
+    });
+    row.addEventListener("dragend", function () { macroDrag = -1; row.draggable = false; });
+    var kindSel = select(kind, PL.STEP_KINDS.map(function (k) { return [k.kind, k.label]; }), function (v) {
+      macroApply(b, PL.macroSetKind(b.macro, i, v, mediaList()));
+    });
+    function btn(txt, title, fn, off) {
+      var x = h("button", { cls: "ghost small", text: txt, title: title, type: "button" });
+      x.disabled = !!off; x.onclick = function () { fn(); }; return x;
+    }
+    var full = m.length >= PL.MACRO_MAX;
+    row.appendChild(h("div", { cls: "mhead" }, [handle, h("span", { cls: "mi", text: def.icon, title: def.label }), kindSel,
+      btn("↑", "Nach oben", function () { macroApply(b, PL.macroMove(b.macro, i, i - 1)); }, i === 0),
+      btn("↓", "Nach unten", function () { macroApply(b, PL.macroMove(b.macro, i, i + 1)); }, i === m.length - 1),
+      btn("⧉", full ? "Höchstzahl erreicht" : "Schritt duplizieren", function () { macroApply(b, PL.macroDuplicate(b.macro, i)); }, full),
+      btn("✕", "Schritt löschen", function () { macroApply(b, PL.macroRemove(b.macro, i)); })]));
+    row.appendChild(macroStepValue(b, i));
+    return row;
+  }
+  // Abfolge aufnehmen: Tasten/Kombinationen nacheinander drücken, Pausen werden zu Warten-Schritten, Esc beendet.
+  // Läuft über dieselbe Variable capture wie das Tastenfeld: jedes Neuzeichnen der Eigenschaften bricht sie ab.
+  function macroRecordBar(b, msgEl) {
+    var rec = h("button", { cls: "ghost", type: "button", text: "Abfolge aufnehmen",
+      title: "Nacheinander Tasten oder Kombinationen auf der PC-Tastatur drücken, Pausen dazwischen werden als Warten übernommen. Esc beendet." });
+    var events = [], cap = null, t0 = 0, running = false;
+    function evOf(e, type) {
+      e.preventDefault(); e.stopPropagation();
+      return { type: type, code: e.code, altGraph: !!(e.getModifierState && e.getModifierState("AltGraph")) };
+    }
+    function onDown(e) { var ev = evOf(e, "down"); if (!e.repeat) handle(PL.captureEvent(cap, ev, keyNames)); }
+    function onUp(e) { handle(PL.captureEvent(cap, evOf(e, "up"), keyNames)); }
+    function handle(r) {
+      if (!r) return;
+      if (r.hint) { msgEl.textContent = r.hint; msgEl.classList.add("warn"); return; }
+      if (r.cancel) return finish();
+      if (r.done) {
+        events.push({ t: performance.now() - t0, key: r.done }); cap = PL.newCapture();
+        msgEl.classList.remove("warn"); msgEl.textContent = "Aufgenommen: " + events.length + " – weiter drücken, Esc beendet.";
+      }
+    }
+    function stop() {
+      running = false;
+      document.removeEventListener("keydown", onDown, true); document.removeEventListener("keyup", onUp, true);
+      rec.textContent = "Abfolge aufnehmen"; rec.classList.remove("recording");
+    }
+    function finish() {
+      stopCapture();
+      var res = PL.recordToSteps(events, PL.MACRO_MAX - b.macro.length);
+      var r = PL.macroInsertMany(b.macro, res.steps, macroSel >= 0 ? macroSel : undefined);
+      if (r.err) { macroMsg = events.length && !res.steps.length ? "Kein Platz mehr (höchstens " + PL.MACRO_MAX + " Schritte)." : r.err; renderProps(); return; }
+      macroApply(b, r);
+      if (res.cut) { macroMsg = "Aufnahme bei " + PL.MACRO_MAX + " Schritten abgeschnitten."; renderProps(); }
+    }
+    rec.onclick = function () {
+      if (running) return finish();
+      stopCapture();
+      if (b.macro.length >= PL.MACRO_MAX) { msgEl.textContent = "Höchstens " + PL.MACRO_MAX + " Schritte."; msgEl.classList.add("warn"); return; }
+      events = []; cap = PL.newCapture(); t0 = performance.now(); running = true;
+      rec.textContent = "Aufnahme läuft – Esc beendet"; rec.classList.add("recording");
+      msgEl.classList.remove("warn"); msgEl.textContent = "Tasten nacheinander drücken (Pausen werden mit aufgenommen). Esc beendet.";
+      document.addEventListener("keydown", onDown, true); document.addEventListener("keyup", onUp, true);
+      capture = stop;
+    };
+    return rec;
+  }
+  function macroText(box, b) {
+    var ta = h("textarea"); ta.value = macroToText(b.macro);
+    var errBox = h("div", { cls: "err-box" });
+    ta.addEventListener("input", function () {
+      var r = textToMacro(ta.value);
+      if (!r.macro.length && !r.errs.length) r.errs.push("Makro ist leer – mindestens ein Schritt nötig (alter Stand bleibt).");
+      if (!r.errs.length) r.errs = PL.macroErrors(r.macro, keyNames, mediaNames).map(function (x) { return (x.index >= 0 ? "Schritt " + (x.index + 1) + ": " : "") + x.text; });
+      if (!r.errs.length && PL.isSoloMedia(r.macro)) r.errs.push(PL.SOLO_HINT);
+      errBox.textContent = r.errs.join("\n");
+      if (!r.errs.length && r.macro.length) { b.macro = r.macro; refresh(); }
+    });
+    box.appendChild(field("Makro – eine Zeile pro Schritt", ta,
+      "key LALT+1 · text o7 · wait 200 (ms) · media playpause. Läuft beim Drücken einmal ab."));
+    box.appendChild(errBox);
+  }
+  function macroBuilder(box, b) {
+    if (macroSelFor !== b.id) { macroSelFor = b.id; macroSel = -1; macroMsg = ""; }
+    if (macroSel >= b.macro.length) macroSel = b.macro.length - 1;
+    var tabs = h("div", { cls: "row mview" }, ["list", "text"].map(function (v) {
+      return h("button", { cls: macroView === v ? "" : "ghost", type: "button", text: v === "list" ? "Schritte" : "Text",
+        onclick: function () { macroView = v; macroMsg = ""; renderProps(); } });
+    }));
+    box.appendChild(field("Makro – läuft beim Drücken einmal ab", tabs));
+    if (macroView === "text") return macroText(box, b);
+    var list = h("div", { cls: "msteps" });
+    b.macro.forEach(function (_, i) { list.appendChild(macroRow(b, i)); });
+    box.appendChild(list);
+    var full = b.macro.length >= PL.MACRO_MAX;
+    box.appendChild(h("div", { cls: "madd" }, PL.STEP_KINDS.map(function (k) {
+      var x = h("button", { cls: "ghost small", type: "button", text: k.add, title: full ? "Höchstzahl erreicht" : k.hint });
+      x.disabled = full;
+      x.onclick = function () { macroApply(b, PL.macroInsert(b.macro, PL.newStep(k.kind, mediaList()), macroSel >= 0 ? macroSel : undefined)); };
+      return x;
+    })));
+    var msg = h("span", { cls: "hint" + (macroMsg ? " warn" : ""), text: macroMsg });
+    box.appendChild(h("div", { cls: "row" }, [macroRecordBar(b, msg)]));
+    box.appendChild(msg);
+    box.appendChild(h("span", { cls: "hint", text: b.macro.length + " von " + PL.MACRO_MAX + " Schritten. Neue Schritte kommen hinter den gewählten (sonst ans Ende). Der letzte Schritt und ein einzelner Medien-Schritt (= Art „Medien“) sind geschützt." }));
   }
 
   // Mehrfachauswahl: gemeinsame Felder (nur wo sie bei der Taste gelten), „verschieden“ bei Unterschieden
