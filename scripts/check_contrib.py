@@ -9,8 +9,9 @@ Panels strengere Regeln - ein Panel aus fremder Hand darf am PC nichts tun, was 
 Spiel hinausgeht. Die Windows-Taste kennt das Panel ohnehin nicht (bridge/keys.py).
 - kein "open" (Programme, Pfade oder Webseiten am PC öffnen): das trägt jeder nur für sich selbst ein
 - keine Systemkürzel: Esc mit Zusatztaste (Startmenü, Task-Manager), Alt+F4, Alt+Tab, Alt+Leertaste
-- keine Taste, die nur Zusatztasten hält oder umschaltet (hold/toggle mit z. B. nur LCTRL): zusammen mit einer
-  zweiten Taste ergäbe sie sonst doch ein Systemkürzel
+- Tasten, die nur Zusatztasten halten oder umschalten (hold/toggle mit z. B. nur LSHIFT zum Sprinten), sind
+  erlaubt, werden aber als Hinweis für die Handprüfung gemeldet: mit einer zweiten Taste ergäben sie ein
+  Systemkürzel
 - Makros dürfen nichts "tippen": höchstens 12 Schritte, ein "text"-Schritt, zwei einzelne Zeichentasten (auch
   mit Shift) und zwei Enter - sonst ließe sich z. B. ein Befehl Buchstabe für Buchstabe eingeben
 - "text" höchstens 60 Zeichen, nur Buchstaben, Ziffern, Leerzeichen und harmlose Satzzeichen, ohne typische
@@ -135,14 +136,21 @@ def community_rules(data):
                             "enthalten")
             elif BAD_WORDS.search(v):
                 errs.append(f"{here}: text enthält einen Befehlsnamen ({BAD_WORDS.search(v).group(0)})")
+    return errs
+
+
+def community_warnings(data):
+    """Hinweise für die Handprüfung (kein Fehler): Tasten, die nur Strg/Alt/Shift halten oder umschalten. In
+    Spielen üblich (Sprinten mit Shift halten), mit einer zweiten Taste aber ein mögliches Systemkürzel."""
+    out = []
     for where, o in _objects(data):
         k = o.get("key")
         if isinstance(k, str) and (o.get("hold") or o.get("mode") == "toggle"):
             n = _names(k)
             if n and set(n) <= MODIFIERS:
-                errs.append(f"{where or '(oben)'}: Taste hält/schaltet nur Zusatztasten ({k}) - mit einer zweiten "
-                            "Taste ergäbe das ein Systemkürzel")
-    return errs
+                out.append(f"{where or '(oben)'}: Taste hält/schaltet nur Zusatztasten ({k}) - bei der Handprüfung "
+                           "ansehen (zusammen mit anderen Tasten: Systemkürzel?)")
+    return out
 
 
 def check_file(path):
@@ -160,6 +168,8 @@ def check_file(path):
             return []                       # Dashboards zeigen nur an
         if rel.startswith("profiles/"):
             layout.validate_layout(data)
+            for w in community_warnings(data):
+                print(f"{path}: Hinweis: {w}")
             return community_rules(data)
         if rel == "games.json":
             profiles.validate_games(data)   # exe nur als Programmname, Ordner/Karten geprüft

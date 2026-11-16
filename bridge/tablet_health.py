@@ -25,7 +25,7 @@ TAGS = ("SYSTEM_BOOT", "SYSTEM_RESTART", "SYSTEM_LAST_KMSG", "SYSTEM_TOMBSTONE",
 DROPBOX_LINE = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) (\S+) ")
 
 COMMAND = ("cat /proc/uptime; grep -E '^(MemAvailable|SwapFree|SwapTotal):' /proc/meminfo; "
-           "dumpsys dropbox 2>/dev/null | grep -E '^[0-9]{4}-'")
+           "dumpsys dropbox 2>/dev/null | grep -E '^[0-9]{4}-'; true")   # true: leere Liste ist kein Fehler
 
 
 def parse(out):
@@ -92,16 +92,15 @@ class TabletHealth:
             if boots:
                 out.append((logging.INFO, f"Tablet {serial}: letzte Starts laut Android: {', '.join(boots)}"))
         else:
-            new = [(t, tag) for t, tag in p["events"] if t > st["seen"]]
+            # als Menge statt "später als": nach einem Neustart ohne Netz stimmt die Uhr am Tablet evtl. noch
+            # nicht (1970), solche Einträge wären sonst "älter" und gingen verloren
+            new = [(t, tag) for t, tag in p["events"] if (t, tag) not in st["seen"]]
             for t, tag in new[-20:]:
                 lvl = logging.WARNING if tag != "SYSTEM_BOOT" else logging.INFO
                 out.append((lvl, f"Tablet {serial}: Android-Ereignis {tag} um {t}"))
             if len(new) > 20:
                 out.append((logging.WARNING, f"Tablet {serial}: {len(new) - 20} weitere Android-Ereignisse"))
-        if p["events"]:
-            st["seen"] = max(t for t, _ in p["events"])
-        elif first:
-            st["seen"] = ""
+        st["seen"] = set(p["events"])   # dumpsys zeigt nur die letzten Tage - die Menge bleibt klein
         if p["uptime"] is not None and st["uptime"] is not None and p["uptime"] + 60 < st["uptime"]:
             out.append((logging.WARNING, f"Tablet {serial}: neu gestartet (läuft seit {_fmt_uptime(p['uptime'])})"))
         if p["uptime"] is not None:

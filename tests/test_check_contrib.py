@@ -58,7 +58,8 @@ class CommunityRulesTest(unittest.TestCase):
         for b in ({"id": "a", "label": "Strg", "key": "LCTRL", "hold": True},
                   {"id": "a", "label": "Alt", "key": "LALT", "mode": "toggle"},
                   {"id": "a", "label": "x", "key": "CTRL+SHIFT", "hold": True}):
-            self.assertTrue(cc.community_rules(panel(b)), b)
+            self.assertEqual(cc.community_rules(panel(b)), [], b)        # in Spielen üblich: kein Fehler ...
+            self.assertTrue(cc.community_warnings(panel(b)), b)          # ... aber Hinweis für die Handprüfung
         self.assertEqual(cc.community_rules(panel({"id": "a", "label": "Boost", "key": "LSHIFT"})), [])   # Tipp
         self.assertEqual(cc.community_rules(panel({"id": "a", "label": "Feuer", "key": "F", "hold": True})), [])
         shifted = [{"key": f"SHIFT+{c}"} for c in "CMD"]

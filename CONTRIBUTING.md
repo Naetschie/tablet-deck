@@ -16,8 +16,9 @@ der Hub prüft – Programmieren ist dafür nicht nötig.
 Ein Panel sendet Tastendrücke an das Fenster, das am PC gerade vorn ist – normalerweise das Spiel. Damit ein
 Panel aus fremder Hand dabei möglichst wenig anrichten kann:
 - **kein `open`** (Programme, Pfade oder Webseiten öffnen) – das trägt jeder nur für sich selbst ein
-- **keine Systemkürzel** (Esc mit Zusatztaste, Alt+F4, Alt+Tab, Alt+Leertaste) und keine Taste, die nur
-  Strg/Alt/Shift hält oder umschaltet
+- **keine Systemkürzel** (Esc mit Zusatztaste, Alt+F4, Alt+Tab, Alt+Leertaste). Tasten, die nur
+  Strg/Alt/Shift halten oder umschalten (z. B. Sprinten mit Shift halten), sind erlaubt, werden aber als
+  Hinweis für die Handprüfung gemeldet
 - **Makros tippen nichts:** höchstens 12 Schritte, ein `text`-Schritt, zwei einzelne Zeichentasten, zweimal
   Enter; `text` höchstens 60 Zeichen, nur Buchstaben, Ziffern, Leerzeichen und harmlose Satzzeichen, keine
   Befehlsnamen. Chat-Grüße wie „o7“ gehen, Befehle nicht.

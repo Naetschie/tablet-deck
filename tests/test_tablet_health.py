@@ -53,6 +53,16 @@ class EvaluateTest(unittest.TestCase):
         self.now = 2500
         self.assertTrue(any("Zustand" in t for t in self.texts(parse(neu))))
 
+    def test_ereignis_mit_falscher_uhrzeit_nach_neustart(self):
+        self.texts(parse(OUT))
+        # Tablet ohne Netz: Uhr steht nach dem Start noch auf 1970 - der Eintrag muss trotzdem erscheinen
+        lines = self.texts(parse(OUT + "1970-01-01 00:00:42 SYSTEM_BOOT (text, 348 bytes)\n"))
+        self.assertTrue(any("1970-01-01 00:00:42" in t for t in lines))
+
+    def test_leere_ereignisliste(self):
+        lines = self.texts(parse("100.0 200.0\nMemAvailable:  500000 kB\n"))
+        self.assertTrue(any("Zustand" in t for t in lines))
+
     def test_speicher_knapp_ist_warnung(self):
         knapp = OUT.replace("702200", "150000")
         lines = self.h.evaluate("S1", parse(knapp), 0)
