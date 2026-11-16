@@ -133,7 +133,8 @@ anderen nehmen `tablet_mode`:
 ```
 Einrichten nur dieses Geräts: `tablet\setup-launcher.ps1 -Companion -Serial <Seriennummer>` (bei mehreren
 angesteckten Geräten ist `-Serial` nötig; `install.ps1 -Companion` würde `tablet_mode` für alle umstellen). Der Hub
-schickt jedem Tablet seine Betriebsart beim Anstecken per ADB. Geräte **ohne** installierten Tablet-Deck-Launcher
+schickt jedem Tablet seine Betriebsart beim Anstecken per ADB; eine geänderte Betriebsart wirkt also beim
+nächsten Anstecken per USB (oder Hub-Neustart), nicht über WLAN. Geräte **ohne** installierten Tablet-Deck-Launcher
 (Handy zum Laden, neues Tablet vor der Einrichtung) richtet der Hub gar nicht ein - kein Proxy, keine
 Daueranzeige, kein Eingriff in Ausrichtung oder Startbildschirm.
 

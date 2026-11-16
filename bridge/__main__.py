@@ -1107,7 +1107,7 @@ async def adb_watch(cfg, port, bridge):
     rot = tablet_rotation(cfg)
     def companion(serial):
         return device_mode(cfg, serial) == "companion"
-    launcher_seen = {}   # serial -> (Launcher installiert?, Prüfzeit) - fremde Geräte bleiben unangetastet
+    launcher_seen = {}   # serial -> [installiert?, Prüfzeit, zuletzt gesehen] - fremde Geräte bleiben unangetastet
     mode_sent = set()    # Tablets, die ihre Betriebsart seit dem Anstecken bestätigt haben
     GONE_S = 15  # erst nach so langer Abwesenheit gilt das Tablet als abgesteckt
     while True:
@@ -1129,19 +1129,25 @@ async def adb_watch(cfg, port, bridge):
             # der Installation) bekämen sonst Proxy, Daueranzeige, Ausrichtung und Startbildschirm verstellt.
             t_chk = asyncio.get_running_loop().time()
             for serial in list(now):
-                ok, at = launcher_seen.get(serial, (None, -1e9))
-                if ok is None or (not ok and t_chk - at >= 60):   # nachinstalliert? jede Minute neu prüfen
+                st = launcher_seen.setdefault(serial, [None, -1e9, t_chk])
+                st[2] = t_chk                                  # zuletzt gesehen (für das Aufräumen unten)
+                if st[0] is None or (st[0] is False and t_chk - st[1] >= 60):   # nachinstalliert? jede Minute
                     rc, o = await run(adb, "-s", serial, "shell", "pm", "path", LAUNCHER_PKG)
-                    new_ok = rc == 0 and "package:" in o
-                    if not new_ok and ok is None:
+                    if "package:" in o:
+                        found = True
+                    elif rc == 1 and not o.strip():            # sauber beantwortet: nicht installiert
+                        found = False
+                    else:                                      # Paketdienst noch nicht bereit, Zeitüberschreitung …
+                        found = None                           # nichts merken, nächste Runde erneut
+                    if found is False and st[0] is None:
                         log.info("Gerät %s: kein Tablet-Deck-Launcher installiert - wird nicht eingerichtet", serial)
-                    launcher_seen[serial] = (new_ok, t_chk)
-                    ok = new_ok
-                if not ok:
+                    if found is not None:
+                        st[0], st[1] = found, t_chk
+                if not st[0]:
                     now.discard(serial)
             for serial in list(launcher_seen):
-                if serial not in now and t_chk - launcher_seen[serial][1] > 120:
-                    del launcher_seen[serial]   # abgesteckt: beim nächsten Anstecken neu prüfen
+                if t_chk - launcher_seen[serial][2] > 120:
+                    del launcher_seen[serial]   # zwei Minuten nicht gesehen: beim nächsten Anstecken neu prüfen
             ready &= now
             bridge.usb_serials = set(ready)
             # Abgesteckt -> beim nächsten Anstecken wieder komplett einrichten. Kurze USB-Neuanmeldungen
@@ -1196,6 +1202,12 @@ async def adb_watch(cfg, port, bridge):
                         bridge.plugged_until = time.monotonic() + 30
                     continue
                 known.add(serial)
+                # Betriebsart gleich beim Verbinden (sonst setzte der Steuerkanal bis zur 30-s-Runde evtl. den
+                # Standard für alle Tablets); die 30-s-Runde unten wiederholt, falls das hier scheitert
+                rc, o = await run(adb, "-s", serial, "shell", "am", "broadcast", "--include-stopped-packages",
+                                  "-n", PAIRING_RECEIVER, "--es", "tablet_mode", device_mode(cfg, serial))
+                if rc == 0 and "result=1" in o:
+                    mode_sent.add(serial)
                 bridge.plugged_until = time.monotonic() + 30
                 bridge.plugged_serial, bridge.homes_left = serial, 3
                 await run(adb, "-s", serial, "shell", "svc", "power", "stayon", "true")  # AC+USB+kabellos
