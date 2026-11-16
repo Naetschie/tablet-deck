@@ -18,32 +18,68 @@
   <span class="grow"></span>
   <span id="status"></span>
 </header>
-<div id="toolbar" class="toolbar">
+<div id="toolbar" class="toolbar nowrap">
   <label class="inline">Spiel <select id="gameSel"></select></label>
   <label class="inline">Panel <select id="panelSel"></select></label>
-  <label class="inline">Titel <input id="panelTitle" maxlength="40" size="12"></label>
+  <label class="inline">Titel <input id="panelTitle" maxlength="40" size="10"></label>
   <button id="newPanel" class="ghost" title="Neues leeres Panel für dieses Spiel">+ Panel</button>
-  <button id="dupPanel" class="ghost" title="Aktuelles Panel kopieren">Duplizieren</button>
+  <button id="dupPanel" class="ghost" title="Aktuelles Panel kopieren">Kopie</button>
   <button id="delPanel" class="ghost" title="Panel in den Papierkorb (profiles/.papierkorb)">Löschen</button>
-  <button id="genPanel" class="ghost" title="Panel aus einer Spielvorlage und deiner Tastenbelegung erzeugen">Automatisch erzeugen …</button>
+  <button id="genPanel" class="ghost" title="Panel aus einer Spielvorlage und deiner Tastenbelegung erzeugen">Automatisch …</button>
   <span class="grow"></span>
   <label class="inline">Haltezeit (ms) <input id="holdMs" type="number" min="200" max="5000" step="100"></label>
   <button id="revert" class="ghost">Verwerfen</button>
-  <button id="save">Speichern</button>
+  <button id="save" title="Speichern (Strg+S)">Speichern</button>
+</div>
+<div id="panelTools" class="toolbar nowrap">
+  <button id="pUndo" class="ghost" title="Rückgängig (Strg+Z)">Rückgängig</button>
+  <button id="pRedo" class="ghost" title="Wiederholen (Strg+Y)">Wiederholen</button>
+  <button id="pDup" class="ghost" title="Gewählte Tasten duplizieren (Strg+D)">Duplizieren</button>
+  <button id="pDel" class="ghost" title="Gewählte Tasten löschen (Entf)">Entfernen</button>
+  <span class="btngroup" role="group" aria-label="Ausrichten">
+    <button id="pAlL" class="ghost small" title="Links ausrichten (freie Seite; eine Taste: am Raster)">Links</button>
+    <button id="pAlC" class="ghost small" title="Waagrecht mittig ausrichten">Mitte</button>
+    <button id="pAlR" class="ghost small" title="Rechts ausrichten">Rechts</button>
+    <button id="pAlT" class="ghost small" title="Oben ausrichten">Oben</button>
+    <button id="pAlM" class="ghost small" title="Senkrecht mittig ausrichten">Mitte</button>
+    <button id="pAlB" class="ghost small" title="Unten ausrichten">Unten</button>
+  </span>
+  <span class="btngroup">
+    <button id="pDistH" class="ghost small" title="Waagrecht gleichmäßig verteilen (ab 3, in Zellen)">Verteilen &#8596;</button>
+    <button id="pDistV" class="ghost small" title="Senkrecht gleichmäßig verteilen (ab 3, in Zellen)">Verteilen &#8597;</button>
+    <button id="pSameW" class="ghost small" title="Gleiche Breite (wie die erste Taste)">Gleiche Breite</button>
+    <button id="pSameH" class="ghost small" title="Gleiche Höhe (wie die erste Taste)">Gleiche Höhe</button>
+  </span>
+  <span class="grow"></span>
+  <span class="hint">Ausrichten und Verteilen gelten für freie Seiten</span>
 </div>
 <main id="viewPanels" class="workspace">
   <aside id="paletteCol" class="col">
-    <h2>Seiten</h2>
-    <ul id="pages"></ul>
-    <button id="addPage" class="ghost">+ Seite</button>
-    <h2 class="gap">Tasten <small id="pageHint"></small></h2>
+    <h2>Bausteine</h2>
+    <div id="blocks" class="blocks"></div>
+    <h2 class="gap">Spielaktionen</h2>
+    <input id="actQuery" type="search" placeholder="Aktion, Taste oder Gruppe suchen …" autocomplete="off">
+    <p id="actInfo" class="hint"></p>
+    <div id="actList"></div>
+    <h2 class="gap">Tasten dieser Seite <small id="pageHint"></small></h2>
     <ul id="buttons"></ul>
-    <button id="addButton" class="ghost">+ Taste</button>
   </aside>
   <section id="previewCol" class="col stage">
-    <h2>Vorschau</h2>
-    <div id="canvasBox"></div>
-    <p id="previewEmpty" class="hint"></p>
+    <div id="tvBox">
+      <div id="tvWrap">
+        <div id="tv" class="tv">
+          <header class="tv-head">
+            <div id="tvHead" class="tv-row"></div>
+            <nav id="tvTabs" class="tabs" aria-label="Seiten"></nav>
+          </header>
+          <div id="tvMain" class="tv-main"><div id="tvPage" class="tv-page"></div></div>
+          <div id="tvOv" class="tv-ov"></div>
+        </div>
+      </div>
+      <p id="previewNone" class="hint" hidden>Kein Panel geladen.</p>
+    </div>
+    <div id="toast" class="banner" hidden></div>
+    <p id="previewNote" class="hint"></p>
   </section>
   <aside id="propsCol" class="col">
     <h2>Seite</h2>
@@ -148,6 +184,8 @@
 <script src="dashlib.js"></script>
 <script src="/stats/render.js"></script>
 <script src="dash.js"></script>
+<script src="panellib.js"></script>
+<script src="panel.js"></script>
 <script src="editor.js"></script>
 </body>
 </html>

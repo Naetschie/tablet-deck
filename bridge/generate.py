@@ -125,17 +125,60 @@ def ai_draft(root, games_entry, hint=""):
     return layout, report, source
 
 
+def _read_bindings(root, games_entry):
+    """Belegung des Spiels (games.json-Eintrag) lesen -> (Result oder None, Quellenbeschreibung)."""
+    cfg = games_entry.get("bindings")
+    if not cfg:
+        return None, "nur Vorlage (keine Belegungsquelle hinterlegt)"
+    try:
+        result = bindings.read(cfg, root)
+        return result, result.source
+    except (OSError, ValueError, Exception) as e:  # noqa: BLE001 - kaputte XML o. Ä.: mit Vorlage weiter
+        log.warning("Belegung %s: %s", games_entry["id"], e)
+        return None, f"Belegung nicht lesbar ({e}) – nur Vorlagentasten"
+
+
 def draft(root, games_entry, tid, pages=None):
     """Vorlage + Belegung des Spiels (games.json-Eintrag) -> (layout, bericht, quelle)."""
     template = load_template(root, games_entry["id"], tid)
-    cfg = games_entry.get("bindings")
-    result, source = None, "nur Vorlage (keine Belegungsquelle hinterlegt)"
-    if cfg:
-        try:
-            result = bindings.read(cfg, root)
-            source = result.source
-        except (OSError, ValueError, Exception) as e:  # noqa: BLE001 - kaputte XML o. Ä.: mit Vorlage weiter
-            source = f"Belegung nicht lesbar ({e}) – nur Vorlagentasten"
-            log.warning("Belegung %s: %s", games_entry["id"], e)
+    result, source = _read_bindings(root, games_entry)
     layout, report = generate(template, result, pages)
     return layout, report, source
+
+
+# Felder, die nur die Lage einer Taste in einer bestimmten Seite beschreiben - nicht Teil einer Palette-Aktion
+_POSITION_FIELDS = ("x", "y", "w", "h", "zone", "wide", "group")
+
+
+def actions(root, games_entry):
+    """Spielaktionen für die Palette des Panel-Editors: alle Tasten der Vorlagen des Spiels, mit der Taste aus der
+    eigenen Belegung (dieselbe Quelle und Regeln wie die automatische Erstellung, siehe generate()).
+    Rückgabe: (vorlagen, quelle). vorlagen: [{id, title, pages: [{id, title, actions: [{button, group, action,
+    key, source, note}]}]}]; button ist eine fertige, gültige Taste ohne Lagefelder (x, y, w, h, zone, wide,
+    group), group die Überschrift in der Vorlage. Seiten-Links entfallen (sie zeigen auf Vorlagenseiten)."""
+    result, source = _read_bindings(root, games_entry)
+    out = []
+    for t in list_templates(root, games_entry["id"]):
+        layout, report = generate(load_template(root, games_entry["id"], t["id"]), result)
+        rows = {(r["page_id"], r["id"]): r for r in report}
+        pages = []
+        for page in layout["pages"]:
+            acts = []
+            for b in page["buttons"]:
+                if "page" in b:
+                    continue
+                r = rows[(page["id"], b["id"])]
+                acts.append({"button": {k: v for k, v in b.items() if k not in _POSITION_FIELDS},
+                             "group": b.get("group", ""), "action": r["action"], "key": r["key"],
+                             "source": r["source"], "note": r["note"]})
+            if acts:
+                pages.append({"id": page["id"], "title": page["title"], "actions": acts})
+        out.append({"id": t["id"], "title": t["title"], "pages": pages})
+    return out, source
+
+
+def actions_message(root, games_entry):
+    """Antwort des Hubs auf die Editor-Nachricht {"t": "actions", "game": ...}."""
+    templates, source = actions(root, games_entry)
+    return {"t": "actions", "game": games_entry["id"], "templates": templates, "source": source,
+            "bindings": bool(games_entry.get("bindings"))}

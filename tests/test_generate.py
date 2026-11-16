@@ -10,7 +10,7 @@ from pathlib import Path
 from bridge import bindings
 from bridge.bindings import Binding, Result
 from bridge.bindings.cryengine import key_to_sc, sc_to_key
-from bridge.generate import draft, generate, list_templates, load_template
+from bridge.generate import actions, actions_message, draft, generate, list_templates, load_template
 from bridge.layout import validate_layout
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -124,6 +124,77 @@ class GenerateTest(unittest.TestCase):
         lay, rep, src = draft(ROOT, entry, "bergbau")
         self.assertIn("nicht lesbar", src)
         self.assertTrue(lay["pages"])
+
+
+class ActionsTest(unittest.TestCase):
+    """Palette des Panel-Editors: Spielaktionen aus den Vorlagen mit der Taste aus der eigenen Belegung."""
+
+    def make_root(self, d):
+        root = Path(d)
+        (root / "templates" / "spiel").mkdir(parents=True)
+        t = {"title": "Vorlage", "pages": [
+            {"id": "p1", "title": "Eins", "type": "grid", "buttons": [
+                {"id": "a", "label": "A", "sc": "v_flightready", "group": "Schiff", "wide": True},
+                {"id": "b", "label": "B", "sc": "v_fire", "key": "Q", "group": "Waffen"},
+                {"id": "m", "label": "M", "macro": [{"text": "o7"}]},
+                {"id": "link", "label": "L", "page": "p2"}]},
+            {"id": "p2", "title": "Frei", "type": "free", "cols": 4, "rows": 2, "buttons": [
+                {"id": "c", "label": "C", "sc": "v_lights", "x": 0, "y": 0, "w": 2, "h": 1, "mode": "toggle"}]},
+            {"id": "leer", "title": "Nur Link", "type": "grid", "buttons": [{"id": "l2", "label": "L2", "page": "p1"}]}]}
+        (root / "templates" / "spiel" / "vorlage.json").write_text(json.dumps(t), encoding="utf-8")
+        (root / "def.xml").write_text(DEFAULT_XML, encoding="utf-8")
+        return root
+
+    def test_actions_use_binding_and_strip_position(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = self.make_root(d)
+            entry = {"id": "spiel", "bindings": {"adapter": "cryengine", "default": "def.xml"}}
+            tpls, source = actions(root, entry)
+        self.assertEqual(len(tpls), 1)
+        self.assertEqual([p["id"] for p in tpls[0]["pages"]], ["p1", "p2"])    # Seite nur mit Link entfällt
+        a = {x["button"]["id"]: x for p in tpls[0]["pages"] for x in p["actions"]}
+        self.assertNotIn("link", a)                                           # Seiten-Link entfällt
+        self.assertEqual((a["a"]["key"], a["a"]["source"], a["a"]["group"]), ("RALT+R", "Belegung", "Schiff"))
+        self.assertEqual(a["a"]["button"]["key"], "RALT+R")
+        self.assertEqual(a["b"]["source"], "fehlt")                           # Maus-Belegung: Vorlagentaste gilt nicht
+        self.assertNotIn("key", a["b"]["button"])
+        self.assertEqual(a["m"]["source"], "Makro")
+        self.assertEqual(a["c"]["button"]["mode"], "toggle")
+        for x in a.values():
+            for k in ("x", "y", "w", "h", "zone", "wide", "group"):
+                self.assertNotIn(k, x["button"])
+        self.assertTrue(source)
+
+    def test_actions_buttons_are_valid_when_added_to_a_panel(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = self.make_root(d)
+            tpls, _ = actions(root, {"id": "spiel"})
+        buttons = [x["button"] for p in tpls[0]["pages"] for x in p["actions"]]
+        validate_layout({"pages": [{"id": "x", "title": "X", "buttons": buttons}]})
+
+    def test_actions_without_bindings_and_without_templates(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = self.make_root(d)
+            tpls, source = actions(root, {"id": "spiel"})
+            self.assertIn("keine Belegungsquelle", source)
+            self.assertEqual(tpls[0]["pages"][0]["actions"][1]["source"], "Vorlage")     # Taste Q aus der Vorlage
+            self.assertEqual(actions(root, {"id": "gibtsnicht"}), ([], source))
+
+    def test_actions_message(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = self.make_root(d)
+            m = actions_message(root, {"id": "spiel"})
+            json.dumps(m)
+        self.assertEqual((m["t"], m["game"], m["bindings"]), ("actions", "spiel", False))
+        self.assertEqual(m["templates"][0]["title"], "Vorlage")
+
+    def test_repo_templates_all_give_valid_actions(self):
+        for d in (ROOT / "templates").iterdir():
+            tpls, _ = actions(ROOT, {"id": d.name})
+            self.assertTrue(tpls, d.name)
+            for t in tpls:
+                for p in t["pages"]:
+                    validate_layout({"pages": [{"id": "x", "title": "X", "buttons": [a["button"] for a in p["actions"]]}]})
 
 
 if __name__ == "__main__":

@@ -31,7 +31,7 @@ from .firstrun import ensure_from_example
 from .outputs import make_output
 from .keys import ALIASES, MEDIA_VK, SCANCODES
 from .games import watch_games
-from .generate import ai_draft, draft, list_templates
+from .generate import actions_message, ai_draft, draft, list_templates
 from .profiles import Exists, Profiles
 from .layout import button_for_press, needed_keys
 from .webhome import WebHome
@@ -294,6 +294,13 @@ class Bridge:
                         gi = self.profiles.game(g)
                         await ws.send(json.dumps({"t": "templates", "game": g, "templates": list_templates(ROOT, g),
                                                   "bindings": bool(gi and gi.get("bindings"))}))
+                    elif t == "actions":
+                        gi = self.profiles.game(msg.get("game"))
+                        if not gi:
+                            raise ValueError("Spiel nicht in games.json")
+                        # Belegungsdatei lesen nicht im Event-Loop
+                        reply = await asyncio.get_running_loop().run_in_executor(None, actions_message, ROOT, gi)
+                        await ws.send(json.dumps(reply))
                     elif t == "generate":
                         gi = self.profiles.game(msg.get("game"))
                         if not gi:
