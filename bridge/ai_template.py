@@ -140,7 +140,7 @@ def check_key(root, client=None):
     Fehlertexte nennen nur die Art des Fehlers, nie den Schlüssel."""
     import anthropic
     if client is None:
-        client = anthropic.Anthropic(api_key=_read_key(root), max_retries=1, timeout=20)
+        client = anthropic.Anthropic(api_key=_read_key(root), max_retries=0, timeout=20)   # höchstens 20 s Warten
     try:
         client.models.list(limit=1)
     except anthropic.AuthenticationError:
