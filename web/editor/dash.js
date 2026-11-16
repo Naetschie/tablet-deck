@@ -85,8 +85,19 @@
   }
   // Änderung abschließen: Verlauf, Anzeige, Status
   function commit() {
+    dropLoneGroups();
     hist.push(snapshot());
     renderAll();
+  }
+  // Gruppen mit nur noch einem Mitglied (nach Löschen/Lösen im Einzelmodus) auflösen
+  function dropLoneGroups() {
+    var n = Object.create(null);
+    doc.widgets.forEach(function (w) { if (w.group) n[w.group] = (n[w.group] || 0) + 1; });
+    doc.widgets = doc.widgets.map(function (w) {
+      if (!w.group || n[w.group] >= 2) return w;
+      var c = {}; for (var k in w) if (k !== "group") c[k] = w[k];
+      return c;
+    });
   }
   function setSel(ids, prim) {
     solo = false;
@@ -383,7 +394,12 @@
       if (!hit) {          // freie Fläche: Rahmen aufziehen (mit Umschalt/Strg zur Auswahl hinzufügen)
         drag = { mode: "marquee", p: p, cx: e.clientX, cy: e.clientY, base: extra ? sel.slice() : [], extra: extra, moved: false };
       } else if (extra) {  // Umschalt-/Strg-Klick: Element samt Gruppe hinzufügen bzw. abwählen
-        sel = Core.toggleSelection(doc.widgets, solo ? [] : sel, [hit.id]); solo = false;
+        if (solo) {        // Einzelelement behalten, das neue Element (samt Gruppe) dazu bzw. abwählen
+          var add = Core.expandSelection(doc.widgets, [hit.id]);
+          sel = sel.indexOf(hit.id) >= 0 ? sel.filter(function (i) { return add.indexOf(i) < 0; })
+            : sel.concat(add.filter(function (i) { return sel.indexOf(i) < 0; }));
+        } else sel = Core.toggleSelection(doc.widgets, sel, [hit.id]);
+        solo = false;
         primary = sel.indexOf(hit.id) >= 0 ? hit.id : (sel[0] || null);
         refreshSel(); lastDown = null; return;
       } else {
@@ -394,7 +410,8 @@
         else if (sel.indexOf(hit.id) < 0 || (solo && sel[0] !== hit.id)) setSel([hit.id], hit.id);
         else primary = hit.id;
         refreshSel();
-        drag = { mode: "move", p: p, cx: e.clientX, cy: e.clientY, start: start, ids: sel.slice(), solo: solo, moved: false };
+        drag = { mode: "move", p: p, cx: e.clientX, cy: e.clientY, start: start, ids: sel.slice(), solo: solo, moved: false,
+                 hit: hit.id };
       }
     }
     try { $("dashOv").setPointerCapture(e.pointerId); } catch (x) { /* egal */ }
@@ -438,7 +455,12 @@
     if (d.mode === "marquee") {
       if (!moved && !d.extra && sel.length) { setSel([]); }      // Klick ins Leere hebt die Auswahl auf
       refreshSel();
-    } else if (moved) commit(); else renderOverlay();
+    } else if (moved) commit();
+    else if (d.mode === "move" && d.hit && !d.solo && sel.length > 1) {
+      var only = Core.expandSelection(doc.widgets, [d.hit]);
+      if (only.length < sel.length) setSel([d.hit], d.hit);     // Klick ohne Ziehen: nur dieses Element/Gruppe
+      refreshSel();
+    } else renderOverlay();
   }
 
   // x/y/w/h der Auswahl in den Feldern nachführen (während des Ziehens)
@@ -742,7 +764,11 @@
   }
   function layer(fn) {
     if (!sel.length || !ensureEditable()) return;
-    doc.widgets = fn(doc.widgets, sel);
+    if (solo) {        // Einzelmodus: Gruppe kurz entfernen, damit nur dieses Element die Ebene wechselt
+      var g = (doc.widgets.filter(function (w) { return w.id === sel[0]; })[0] || {}).group;
+      var tmp = Lib.setField(doc.widgets, sel, "group", undefined);
+      doc.widgets = Lib.setField(fn(tmp, sel), sel, "group", g);
+    } else doc.widgets = fn(doc.widgets, sel);
     commit();
   }
   // Anordnen: fn(items) -> neue Liste; ein Verlaufsschritt je Aktion

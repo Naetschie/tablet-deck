@@ -1129,9 +1129,12 @@ async def adb_watch(cfg, port, bridge):
             # der Installation) bekämen sonst Proxy, Daueranzeige, Ausrichtung und Startbildschirm verstellt.
             t_chk = asyncio.get_running_loop().time()
             for serial in list(now):
-                st = launcher_seen.setdefault(serial, [None, -1e9, t_chk])
+                st = launcher_seen.setdefault(serial, [None, -1e9, t_chk, None])
                 st[2] = t_chk                                  # zuletzt gesehen (für das Aufräumen unten)
-                if st[0] is None or (st[0] is False and t_chk - st[1] >= 60):   # nachinstalliert? jede Minute
+                need = st[0] is None or (st[0] is False and t_chk - st[1] >= 60)   # nachinstalliert? jede Minute
+                if st[0] is None and st[3] is not None and t_chk - st[3] >= 60 and t_chk - st[1] < 60:
+                    need = False                               # Paketdienst hängt: nur noch minütlich fragen
+                if need:
                     rc, o = await run(adb, "-s", serial, "shell", "pm", "path", LAUNCHER_PKG)
                     if "package:" in o:
                         found = True
@@ -1142,7 +1145,14 @@ async def adb_watch(cfg, port, bridge):
                     if found is False and st[0] is None:
                         log.info("Gerät %s: kein Tablet-Deck-Launcher installiert - wird nicht eingerichtet", serial)
                     if found is not None:
-                        st[0], st[1] = found, t_chk
+                        st[0], st[1], st[3] = found, t_chk, None
+                    elif st[3] is None:
+                        st[3] = t_chk                          # seit wann keine Antwort
+                    elif t_chk - st[3] >= 60:
+                        if st[1] < st[3]:
+                            log.warning("Gerät %s: Paketabfrage beantwortet seit einer Minute nicht (%s) - "
+                                        "wird nicht eingerichtet, prüfe minütlich", serial, o.strip()[-80:])
+                        st[1] = t_chk
                 if not st[0]:
                     now.discard(serial)
             for serial in list(launcher_seen):
