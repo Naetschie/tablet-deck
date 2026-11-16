@@ -108,6 +108,10 @@
   $("save").onclick = function () {
     if (!layout) return;
     if (!ws || ws.readyState !== 1) { status("Keine Verbindung zur Bridge – nicht gespeichert", "err"); return; }
+    var ph = 0;
+    layout.pages.forEach(function (pg) { pg.buttons.forEach(function (b) { if (PanelLib.hasPlaceholder(b)) ph++; }); });
+    if (ph && !confirm(ph + " Taste(n) haben noch Platzhalter-Tasten (Rollen bzw. Bild↑/Bild↓) und senden diese am "
+      + "Tablet wirklich an den PC. Trotzdem speichern?")) return;
     pendingSave = JSON.stringify(layout);   // dieser Stand gilt nach der Bestätigung als gespeichert
     ws.send(JSON.stringify({ t: "save", game: cur.game, panel: cur.panel, layout: layout, new: isNew }));
     status("Speichere …", "");
@@ -155,7 +159,7 @@
   };
   $("panelSel").onchange = function () {
     if (!leaveOk()) { this.value = cur.panel; return; }
-    cur.panel = this.value; layout = null; get();
+    cur.panel = this.value; saved = ""; setLayout(null); syncFields(); get();
   };
   function slug(t) {
     return t.toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")

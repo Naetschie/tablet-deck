@@ -398,6 +398,7 @@
           var add = Core.expandSelection(doc.widgets, [hit.id]);
           sel = sel.indexOf(hit.id) >= 0 ? sel.filter(function (i) { return add.indexOf(i) < 0; })
             : sel.concat(add.filter(function (i) { return sel.indexOf(i) < 0; }));
+          sel = Core.expandSelection(doc.widgets, sel);   // ohne Einzelmodus gelten Gruppen wieder ganz
         } else sel = Core.toggleSelection(doc.widgets, sel, [hit.id]);
         solo = false;
         primary = sel.indexOf(hit.id) >= 0 ? hit.id : (sel[0] || null);

@@ -1114,7 +1114,8 @@ async def adb_watch(cfg, port, bridge):
     rot = tablet_rotation(cfg)
     def companion(serial):
         return device_mode(cfg, serial) == "companion"
-    launcher_seen = {}   # serial -> [installiert?, Prüfzeit, zuletzt gesehen] - fremde Geräte bleiben unangetastet
+    # serial -> [installiert?, Prüfzeit, zuletzt gesehen, keine Antwort seit] - fremde Geräte bleiben unangetastet
+    launcher_seen = {}
     mode_sent = set()    # Tablets, die ihre Betriebsart seit dem Anstecken bestätigt haben
     GONE_S = 15  # erst nach so langer Abwesenheit gilt das Tablet als abgesteckt
     while True:

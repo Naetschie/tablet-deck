@@ -227,7 +227,7 @@
   }
 
   function renderGrid(p) {
-    var root = div("grid-page"), groups = [], map = {};
+    var root = div("grid-page"), groups = [], map = Object.create(null);
     p.buttons.forEach(function (b) {
       var g = b.group || "";
       if (!map[g]) { map[g] = []; groups.push(g); }
@@ -462,8 +462,7 @@
   function gridToFreeForDrag() {
     var p = page();
     if (!PL.setPageType(p, "free")) { alert("Zu viele Tasten für ein Raster (höchstens 12 × 12) – Seite teilen oder Tasten entfernen."); return false; }
-    hist.push(snap());
-    renderPage(); touch(); renderProps(); renderToolbar();
+    renderPage();                       // kein eigener Verlaufsschritt: onUp schreibt Umwandlung + Verschieben als einen touch(); renderProps(); renderToolbar();
     toast("Diese Seite ist jetzt frei (Raster) – die Positionen bleiben wie zuvor.", true);
     return true;
   }
@@ -511,7 +510,10 @@
   function onUp() {
     if (!drag) return;
     var d = drag; drag = null; marquee = null;
-    if (d.mode === "marquee") { refreshSel(); return; }
+    if (d.mode === "marquee") {
+      if (!d.moved && !d.extra) setSel([]);   // Klick ins Leere hebt die Auswahl auf
+      refreshSel(); return;
+    }
     if (d.moved) commit(); else renderOverlay();
   }
 
