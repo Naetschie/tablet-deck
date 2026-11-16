@@ -224,7 +224,7 @@ def valid_name(name):
 
 
 def _atomic_write(path, text):
-    tmp = Path(str(path) + ".tmp")
+    tmp = Path(f"{path}.{os.getpid()}.tmp")   # eindeutig: kein Zusammenstoß mit anderen Schreibern
     tmp.write_text(text, encoding="utf-8", newline="\n")
     os.replace(tmp, path)
 
@@ -240,6 +240,7 @@ class Dashboards:
         self.own = self.bundled / OWN_DIR
         self.cfg = cfg if cfg is not None else {}
         self.cfg_path = cfg_path
+        self._warned_hidden = set()   # verdeckte eigene Dashboards nur einmal melden
 
     # ---- Lesen ----
     def origin(self, name):
@@ -260,7 +261,12 @@ class Dashboards:
         out = []
         for origin in (BUNDLED, OWN):
             for d in list_dashboards(self._folder(origin)):
-                if valid_name(d["name"]) and not (origin == OWN and (self.bundled / f"{d['name']}.json").is_file()):
+                hidden = origin == OWN and (self.bundled / f"{d['name']}.json").is_file()
+                if hidden and d["name"] not in self._warned_hidden:
+                    self._warned_hidden.add(d["name"])
+                    log.warning("Eigenes Dashboard %r wird von einem mitgelieferten gleichen Namens verdeckt - "
+                                "in dashboards/eigene/ umbenennen", d["name"])
+                if valid_name(d["name"]) and not hidden:
                     out.append(dict(d, origin=origin))
         return out
 
@@ -286,7 +292,10 @@ class Dashboards:
             validate(d)
         except ValueError as e:
             raise ValueError(f"Dashboard ungültig: {e}") from None
-        text = json.dumps(d, indent=1, ensure_ascii=False) + "\n"
+        try:
+            text = json.dumps(d, indent=1, ensure_ascii=False, allow_nan=False) + "\n"
+        except ValueError:
+            raise ValueError("Dashboard ungültig: NaN/Unendlich in einem Feld") from None
         if len(text.encode("utf-8")) > MAX_BYTES:
             raise ValueError("Dashboard ist zu groß")
         _atomic_write(path, text)
@@ -328,7 +337,7 @@ class Dashboards:
             raise ValueError("Name ist schon vergeben")
         os.replace(src, self.own / f"{to}.json")
         if self.cfg.get("stats_dashboard") == name:
-            self.set_default(to)
+            self._follow_default(to)
 
     def delete(self, name):
         """Eigenes Dashboard in dashboards/eigene/.papierkorb/ verschieben (wiederherstellbar)."""
@@ -340,7 +349,15 @@ class Dashboards:
             n += 1
         shutil.move(str(src), str(trash / f"{name}-{n}.json"))
         if self.cfg.get("stats_dashboard") == name:
-            self.set_default(None)
+            self._follow_default(None)
+
+    def _follow_default(self, name):
+        """Standard nach Umbenennen/Löschen nachziehen. Scheitert das (config.json gesperrt o. Ä.), ist der
+        Vorgang selbst trotzdem erledigt - nur loggen; get_default fällt dann auf deck zurück."""
+        try:
+            self.set_default(name)
+        except (OSError, ValueError) as e:
+            log.warning("Standard-Dashboard nicht nachgezogen (%s) - gilt jetzt deck", e.__class__.__name__)
 
     # ---- Standard für die Kachel „PC-Werte“ ----
     def get_default(self):

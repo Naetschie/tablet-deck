@@ -263,7 +263,7 @@
     var sel = toSet(expandSelection(items, ids)), src = items.filter(function (it) { return sel[it.id]; });
     if (!src.length) return { items: items.map(copy), ids: [] };
     var ox = num(offset && offset.x, 0), oy = num(offset && offset.y, 0);
-    var out = items.map(copy), newIds = [], gmap = {};
+    var out = items.map(copy), newIds = [], gmap = Object.create(null);   // Gruppe "constructor" o. Ä.
     src.forEach(function (it) {
       var c = copy(it), id = typeof newId === "function" ? newId(it, out) : freeId(it.id + "_kopie", out);
       c.id = id; c.x = it.x + ox; c.y = it.y + oy;

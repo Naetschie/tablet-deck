@@ -325,6 +325,23 @@ class ManageTest(unittest.TestCase):
                          [("deck", "mitgeliefert"), ("mobro", "mitgeliefert"), ("deck-eigen", "eigen")])
         self.assertEqual(l[0]["title"], "DECK")
 
+    def test_review_nan_standard_verdeckt(self):
+        name, d = self.m.create("deck")
+        bad = dict(d, extra=float("nan"))           # unbekannter Schlüssel mit NaN: Datei wäre kein gültiges JSON
+        with self.assertRaises(ValueError):
+            self.m.save(name, bad)
+        # Standard nachziehen scheitert (config.json weg): Löschen gilt trotzdem, Standard fällt auf deck
+        self.m.set_default(name)
+        self.cfg_path.unlink()
+        with self.assertLogs("dashboard", "WARNING"):
+            self.m.delete(name)
+        self.assertEqual(self.m.get_default(), "deck")
+        # eigenes Dashboard, das später ein mitgeliefertes gleichen Namens verdeckt: Warnung (einmal)
+        (self.d / "eigene").mkdir(exist_ok=True)
+        (self.d / "eigene" / "mobro.json").write_text(json.dumps(good()), encoding="utf-8")
+        with self.assertLogs("dashboard", "WARNING"):
+            self.m.list()
+
     def test_mitgelieferte_schreibgeschuetzt(self):
         for fn in (lambda: self.m.save("deck", good()), lambda: self.m.rename("deck", "x"),
                    lambda: self.m.delete("deck")):
