@@ -32,6 +32,7 @@ from .outputs import make_output
 from .keys import ALIASES, MEDIA_VK, SCANCODES
 from .games import watch_games
 from .generate import actions_message, ai_draft, draft, list_templates
+from . import ai_template
 from .profiles import Exists, Profiles
 from .layout import button_for_press, needed_keys
 from .webhome import WebHome
@@ -348,6 +349,17 @@ class Bridge:
                             raise ValueError(f"KI-Vorlage fehlgeschlagen ({type(e).__name__})") from None
                         await ws.send(json.dumps({"t": "draft", "game": gi["id"], "template": "ki",
                                                   "layout": layout, "report": report, "source": source}))
+                    elif t == "ai_key_status":
+                        await ws.send(json.dumps({"t": "ai_key", **ai_template.key_status(ROOT)}))
+                    elif t == "ai_key_set":
+                        ai_template.save_key(ROOT, msg.get("key"))
+                        await ws.send(json.dumps({"t": "ai_key", **ai_template.key_status(ROOT), "msg": "Gespeichert"}))
+                    elif t == "ai_key_delete":
+                        ai_template.delete_key(ROOT)
+                        await ws.send(json.dumps({"t": "ai_key", **ai_template.key_status(ROOT), "msg": "Entfernt"}))
+                    elif t == "ai_key_check":
+                        res = await asyncio.get_running_loop().run_in_executor(None, ai_template.check_key, ROOT)
+                        await ws.send(json.dumps({"t": "ai_key", **ai_template.key_status(ROOT), "check": res}))
                     elif t == "dash_sensors":
                         values, meta, sources = await self.stats.sample()
                         await ws.send(json.dumps({"t": "dash_sensors", "sensors": dashboard.sensor_list(values, meta),

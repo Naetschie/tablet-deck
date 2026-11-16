@@ -76,7 +76,7 @@ class AiTemplateTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError) as cm:
                 ai_template.generate_template(d, "S")
-            self.assertIn("secrets/anthropic.key", str(cm.exception))
+            self.assertIn("Einstellungen", str(cm.exception))
             (Path(d) / "secrets").mkdir()
             (Path(d) / "secrets" / "anthropic.key").write_text("   \n")   # leer = fehlt
             with self.assertRaises(ValueError):
@@ -101,6 +101,50 @@ class AiTemplateTest(unittest.TestCase):
         self.assertEqual(kw["output_config"]["effort"], "medium")
         self.assertNotIn("thinking", kw)
         self.assertNotIn("temperature", kw)
+
+
+class KeyTest(unittest.TestCase):
+    """Schlüssel verwalten (Editor, ⚙ Einstellungen): nur Format prüfen, speichern, entfernen, Status."""
+    KEY = "sk-ant-api03-" + "x" * 40
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_speichern_status_entfernen(self):
+        self.assertEqual(ai_template.key_status(self.root), {"set": False})
+        with self.assertLogs("ai_template", "INFO") as cm:
+            ai_template.save_key(self.root, "  " + self.KEY + "\n")
+        self.assertNotIn(self.KEY, "\n".join(cm.output))          # nie ins Log
+        self.assertEqual((self.root / "secrets" / "anthropic.key").read_text(encoding="utf-8").strip(), self.KEY)
+        self.assertEqual(ai_template.key_status(self.root), {"set": True})
+        self.assertEqual(list((self.root / "secrets").iterdir()), [self.root / "secrets" / "anthropic.key"])   # kein .tmp
+        ai_template.delete_key(self.root)
+        self.assertEqual(ai_template.key_status(self.root), {"set": False})
+        ai_template.delete_key(self.root)                          # zweimal ist kein Fehler
+
+    def test_falsches_format_abgelehnt_ohne_echo(self):
+        for bad in (None, 42, "", "abc", "sk-ant-kurz", "sk-ant-" + "x" * 30 + " mit leerzeichen", "sk-proj-" + "x" * 40):
+            with self.assertRaises(ValueError) as cm:
+                ai_template.save_key(self.root, bad)
+            if isinstance(bad, str) and bad:
+                self.assertNotIn(bad, str(cm.exception))
+        self.assertFalse((self.root / "secrets" / "anthropic.key").exists())
+
+    def test_pruefen(self):
+        import anthropic
+        ok = NS(models=NS(list=lambda limit: []))
+        self.assertEqual(ai_template.check_key(self.root, ok)["ok"], True)
+
+        def deny(limit):
+            raise anthropic.AuthenticationError("nein", response=NS(status_code=401, headers={}, request=None), body=None)
+        res = ai_template.check_key(self.root, NS(models=NS(list=deny)))
+        self.assertEqual(res, {"ok": False, "msg": "Schlüssel ungültig oder widerrufen"})
+        with self.assertRaises(ValueError):                         # ohne Schlüssel: klare Meldung
+            ai_template.check_key(self.root)
 
 
 if __name__ == "__main__":

@@ -201,6 +201,10 @@ SHA-256 `69572e37…aa8c48`. Beim ersten Verbinden fragt Android einmal nach der
 - Taskleisten-Symbol: Modus am Tablet wählen, Panel-Editor öffnen, beenden.
 - Logs: `bridge.log`, `supervise.log` im Projektordner.
 - Autostart entfernen: `scripts\install-autostart.ps1 -Remove`.
+- **KI-Panels (optional):** „Automatisch … → Mit KI erstellen“ entwirft ein Panel für Spiele ohne Vorlage. Dafür im
+  Editor oben rechts **⚙ Einstellungen** öffnen und einen eigenen Anthropic-API-Schlüssel eintragen
+  (console.anthropic.com → API Keys; jede Erzeugung kostet etwas API-Guthaben). „Prüfen“ testet ihn kostenlos,
+  „Entfernen“ löscht ihn. Er liegt nur in `secrets/anthropic.key` (nicht im Git, nicht im Zip, nie im Log).
 
 ## Einstellungen (`config.json`)
 

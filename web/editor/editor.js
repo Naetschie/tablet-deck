@@ -67,6 +67,10 @@
         saved = pendingSave; pendingSave = null;
         if (isNew) { isNew = false; send({ t: "games" }); }   // neues Panel in der Auswahl zeigen
         if (isDirty()) changed(); else status("Gespeichert – Tablet aktualisiert sich", "ok");
+      } else if (m.t === "ai_key") {
+        aiKeyShow(m);
+      } else if (m.t === "error" && /^ai_key_/.test(m.req || "")) {
+        aiKeyBusy(false); aiKeyMsg("Fehler: " + m.msg, "err");
       } else if (m.t === "error" && (m.req === "generate" || m.req === "templates" || m.req === "ai")) {
         if (m.req === "ai") $("genAiRun").disabled = false;
         $("genReport").textContent = "Fehler: " + m.msg;
@@ -187,9 +191,50 @@
     $("genReport").innerHTML = ""; $("genTake").disabled = true; genLast = null;
     $("genSource").textContent = "Vorlagen werden geladen …";
     send({ t: "templates", game: cur.game });
+    send({ t: "ai_key_status" });
     $("genDlg").showModal();
   };
   $("genClose").onclick = function () { $("genDlg").close(); };
+
+  // ---------------------------------------------------------------- Einstellungen: KI-Schlüssel
+  // Der Schlüssel geht nur zum Hub (Datei secrets/anthropic.key); zurück kommt nur „hinterlegt ja/nein“.
+  var aiKeySet = null;
+  function aiKeyMsg(text, cls) { var e = $("aiKeyState"); e.textContent = text; e.className = "hint " + (cls || ""); }
+  function aiKeyBusy(b) { ["aiKeySave", "aiKeyCheck", "aiKeyDel"].forEach(function (id) { $(id).disabled = b; }); if (!b) aiKeyButtons(); }
+  function aiKeyButtons() { $("aiKeyCheck").disabled = !aiKeySet; $("aiKeyDel").disabled = !aiKeySet; }
+  function aiKeyShow(m) {
+    aiKeySet = !!m.set;
+    $("genAiNoKey").hidden = aiKeySet;
+    $("genAiRun").title = aiKeySet ? "" : "Erst unter ⚙ Einstellungen einen API-Schlüssel eintragen";
+    aiKeyBusy(false);
+    var base = aiKeySet ? "Schlüssel hinterlegt." : "Kein Schlüssel hinterlegt.";
+    if (m.check) aiKeyMsg(base + " Prüfung: " + m.check.msg, m.check.ok ? "ok" : "err");
+    else if (m.msg) aiKeyMsg(base + " (" + m.msg + ")", aiKeySet ? "ok" : "");
+    else aiKeyMsg(base, aiKeySet ? "ok" : "");
+  }
+  function openSettings() {
+    $("aiKeyIn").value = ""; aiKeyMsg("Wird geladen …"); send({ t: "ai_key_status" });
+    if (!$("setDlg").open) $("setDlg").showModal();
+    $("aiKeyIn").focus();
+  }
+  $("setBtn").onclick = openSettings;
+  $("genAiSet").onclick = openSettings;
+  $("setClose").onclick = function () { $("aiKeyIn").value = ""; $("setDlg").close(); };
+  $("setDlg").addEventListener("close", function () { $("aiKeyIn").value = ""; });
+  $("aiKeySave").onclick = function () {
+    var k = $("aiKeyIn").value.trim();
+    if (!/^sk-ant-[A-Za-z0-9_\-]{20,250}$/.test(k)) { aiKeyMsg("Das sieht nicht wie ein Anthropic-API-Schlüssel aus (beginnt mit sk-ant-).", "err"); return; }
+    if (!ws || ws.readyState !== 1) { aiKeyMsg("Keine Verbindung zur Bridge.", "err"); return; }
+    aiKeyBusy(true); aiKeyMsg("Speichere …");
+    send({ t: "ai_key_set", key: k });
+    $("aiKeyIn").value = "";
+  };
+  $("aiKeyIn").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); $("aiKeySave").click(); } });
+  $("aiKeyCheck").onclick = function () { aiKeyBusy(true); aiKeyMsg("Prüfe bei Anthropic …"); send({ t: "ai_key_check" }); };
+  $("aiKeyDel").onclick = function () {
+    if (!confirm("API-Schlüssel von diesem PC entfernen? „Mit KI erstellen“ geht danach erst wieder mit neuem Schlüssel.")) return;
+    aiKeyBusy(true); send({ t: "ai_key_delete" });
+  };
   function genTemplates(m) {
     genList = m.templates;
     var sel = $("genTpl"); sel.innerHTML = "";

@@ -17,6 +17,7 @@
   </nav>
   <span class="grow"></span>
   <span id="status"></span>
+  <button id="setBtn" class="ghost small" title="Einstellungen (z. B. KI-Schlüssel für die Panel-Erzeugung)">⚙ Einstellungen</button>
 </header>
 <div id="toolbar" class="toolbar nowrap">
   <label class="inline">Spiel <select id="gameSel"></select></label>
@@ -169,6 +170,8 @@
   <div id="genPages" class="checks"></div>
   <details id="genAi">
     <summary>Keine passende Vorlage? Mit KI erstellen (Claude, kostet API-Guthaben)</summary>
+    <p class="hint warn" id="genAiNoKey" hidden>Noch kein API-Schlüssel hinterlegt.
+      <button id="genAiSet" class="ghost small">⚙ Schlüssel eintragen</button></p>
     <label>Was soll aufs Panel? (optional, z. B. Spielweise, wichtige Menüs, Link zur Steuerungsseite)
       <textarea id="genHint" maxlength="2000" placeholder="z. B. Fokus auf Inventar, Heilung und Karte"></textarea></label>
     <div class="row end"><button id="genAiRun" class="ghost">Mit KI erzeugen</button></div>
@@ -178,6 +181,23 @@
     <button id="genClose" class="ghost">Schließen</button>
     <button id="genRun" class="ghost">Erzeugen</button>
     <button id="genTake" disabled>Als neues Panel übernehmen</button>
+  </div>
+</dialog>
+<dialog id="setDlg" class="narrow">
+  <h2>Einstellungen</h2>
+  <h3>KI für die Panel-Erzeugung</h3>
+  <p class="hint">Für „Automatisch … → Mit KI erstellen“. Dafür brauchst du einen eigenen API-Schlüssel von Anthropic
+    (console.anthropic.com → API Keys); jede Erzeugung kostet etwas API-Guthaben. Der Schlüssel bleibt auf diesem PC
+    (secrets/anthropic.key), wird nie angezeigt und geht nur an die Anthropic-API.</p>
+  <p id="aiKeyState" class="hint"></p>
+  <div class="row">
+    <input id="aiKeyIn" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" aria-label="API-Schlüssel">
+    <button id="aiKeySave">Speichern</button>
+  </div>
+  <div class="row end">
+    <button id="aiKeyCheck" class="ghost">Prüfen</button>
+    <button id="aiKeyDel" class="ghost">Entfernen</button>
+    <button id="setClose" class="ghost">Schließen</button>
   </div>
 </dialog>
 <datalist id="keyNames"></datalist>

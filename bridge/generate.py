@@ -109,7 +109,7 @@ def ai_draft(root, games_entry, hint=""):
     try:
         template = generate_template(root, games_entry.get("name", games_entry["id"]), actions=actions, hint=hint)
     except anthropic.AuthenticationError:
-        raise ValueError("API-Schlüssel ungültig (secrets/anthropic.key)") from None
+        raise ValueError("API-Schlüssel ungültig – im Editor unter ⚙ Einstellungen prüfen") from None
     except anthropic.RateLimitError:
         raise ValueError("API-Limit erreicht – später erneut versuchen") from None
     except anthropic.APIConnectionError:

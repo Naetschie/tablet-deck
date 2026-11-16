@@ -5,6 +5,7 @@ Der API-Schlüssel liegt in secrets/anthropic.key (nie loggen, nie in Meldungen)
 """
 import json
 import logging
+import os
 import re
 from pathlib import Path
 
@@ -87,8 +88,72 @@ def _read_key(root):
     except OSError:
         key = ""
     if not key:
-        raise ValueError("Kein API-Schlüssel: secrets/anthropic.key anlegen")
+        raise ValueError("Kein API-Schlüssel hinterlegt – im Editor unter ⚙ Einstellungen eintragen")
     return key
+
+
+# ---------------------------------------------------------------- Schlüssel verwalten (Editor, ⚙ Einstellungen)
+# Der Schlüssel geht nur in eine Richtung: Editor -> Datei. Er wird nie zurückgeschickt, nie geloggt und taucht
+# in keiner Fehlermeldung auf.
+KEY_FORMAT = re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,250}")
+
+
+def key_status(root):
+    """{"set": bool} - ob ein Schlüssel hinterlegt ist (ohne ihn zu lesen oder zu zeigen)."""
+    try:
+        return {"set": bool((Path(root) / KEY_FILE).read_text(encoding="utf-8").strip())}
+    except (OSError, UnicodeDecodeError):
+        return {"set": False}
+
+
+def save_key(root, key):
+    """Schlüssel prüfen (Format) und atomar nach secrets/anthropic.key schreiben."""
+    if not isinstance(key, str):
+        raise ValueError("Schlüssel fehlt")
+    key = key.strip()
+    if not KEY_FORMAT.fullmatch(key):
+        raise ValueError("Das sieht nicht wie ein Anthropic-API-Schlüssel aus (beginnt mit sk-ant-)")
+    p = Path(root) / KEY_FILE
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(f"{p.name}.{os.getpid()}.tmp")
+    try:
+        tmp.write_text(key + "\n", encoding="utf-8")
+        os.replace(tmp, p)
+    finally:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+    log.info("KI-Schlüssel gespeichert")
+
+
+def delete_key(root):
+    try:
+        (Path(root) / KEY_FILE).unlink()
+        log.info("KI-Schlüssel entfernt")
+    except FileNotFoundError:
+        pass
+
+
+def check_key(root, client=None):
+    """Schlüssel mit einer kostenlosen Abfrage (Modellliste) prüfen. -> {"ok": bool, "msg": Text}.
+    Fehlertexte nennen nur die Art des Fehlers, nie den Schlüssel."""
+    import anthropic
+    if client is None:
+        client = anthropic.Anthropic(api_key=_read_key(root), max_retries=1, timeout=20)
+    try:
+        client.models.list(limit=1)
+    except anthropic.AuthenticationError:
+        return {"ok": False, "msg": "Schlüssel ungültig oder widerrufen"}
+    except anthropic.PermissionDeniedError:
+        return {"ok": False, "msg": "Schlüssel hat keine Berechtigung"}
+    except anthropic.RateLimitError:
+        return {"ok": True, "msg": "Schlüssel gültig (gerade im API-Limit)"}
+    except anthropic.APIConnectionError:
+        return {"ok": False, "msg": "Keine Verbindung zur Anthropic-API"}
+    except anthropic.APIStatusError as e:
+        return {"ok": False, "msg": f"API-Fehler {getattr(e, 'status_code', '?')}"}
+    return {"ok": True, "msg": "Schlüssel gültig"}
 
 
 def _slug(text, fallback):
