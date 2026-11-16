@@ -8,6 +8,11 @@ python scripts/sc_bindings.py           # Bericht
 python scripts/sc_bindings.py --write   # Panel-Profil aktualisieren (Standard: main.json, sonst --layout)
 ```
 
+**Mitgelieferte Panels** (`panels/star-citizen/*.json`) werden vom Skript nicht beschrieben: Der Hub setzt
+`key` (und `hold`) von Tasten mit `sc` beim Laden aus derselben Quelle (Standardprofil + eigene
+`actionmaps.xml`) und lädt neu, wenn sich eine der Dateien ändert. Aktionen ohne Tastaturbelegung oder unbekannte
+Aktionen behalten, was in der Panel-Datei steht. Das Skript bleibt für eigene Panels in `profiles/`.
+
 Quellen:
 - Standardbelegung: `Data.p4k → Data/Libs/Config/defaultProfile.xml`, mit StarBreaker extrahiert und
   umgewandelt. Die Datei stammt aus den Spieldateien und liegt deshalb nicht im Repo - jeder erzeugt sie

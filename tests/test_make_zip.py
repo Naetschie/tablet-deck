@@ -41,7 +41,7 @@ class MakeZipTest(unittest.TestCase):
                     "bridge/__pycache__/x.pyc"):
             self.assertTrue(make_zip.excluded(rel), rel)
         for rel in ("config.example.json", "launcher.example.json", "sensors.example.json", "games.json",
-                    "profiles/star-citizen/main.json", "bridge/__main__.py", "install.ps1", "docs/install.md",
+                    "profiles/star-citizen/main.json", "panels/star-citizen/cockpit.json", "bridge/__main__.py", "install.ps1", "docs/install.md",
                     "android/src/app/tabletdeck/launcher/HubLink.java"):
             self.assertFalse(make_zip.excluded(rel), rel)
 

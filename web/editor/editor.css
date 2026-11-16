@@ -96,6 +96,8 @@ table.rep tr.fehlt td { color: var(--warn); }
 #dashElems li.ingroup { margin-left: 16px; }
 .banner { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid var(--warn); background: var(--warnSoft); border-radius: 8px; font-size: 13px; }
 .banner[hidden] { display: none; }
+#panelBanner { margin: 6px 12px 0; }
+#panelSel option.bundled { font-style: italic; }
 .banner span { flex: 1; }
 #dashErr:empty { display: none; }
 .dprops { display: flex; flex-direction: column; gap: 10px; }

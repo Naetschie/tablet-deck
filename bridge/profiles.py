@@ -3,7 +3,13 @@
 Ablage:
   games.json                     Spiele: id, name, exe (Prozessnamen), steam (AppID), panels (Reihenfolge),
                                  maps (Kartenanbieter: name, url)
-  profiles/<spiel>/<panel>.json  ein Panel im Format von layout.json (pages, holdMs) plus "title"
+  profiles/<spiel>/<panel>.json  eigenes Panel im Format von layout.json (pages, holdMs) plus "title"
+  panels/<spiel>/<name>.json     mitgeliefertes Panel (im Git/Zip, schreibgeschützt); Schlüssel <spiel>/std--<name>
+
+Getrennte Namensräume: mitgelieferte Panels tragen im Schlüssel das reservierte Präfix "std--", eigene dürfen
+so nicht heißen. Beide sind nebeneinander wählbar, nichts wird verdeckt, ein Update überschreibt nichts
+Eigenes. Bearbeiten geht nur über eine Kopie (copy_bundled). Bei mitgelieferten Panels mit Feld "sc" setzt der
+Hub die Tasten beim Laden aus der echten Belegung des Spielers (bindings.apply_sc).
 
 Beim ersten Start ohne Ordner profiles/ wird das alte layout.json als profiles/star-citizen/main.json übernommen.
 Tasten-IDs sind nur innerhalb eines Panels eindeutig; der Hub merkt sich pro Tablet-Verbindung das Panel.
@@ -22,6 +28,7 @@ ID = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
 EXE = re.compile(r"[^\\/:*?\"<>|\r\n]{1,100}\.exe", re.I)
 MAP_URL = re.compile(r"(?i)https://[^\s]+")
 MIGRATE_GAME, MIGRATE_PANEL = "star-citizen", "main"
+BUNDLED_PREFIX = "std--"
 COVER_ID = re.compile(r"[a-z0-9-]{1,40}")
 COVER_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
 
@@ -51,6 +58,11 @@ def _dir_has_exe(d, names, depth=3):
     except OSError:
         pass
     return False
+
+
+def is_bundled(panel):
+    """Panel-id eines mitgelieferten Panels (Präfix std--)."""
+    return isinstance(panel, str) and panel.startswith(BUNDLED_PREFIX)
 
 
 class Exists(ValueError):
@@ -103,13 +115,16 @@ def validate_games(data):
 
 
 class Profiles:
-    def __init__(self, root, games_path, legacy_layout=None):
+    def __init__(self, root, games_path, legacy_layout=None, bundled=None):
         self.dir = Path(root)
+        self.bundled_dir = Path(bundled) if bundled else None   # mitgelieferte Panels (panels/)
+        self._bres = {}          # Spiel-id -> (Quellsignatur, bindings.Result oder None) für "sc"-Tasten
+        self._user_cache = (None, None)   # (Bibliothek, actionmaps.xml) - nicht jede Sekunde suchen
         self.games_path = Path(games_path)
         self.legacy = Path(legacy_layout) if legacy_layout else None
         self.games = []          # aus games.json
         self.games_mtime = None
-        self.panels = {}         # "spiel/panel" -> {"layout", "buttons", "mtime"}
+        self.panels = {}         # "spiel/panel" -> {"layout", "buttons", "mtime", "origin": own|bundled}
         self.failed = {}         # "spiel/panel" -> mtime einer fehlerhaften, nicht geladenen Datei (nur einmal melden)
         self._lib = ({}, {}, {}, [])  # (games.json-id -> Bibliothekseintrag, Bibliotheks-id -> Spiel-id, Spiel-id -> Eintrag)
         self.extra_maps = {}     # Spiel-id (nur Bibliothek) -> Karten (Map Genie)
@@ -148,39 +163,95 @@ class Profiles:
             return False
         return True
 
+    def _sources(self):
+        yield self.dir, "own"
+        if self.bundled_dir:
+            yield self.bundled_dir, "bundled"
+
+    def _binding(self, gid):
+        """(Signatur, bindings.Result oder None) der Spielbelegung für "sc"-Tasten mitgelieferter Panels.
+        Die Signatur (Pfade + Änderungszeiten der Quelldateien) ändert sich, wenn das Spiel gepatcht oder die
+        eigene Belegung geändert wurde; dann werden die mitgelieferten Panels des Spiels neu geladen."""
+        from . import bindings
+        g = next((x for x in self.games if x["id"] == gid), None)
+        cfg = g.get("bindings") if g else None
+        if not cfg:
+            return None, None
+        lib = self._lib[3]
+        if self._user_cache[0] is not lib:
+            # actionmaps.xml nur neu suchen, wenn sich die Bibliothek geändert hat (nie ein Scan im Hub-Loop)
+            self._user_cache = (lib, bindings.resolve_cfg(cfg, self.games_path.parent, lib)[0].get("user"))
+        cfg2, files = bindings.resolve_cfg(dict(cfg, user=cfg.get("user") or self._user_cache[1] or ""),
+                                           self.games_path.parent)
+        cfg2["user"] = cfg2.get("user") or ""   # leer = keine eigene Belegung (read() sucht dann nicht selbst)
+        sig = []
+        for fp in files:
+            try:
+                sig.append((fp, os.stat(fp).st_mtime) if fp else ("", None))
+            except OSError:
+                sig.append((fp, None))
+        sig = tuple(sig)
+        old = self._bres.get(gid)
+        if old and old[0] == sig:
+            return old
+        try:
+            res = bindings.read(cfg2, self.games_path.parent)
+        except Exception as e:  # noqa: BLE001 - Belegung nicht lesbar: Tasten aus der Datei bleiben
+            log.warning("Belegung %s nicht lesbar, mitgelieferte Panels nutzen die Tasten aus der Datei: %s", gid, e)
+            res = None
+        self._bres[gid] = (sig, res)
+        return sig, res
+
     def scan(self):
         """Profile neu einlesen, deren Datei sich geändert hat. Gibt die geänderten Schlüssel zurück.
-        Eine kaputte Datei lässt das bisherige Panel aktiv (wie früher beim Layout)."""
+        Eine kaputte Datei lässt das bisherige Panel aktiv (wie früher beim Layout).
+        Eigene (profiles/) und mitgelieferte Panels (panels/, Schlüssel mit std--) werden getrennt gehalten."""
+        from . import bindings
         changed, seen = [], set()
-        for f in sorted(self.dir.glob("*/*.json")):
-            game, panel = f.parent.name, f.stem
-            if not (ID.fullmatch(game) and ID.fullmatch(panel)):
-                continue
-            key = f"{game}/{panel}"
-            seen.add(key)
-            try:
-                mtime = f.stat().st_mtime
-            except OSError:
-                continue   # wird gerade gespeichert
-            old = self.panels.get(key)
-            if old and old["mtime"] == mtime or self.failed.get(key) == mtime:
-                continue
-            try:
-                layout = json.loads(f.read_text(encoding="utf-8"))
-                buttons = validate_layout(layout)
-                if "title" in layout and not (isinstance(layout["title"], str) and 0 < len(layout["title"]) <= 40):
-                    raise ValueError("title 1-40 Zeichen")
-            except (ValueError, OSError) as e:
-                log.error("Profil %s fehlerhaft, %s: %s", key, "altes bleibt aktiv" if old else "nicht geladen", e)
-                if old:
-                    old["mtime"] = mtime
-                else:
-                    self.failed[key] = mtime
-                continue
-            self.failed.pop(key, None)
-            self.panels[key] = {"layout": layout, "buttons": buttons, "mtime": mtime}
-            changed.append(key)
-            log.info("Profil %s geladen: %d Seiten, %d Tasten", key, len(layout["pages"]), len(buttons))
+        for folder, origin in self._sources():
+            for f in sorted(folder.glob("*/*.json")):
+                game, panel = f.parent.name, (BUNDLED_PREFIX if origin == "bundled" else "") + f.stem
+                if not (ID.fullmatch(game) and ID.fullmatch(panel)):
+                    continue
+                if origin == "own" and is_bundled(panel):
+                    continue   # reserviert für mitgelieferte Panels
+                key = f"{game}/{panel}"
+                seen.add(key)
+                try:
+                    mtime = f.stat().st_mtime
+                except OSError:
+                    continue   # wird gerade gespeichert
+                bsig = bres = None
+                if origin == "bundled":
+                    bsig, bres = self._binding(game)
+                    mtime = (mtime, bsig)   # auch die Belegung des Spiels gehört zum Stand
+                old = self.panels.get(key)
+                if old and old["mtime"] == mtime or self.failed.get(key) == mtime:
+                    continue
+                try:
+                    layout = json.loads(f.read_text(encoding="utf-8"))
+                    buttons = validate_layout(layout)
+                    if "title" in layout and not (isinstance(layout["title"], str) and 0 < len(layout["title"]) <= 40):
+                        raise ValueError("title 1-40 Zeichen")
+                    if bres is not None:
+                        try:
+                            res_layout, n = bindings.apply_sc(layout, bres)
+                            buttons = validate_layout(res_layout)
+                            layout = res_layout
+                        except ValueError as e:
+                            log.warning("Profil %s: Belegung nicht anwendbar (%s), Tasten aus der Datei", key, e)
+                except (ValueError, OSError) as e:
+                    log.error("Profil %s fehlerhaft, %s: %s", key, "altes bleibt aktiv" if old else "nicht geladen", e)
+                    if old:
+                        old["mtime"] = mtime
+                    else:
+                        self.failed[key] = mtime
+                    continue
+                self.failed.pop(key, None)
+                self.panels[key] = {"layout": layout, "buttons": buttons, "mtime": mtime, "origin": origin}
+                changed.append(key)
+                log.info("Profil %s geladen (%s): %d Seiten, %d Tasten", key,
+                         "mitgeliefert" if origin == "bundled" else "eigen", len(layout["pages"]), len(buttons))
         for key in list(self.panels):
             if key not in seen:
                 del self.panels[key]
@@ -280,14 +351,17 @@ class Profiles:
         return list(dict.fromkeys(names))
 
     def panel_ids(self, gid):
-        """Panels eines Spiels: Reihenfolge aus games.json, weitere Dateien alphabetisch dahinter."""
-        have = sorted(k.split("/", 1)[1] for k in self.panels if k.split("/", 1)[0] == gid)
+        """Panels eines Spiels: Reihenfolge aus games.json, weitere alphabetisch dahinter - erst eigene, dann
+        mitgelieferte (so bleibt ein eigenes Panel das Standard-Panel, mitgeliefertes ist nur der Rückfall)."""
+        have = sorted((k.split("/", 1)[1] for k in self.panels if k.split("/", 1)[0] == gid),
+                      key=lambda p: (is_bundled(p), p))
         g = self.game(gid)
         order = [p for p in (g["panels"] if g else []) if p in have]
         return order + [p for p in have if p not in order]
 
     def panel_list(self, gid):
-        return [{"id": p, "title": self.panels[f"{gid}/{p}"]["layout"].get("title", p)} for p in self.panel_ids(gid)]
+        return [{"id": p, "title": self.panels[f"{gid}/{p}"]["layout"].get("title", p),
+                 "origin": self.panels[f"{gid}/{p}"]["origin"]} for p in self.panel_ids(gid)]
 
     def game_ids(self):
         """Alle Spiele: aus games.json, dazu Ordner mit Profilen ohne Eintrag."""
@@ -320,8 +394,11 @@ class Profiles:
 
     # ---------------- Schreiben (Editor) ----------------
     def path(self, game, panel):
+        """Datei eines *eigenen* Panels. Mitgelieferte (std--) sind schreibgeschützt."""
         if not (isinstance(game, str) and ID.fullmatch(game) and isinstance(panel, str) and ID.fullmatch(panel)):
             _err("Spiel- und Panel-id: a-z, 0-9, - (max. 40 Zeichen)")
+        if is_bundled(panel):
+            _err("Panel ist mitgeliefert und schreibgeschützt – bitte Kopie bearbeiten")
         return self.dir / game / f"{panel}.json"
 
     def save(self, game, panel, layout, new=False):
@@ -350,6 +427,26 @@ class Profiles:
             layout = {"holdMs": 1000, "pages": [{"id": "seite1", "title": "Seite 1", "buttons": []}]}
         layout["title"] = title
         return self.save(game, panel, layout)
+
+    def copy_bundled(self, game, panel, title=None, layout=None):
+        """Eigene Kopie eines mitgelieferten Panels (Name <name>-eigen, bei Bedarf -eigen-2 usw.). layout: bereits
+        geänderter Stand (sonst das Original). Gibt die neue Panel-id zurück."""
+        if not (isinstance(game, str) and ID.fullmatch(game) and is_bundled(panel)):
+            _err("Kopie gibt es nur von mitgelieferten Panels")
+        src = self.get(f"{game}/{panel}")
+        if not src:
+            _err("Vorlage-Panel nicht gefunden")
+        lay = json.loads(json.dumps(layout if isinstance(layout, dict) else src["layout"]))
+        base = panel[len(BUNDLED_PREFIX):]
+        n, new = 1, None
+        while new is None or (self.dir / game / f"{new}.json").exists():
+            suffix = "-eigen" if n == 1 else f"-eigen-{n}"
+            new, n = base[:40 - len(suffix)].rstrip("-") + suffix, n + 1
+            if n > 99:
+                _err("Keine freie Panel-id für die Kopie")
+        old_title = lay.get("title") if isinstance(lay.get("title"), str) else base
+        lay["title"] = (title if isinstance(title, str) and title.strip() else old_title + " (eigen)")[:40]
+        return self.save(game, new, lay, new=True)
 
     def delete(self, game, panel):
         """Panel löschen: wird nach profiles/.papierkorb/ verschoben (wiederherstellbar)."""

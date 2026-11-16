@@ -8,6 +8,8 @@ Aktionen ohne Tastaturbelegung werden gemeldet, mit Vorschlag einer freien Kombi
 Aufruf:
   python scripts/sc_bindings.py                 # Bericht, nichts ändern
   python scripts/sc_bindings.py --write         # Panel-Profil aktualisieren
+Mitgelieferte Panels (panels/) werden hier NICHT beschrieben: der Hub setzt deren Tasten beim Laden selbst aus
+der echten Belegung (bridge/bindings apply_sc); --layout auf panels/… schreibt das Skript nicht (Abbruch bei --write).
 Standardprofil: tools/sc/Data/Libs/Config/defaultProfile.plain.xml (StarBreaker: p4k extract + cryxml convert)
 """
 import argparse
@@ -110,6 +112,9 @@ def main():
         apply_to_game(Path(args.user), Path(args.default), args.layout, eff, free)
         eff = effective_bindings(args.default, args.user)   # neu einlesen, dann Layout wie gewohnt
 
+    if args.write and Path(args.layout).resolve().is_relative_to((ROOT / "panels").resolve()):
+        sys.exit("panels/ ist mitgeliefert und schreibgeschützt: der Hub setzt die Tasten dort zur Laufzeit aus der "
+                 "Belegung. Für eigene Anpassungen im Editor eine Kopie anlegen (profiles/) und diese beschreiben.")
     layout = json.loads(Path(args.layout).read_text(encoding="utf-8"))
     missing, changed = [], 0
     print(f"{'Taste':22} {'SC-Aktion':48} Belegung")

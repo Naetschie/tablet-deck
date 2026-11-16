@@ -7,6 +7,9 @@
   var ws = null, layout = null, saved = "", pendingSave = null, keyNames = [];
   var games = [], cur = { game: null, panel: null };   // Spiel/Panel im Editor
   var isNew = false;   // aktuelles Panel ist ein noch nie gespeicherter Entwurf
+  var asking = false, copying = false;   // Rückfrage „Kopie bearbeiten?“ offen / Kopie wird angelegt
+  var BUNDLED_PREFIX = "std--";          // wie bridge/profiles.py: mitgelieferte Panels (panels/) sind schreibgeschützt
+  var LOCK = "\u{1F512} ";
   var actionsFor = null;   // Spiel, für das die Palette (Spielaktionen) geladen wurde
   var $ = function (id) { return document.getElementById(id); };
 
@@ -54,6 +57,7 @@
           renderSelects(); syncFields(); status("Geladen", "ok");
         }
       } else if (m.t === "created" || m.t === "deleted") {
+        copying = false;
         games = m.games;
         if (m.t === "created") cur = { game: m.game, panel: m.panel };
         else { var g2 = games.filter(function (x) { return x.id === cur.game; })[0]; cur.panel = g2 && g2.panels[0] ? g2.panels[0].id : null; }
@@ -74,6 +78,10 @@
       } else if (m.t === "error" && (m.req === "generate" || m.req === "templates" || m.req === "ai")) {
         if (m.req === "ai") $("genAiRun").disabled = false;
         $("genReport").textContent = "Fehler: " + m.msg;
+      } else if (m.t === "error" && m.req === "copy") {
+        copying = false;
+        if (layout && isBundled()) { setLayout(JSON.parse(saved)); syncFields(); }
+        status("Kopie nicht angelegt: " + m.msg, "err");
       } else if (m.t === "error") {
         pendingSave = null;
         if (m.req === "save" && isNew && m.code === "exists") {
@@ -98,19 +106,47 @@
     };
   }
   function isDirty() { return layout && JSON.stringify(layout) !== saved; }
+  // Mitgelieferte Panels (Präfix std--, nie ein ungespeicherter Entwurf) sind nur ansehbar
+  function isBundled() { return !!cur.panel && !isNew && cur.panel.indexOf(BUNDLED_PREFIX) === 0; }
+  // Jede Bearbeitung eines mitgelieferten Panels fragt nach einer Kopie (wie im Reiter Dashboards): ja = die Kopie
+  // bekommt gleich die Änderung, nein = zurück zum Original. Die Frage läuft verzögert, nicht mitten in einer Mausaktion.
+  function askCopy() {
+    if (asking || copying) return;
+    asking = true;
+    setTimeout(function () {
+      asking = false;
+      if (!layout || !isBundled() || !isDirty()) return;
+      if (confirm("„" + (JSON.parse(saved).title || cur.panel) + "“ ist mitgeliefert und schreibgeschützt.\n" +
+          "Kopie bearbeiten? (Die Änderung landet in einer eigenen Kopie, das Original bleibt unverändert.)")) {
+        copying = true;
+        send({ t: "copy", game: cur.game, panel: cur.panel, layout: layout });
+        status("Lege Kopie an …", "");
+      } else {
+        setLayout(JSON.parse(saved)); syncFields(); changed();
+      }
+    }, 0);
+  }
   function changed() {
+    if (isBundled()) {
+      syncFields();
+      if (isDirty()) { status("Mitgeliefert – schreibgeschützt", "dirty"); askCopy(); }
+      else status("Mitgeliefert – schreibgeschützt", "");
+      return;
+    }
     if (document.activeElement !== $("holdMs")) syncFields();
     if (isDirty()) status("Ungespeicherte Änderungen", "dirty"); else status("Gespeichert", "ok");
   }
   // Titel und Haltezeit in der Kopfleiste (nach Laden, Rückgängig usw.)
   function syncFields() {
     $("holdMs").value = layout ? layout.holdMs || 1000 : "";
+    $("holdMs").disabled = $("panelTitle").readOnly = isBundled();
     if (document.activeElement !== $("panelTitle")) $("panelTitle").value = layout ? layout.title || "" : "";
   }
   window.addEventListener("beforeunload", function (e) { if (isDirty() || DashEditor.isDirty()) { e.preventDefault(); e.returnValue = ""; } });
 
   $("save").onclick = function () {
     if (!layout) return;
+    if (isBundled()) { status("Mitgeliefert – schreibgeschützt; zum Bearbeiten „Kopie bearbeiten“ wählen", "err"); return; }
     if (!ws || ws.readyState !== 1) { status("Keine Verbindung zur Bridge – nicht gespeichert", "err"); return; }
     var ph = 0;
     layout.pages.forEach(function (pg) { pg.buttons.forEach(function (b) { if (PanelLib.hasPlaceholder(b)) ph++; }); });
@@ -141,7 +177,10 @@
     });
     gs.value = cur.game || "";
     var g = curGame();
-    (g ? g.panels : []).forEach(function (p) { ps.appendChild(el("option", { value: p.id, text: p.title })); });
+    (g ? g.panels : []).forEach(function (p) {
+      var b = p.origin === "bundled";
+      ps.appendChild(el("option", { value: p.id, text: (b ? LOCK : "") + p.title + (b ? " (mitgeliefert)" : ""), cls: b ? "bundled" : "" }));
+    });
     var panels = (g ? g.panels : []).map(function (p) { return { id: p.id, title: p.title }; });
     if (cur.panel && !(g && g.panels.some(function (p) { return p.id === cur.panel; }))) {
       var t = (layout && layout.title || cur.panel) + " (neu, ungespeichert)";
@@ -149,7 +188,11 @@
       panels.push({ id: cur.panel, title: layout && layout.title || cur.panel });
     }
     ps.value = cur.panel || "";
-    $("dupPanel").disabled = $("delPanel").disabled = !cur.panel;
+    var bundled = isBundled();
+    $("dupPanel").disabled = !cur.panel; $("delPanel").disabled = !cur.panel || bundled;
+    $("save").disabled = $("revert").disabled = bundled; $("panelBanner").hidden = !bundled;
+    $("dupPanel").textContent = bundled ? "Kopie bearbeiten" : "Kopie";
+    syncFields();
     PanelEditor.setInfo({ game: g ? g.name : "", panels: panels, panel: cur.panel });
     if (cur.game && cur.game !== actionsFor && ws && ws.readyState === 1) { actionsFor = cur.game; PanelEditor.requestActions(cur.game); }
   }
@@ -170,6 +213,7 @@
       .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 36) || "panel";
   }
   function newPanel(copy) {
+    if (copy && isBundled()) { copyBundled(); return; }
     if (!cur.game || (copy && !layout) || !leaveOk()) return;
     var title = prompt(copy ? "Titel der Kopie:" : "Titel des neuen Panels (z. B. Bergbau):", copy ? layout.title + " (Kopie)" : "");
     if (!title) return;
@@ -177,10 +221,18 @@
     send({ t: "create", game: cur.game, panel: uniqueId(slug(title), function (x) { return taken[x]; }).replace(/_/g, "-"),
       title: title.slice(0, 40), copy: copy ? cur.game + "/" + cur.panel : null });
   }
+  // Kopie eines mitgelieferten Panels: der Hub vergibt den Namen (<name>-eigen); das Original wird nie geändert
+  function copyBundled() {
+    if (!cur.panel || copying) return;
+    copying = true;
+    send({ t: "copy", game: cur.game, panel: cur.panel });
+    status("Lege Kopie an …", "");
+  }
+  $("panelBannerCopy").onclick = copyBundled;
   $("newPanel").onclick = function () { newPanel(false); };
   $("dupPanel").onclick = function () { newPanel(true); };
   $("delPanel").onclick = function () {
-    if (!cur.panel || !confirm("Panel „" + (layout && layout.title || cur.panel) + "“ löschen? (landet in profiles/.papierkorb)")) return;
+    if (!cur.panel || isBundled() || !confirm("Panel „" + (layout && layout.title || cur.panel) + "“ löschen? (landet in profiles/.papierkorb)")) return;
     send({ t: "delete", game: cur.game, panel: cur.panel });
   };
 

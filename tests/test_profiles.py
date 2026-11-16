@@ -138,5 +138,157 @@ class ProfilesTest(unittest.TestCase):
                 validate_games(bad)
 
 
+DEFAULT_XML = ('<profile><actionmap name="spaceship">'
+               '<action name="v_a" keyboard="lalt+1"/><action name="v_hold" keyboard="g" activationMode="hold"/>'
+               '<action name="v_none" keyboard=""/></actionmap></profile>')
+
+
+def sc_lay(title="Cockpit"):
+    return {"title": title, "pages": [{"id": "p", "title": "P", "buttons": [
+        {"id": "a", "label": "A", "sc": "v_a", "key": "F1"}, {"id": "h", "label": "H", "sc": "v_hold", "key": "F2"},
+        {"id": "n", "label": "N", "sc": "v_none", "key": "F3"}, {"id": "u", "label": "U", "sc": "v_fehlt", "key": "F4"},
+        {"id": "x", "label": "X", "key": "F5"}]}]}
+
+
+class BundledTest(unittest.TestCase):
+    """Mitgelieferte Panels (panels/): getrennter Namensraum std--, schreibgeschützt, Kopie bearbeiten."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.d = Path(self.tmp.name)
+        self.prof_dir = self.d / "profiles"
+        self.bun_dir = self.d / "panels"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def make(self, games_data):
+        gp = self.d / "games.json"
+        gp.write_text(json.dumps(games_data), encoding="utf-8")
+        p = Profiles(self.prof_dir, gp, None, bundled=self.bun_dir)
+        p.load_games()
+        p.scan()
+        return p
+
+    def w(self, folder, game, panel, data):
+        f = folder / game / f"{panel}.json"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps(data), encoding="utf-8")
+
+    def wb(self, game, panel, data):
+        self.w(self.bun_dir, game, panel, data)
+
+    def test_namespaces_both_visible(self):
+        self.w(self.prof_dir, "g", "cockpit", lay("Eigenes"))
+        self.wb("g", "cockpit", lay("Mitgeliefert"))
+        p = self.make(games({"id": "g", "name": "G"}))
+        self.assertEqual(sorted(p.panels), ["g/cockpit", "g/std--cockpit"])
+        self.assertEqual([(x["id"], x["origin"]) for x in p.panel_list("g")],
+                         [("cockpit", "own"), ("std--cockpit", "bundled")])
+        self.assertEqual(p.default_key("g"), "g/cockpit")          # eigenes hat als Standard Vorrang
+
+    def test_bundled_is_fallback_default(self):
+        self.wb("g", "cockpit", lay("Mitgeliefert"))
+        p = self.make(games({"id": "g", "name": "G"}))
+        self.assertEqual(p.default_key("g"), "g/std--cockpit")
+        self.assertEqual(p.get("g/std--cockpit")["origin"], "bundled")
+        self.assertEqual(p.game_ids(), ["g"])
+
+    def test_own_cannot_use_reserved_prefix(self):
+        self.w(self.prof_dir, "g", "std--x", lay())
+        p = self.make(games({"id": "g", "name": "G"}))
+        self.assertEqual(list(p.panels), [])
+        for fn in (lambda: p.save("g", "std--x", lay()), lambda: p.create("g", "std--x", "T"),
+                   lambda: p.delete("g", "std--x")):
+            with self.assertRaisesRegex(ValueError, "mitgeliefert"):
+                fn()
+
+    def test_bundled_write_protected(self):
+        self.wb("g", "cockpit", lay("M"))
+        p = self.make(games({"id": "g", "name": "G"}))
+        for fn in (lambda: p.save("g", "std--cockpit", lay("X")), lambda: p.delete("g", "std--cockpit")):
+            with self.assertRaisesRegex(ValueError, "Kopie bearbeiten"):
+                fn()
+        self.assertTrue((self.bun_dir / "g" / "cockpit.json").is_file())
+
+    def test_copy_bundled(self):
+        self.wb("g", "cockpit", lay("Cockpit"))
+        p = self.make(games({"id": "g", "name": "G"}))
+        self.assertEqual(p.copy_bundled("g", "std--cockpit"), "g/cockpit-eigen")
+        self.assertEqual(p.copy_bundled("g", "std--cockpit", title="Mein Ding"), "g/cockpit-eigen-2")
+        self.assertEqual(p.copy_bundled("g", "std--cockpit", layout=lay("Geändert", bid="neu")), "g/cockpit-eigen-3")
+        p.scan()
+        self.assertEqual(p.get("g/cockpit-eigen")["layout"]["title"], "Cockpit (eigen)")
+        self.assertEqual(p.get("g/cockpit-eigen-2")["layout"]["title"], "Mein Ding")
+        self.assertIn("neu", p.get("g/cockpit-eigen-3")["buttons"])
+        self.assertEqual(p.get("g/cockpit-eigen")["origin"], "own")
+        self.assertEqual(p.panel_ids("g")[-1], "std--cockpit")
+        with self.assertRaises(ValueError):
+            p.copy_bundled("g", "cockpit-eigen")            # nur von mitgelieferten
+        with self.assertRaises(ValueError):
+            p.copy_bundled("g", "std--fehlt")
+        long = "a" * 35
+        self.wb("g", long, lay("L"))
+        p.scan()
+        self.assertLessEqual(len(p.copy_bundled("g", "std--" + long).split("/")[1]), 40)
+
+    def test_create_from_bundled_copies(self):
+        self.wb("g", "cockpit", lay("M"))
+        p = self.make(games({"id": "g", "name": "G"}))
+        p.create("g", "mein", "Mein", copy_from="g/std--cockpit")
+        p.scan()
+        self.assertEqual(p.get("g/mein")["origin"], "own")
+
+    def test_bundled_removed(self):
+        self.wb("g", "cockpit", lay("M"))
+        p = self.make(games({"id": "g", "name": "G"}))
+        (self.bun_dir / "g" / "cockpit.json").unlink()
+        self.assertEqual(p.scan(), ["g/std--cockpit"])
+        self.assertNotIn("g/std--cockpit", p.panels)
+
+    def test_sc_keys_from_real_bindings(self):
+        """Mitgeliefertes Panel: Tasten mit sc bekommen die echte Belegung, eigene Panels bleiben unberührt."""
+        sc = self.d / "sc"
+        sc.mkdir()
+        (sc / "default.xml").write_text(DEFAULT_XML, encoding="utf-8")
+        user = sc / "actionmaps.xml"
+        user.write_text('<ActionMaps><ActionProfiles><actionmap name="spaceship"><action name="v_a">'
+                        '<rebind input="kb1_rctrl+np_5"/></action></actionmap></ActionProfiles></ActionMaps>',
+                        encoding="utf-8")
+        self.wb("g", "cockpit", sc_lay())
+        self.w(self.prof_dir, "g", "eigen", sc_lay("Eigen"))
+        p = self.make(games({"id": "g", "name": "G", "bindings": {
+            "adapter": "cryengine", "default": str(sc / "default.xml"), "user": str(user)}}))
+        b = p.get("g/std--cockpit")["buttons"]
+        self.assertEqual(b["a"]["key"], "RCTRL+NUMPAD5")      # eigene Belegung schlägt Standard
+        self.assertEqual((b["h"]["key"], b["h"].get("hold")), ("G", True))
+        self.assertEqual(b["n"]["key"], "F3")                  # unbelegt: Rückfall aus der Datei
+        self.assertEqual(b["u"]["key"], "F4")                  # unbekannte Aktion: unverändert
+        self.assertEqual(b["x"]["key"], "F5")                  # ohne sc: unverändert
+        self.assertEqual(p.get("g/eigen")["buttons"]["a"]["key"], "F1")
+        # Belegung im Spiel geändert -> mitgeliefertes Panel wird neu geladen
+        import os
+        user.write_text(user.read_text(encoding="utf-8").replace("np_5", "np_6"), encoding="utf-8")
+        st = os.stat(user)
+        os.utime(user, (st.st_atime, st.st_mtime + 5))
+        self.assertEqual(p.scan(), ["g/std--cockpit"])
+        self.assertEqual(p.get("g/std--cockpit")["buttons"]["a"]["key"], "RCTRL+NUMPAD6")
+
+    def test_sc_without_readable_bindings_keeps_file_keys(self):
+        self.wb("g", "cockpit", sc_lay())
+        p = self.make(games({"id": "g", "name": "G", "bindings": {"adapter": "cryengine", "default": "fehlt.xml"}}))
+        self.assertEqual(p.get("g/std--cockpit")["buttons"]["a"]["key"], "F1")
+
+    def test_apply_sc_pure(self):
+        from bridge import bindings
+        res = bindings.Result({"v_a": bindings.Binding("X", True, ""), "v_none": bindings.Binding(None, False, "x")}, [], "")
+        src = sc_lay()
+        out, n = bindings.apply_sc(src, res)
+        self.assertEqual(n, 2)
+        self.assertEqual(src, sc_lay())                        # Eingabe unverändert
+        self.assertEqual((out["pages"][0]["buttons"][0]["key"], out["pages"][0]["buttons"][0]["hold"]), ("X", True))
+        self.assertEqual(out["pages"][0]["buttons"][2]["key"], "F3")
+
+
 if __name__ == "__main__":
     unittest.main()

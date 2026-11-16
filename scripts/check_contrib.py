@@ -1,6 +1,6 @@
 """Prüft beigetragene Panels, Dashboards und games.json (läuft auch automatisch bei jedem Pull Request).
 
-Aufruf: python scripts/check_contrib.py            (profiles/, dashboards/, games.json)
+Aufruf: python scripts/check_contrib.py            (panels/, profiles/, dashboards/, games.json)
         python scripts/check_contrib.py DATEI ...  (nur diese)
 Exit 0 = alles in Ordnung, 1 = Fehler (je Datei gemeldet).
 
@@ -154,7 +154,7 @@ def community_warnings(data):
 
 
 def check_file(path):
-    """Fehlerliste für eine Datei (Panel unter profiles/, Dashboard unter dashboards/, games.json)."""
+    """Fehlerliste für eine Datei (Panel unter panels/ oder profiles/, Dashboard unter dashboards/, games.json)."""
     path = Path(path)
     try:
         data = json.loads(path.read_text(encoding="utf-8-sig"))
@@ -166,7 +166,7 @@ def check_file(path):
         if rel.startswith("dashboards/"):
             dashboard.validate(data)
             return []                       # Dashboards zeigen nur an
-        if rel.startswith("profiles/"):
+        if rel.startswith(("profiles/", "panels/")):   # panels/ = mitgelieferte, profiles/ = eigene/beigetragene
             layout.validate_layout(data)
             for w in community_warnings(data):
                 print(f"{path}: Hinweis: {w}")
@@ -182,7 +182,7 @@ def check_file(path):
 def targets(args):
     if args:
         return [Path(a) for a in args]
-    return (sorted((ROOT / "profiles").rglob("*.json")) + sorted((ROOT / "dashboards").glob("*.json"))
+    return (sorted((ROOT / "panels").rglob("*.json")) + sorted((ROOT / "profiles").rglob("*.json")) + sorted((ROOT / "dashboards").glob("*.json"))
             + [ROOT / "games.json"])
 
 

@@ -56,6 +56,12 @@ Tastenkombination (z. B. `"LALT+F"`), `mode: "hold-confirm"` löst erst nach `ho
 ohne Belegung sind gestrichelt. Ein altes `layout.json` wird beim ersten Start als
 `profiles/star-citizen/main.json` übernommen.
 
+`panels/<spiel>/<name>.json`: **mitgelieferte** Panels (im Git und im Zip, schreibgeschützt). Sie erscheinen
+im Editor und am Tablet mit Schloss neben den eigenen (`profiles/`), nichts wird verdeckt; intern heißen sie
+`<spiel>/std--<name>`. Bearbeiten geht nur über „Kopie bearbeiten“ (landet als `<name>-eigen` in `profiles/`),
+Updates ändern daher nie etwas Eigenes. Hat ein Spiel eigene Panels, bleibt das erste eigene das Standard-Panel;
+ein mitgeliefertes ist nur der Rückfall. Tasten mit `sc` bekommen beim Laden die echte Star-Citizen-Belegung.
+
 ## Touchpad-Seite: Lautstärke und Mixer
 Unter dem Master-Regler zeigt die Karte „Mixer“ je App einen Regler mit Stumm-Knopf (Apps mit mehreren
 Audio-Sitzungen erscheinen einmal, Systemklänge als „Systemklänge“) und darunter die Wiedergabegeräte; ein Tipp

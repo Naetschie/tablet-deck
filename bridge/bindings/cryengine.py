@@ -115,6 +115,16 @@ def find_user_actionmaps(entries=None):
     return None
 
 
+def resolve_cfg(cfg, root, entries=None):
+    """Pfade der Belegungsquellen ohne Scan der Bibliothek: (cfg mit gefundenem "user", [Standardprofil, actionmaps]).
+    entries: bereits bekannte Bibliothekseinträge (leer = keine eigene actionmaps.xml gefunden)."""
+    default = Path(cfg.get("default", ""))
+    if not default.is_absolute():
+        default = Path(root) / default
+    user = cfg.get("user") or find_user_actionmaps(entries or [])
+    return (dict(cfg, user=user) if user else dict(cfg)), [str(default), str(user) if user else ""]
+
+
 def read(cfg, root):
     """cfg: {"default": Pfad zum Standardprofil (relativ zum Projekt), "user": Pfad zu actionmaps.xml
     (optional; fehlt er, wird er über die Spielebibliothek gesucht)}"""
@@ -124,7 +134,7 @@ def read(cfg, root):
         default = Path(root) / default
     if not default.is_file():
         raise FileNotFoundError(f"Standardprofil fehlt: {default} (StarBreaker: p4k extract + cryxml convert)")
-    user = cfg.get("user") or find_user_actionmaps()
+    user = cfg["user"] if "user" in cfg else find_user_actionmaps()   # "" = bewusst keine eigene Belegung
     eff = effective_bindings(default, user)
     out, used = {}, set()
     for act, (sc, mode, multi) in eff.items():

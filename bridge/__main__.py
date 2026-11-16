@@ -96,7 +96,8 @@ class Bridge:
         self.cfg = cfg
         self.dashboards = dashboard.Dashboards(ROOT / "dashboards", cfg)   # cfg_path setzt main()
         self.profiles = Profiles(ROOT / cfg.get("profiles", "profiles"), ROOT / cfg.get("games", "games.json"),
-                                 legacy_layout=ROOT / cfg.get("layout", "layout.json"))
+                                 legacy_layout=ROOT / cfg.get("layout", "layout.json"),
+                                 bundled=ROOT / cfg.get("panels_bundled", "panels"))
         self.game = None       # laufendes Spiel (games.py)
         self.ai_busy = False   # KI-Vorlage läuft (Editor)
         self.pulse_q, self.pulse_tasks = {}, {}   # Impuls-Warteschlangen pro Taste (siehe _enqueue_pulse)
@@ -275,7 +276,7 @@ class Bridge:
                         key = next(k for k, v in self.profiles.panels.items() if v is prof)
                         game, panel = key.split("/", 1)
                         await ws.send(json.dumps({
-                            "t": "layout", "game": game, "panel": panel, "layout": prof["layout"],
+                            "t": "layout", "game": game, "panel": panel, "layout": prof["layout"], "origin": prof["origin"],
                             "keys": sorted(set(SCANCODES) | set(ALIASES)), "media": sorted(MEDIA_VK)}))
                     elif t == "save":
                         key = self.profiles.save(msg.get("game"), msg.get("panel"), msg.get("layout"),
@@ -290,6 +291,14 @@ class Bridge:
                         log.info("Editor: Panel %s angelegt", key)
                         await self.reload_profiles()
                         await ws.send(json.dumps({"t": "created", "game": msg["game"], "panel": msg["panel"],
+                                                  "games": self.games_info()}))
+                    elif t == "copy":
+                        # mitgeliefertes Panel -> eigene Kopie; layout = schon geänderter Stand (optional)
+                        new = self.profiles.copy_bundled(msg.get("game"), msg.get("panel"), msg.get("title"),
+                                                         msg.get("layout"))
+                        log.info("Editor: Kopie %s/%s von %s angelegt", msg.get("game"), new, msg.get("panel"))
+                        await self.reload_profiles()
+                        await ws.send(json.dumps({"t": "created", "game": msg["game"], "panel": new,
                                                   "games": self.games_info()}))
                     elif t == "templates":
                         g = msg.get("game")

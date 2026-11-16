@@ -24,13 +24,17 @@
   <label class="inline">Panel <select id="panelSel"></select></label>
   <label class="inline">Titel <input id="panelTitle" maxlength="40" size="10"></label>
   <button id="newPanel" class="ghost" title="Neues leeres Panel für dieses Spiel">+ Panel</button>
-  <button id="dupPanel" class="ghost" title="Aktuelles Panel kopieren">Kopie</button>
+  <button id="dupPanel" class="ghost" title="Aktuelles Panel kopieren (bei mitgelieferten: eigene Kopie zum Bearbeiten)">Kopie</button>
   <button id="delPanel" class="ghost" title="Panel in den Papierkorb (profiles/.papierkorb)">Löschen</button>
   <button id="genPanel" class="ghost" title="Panel aus einer Spielvorlage und deiner Tastenbelegung erzeugen">Automatisch …</button>
   <span class="grow"></span>
   <label class="inline">Haltezeit (ms) <input id="holdMs" type="number" min="200" max="5000" step="100"></label>
   <button id="revert" class="ghost">Verwerfen</button>
   <button id="save" title="Speichern (Strg+S)">Speichern</button>
+</div>
+<div id="panelBanner" class="banner" hidden>
+  <span>Mitgeliefert und schreibgeschützt – zum Bearbeiten zuerst eine Kopie anlegen (Updates ändern nur das Original, deine Kopie bleibt).</span>
+  <button id="panelBannerCopy" class="small">Kopie bearbeiten</button>
 </div>
 <div id="panelTools" class="toolbar nowrap">
   <button id="pUndo" class="ghost" title="Rückgängig (Strg+Z)">Rückgängig</button>
