@@ -140,7 +140,7 @@ def schema():
     """Feldbeschreibung als JSON-fähiges Dict für den Editor (Eingabefelder; gleiche Quelle wie die Prüfung)."""
     types = {}
     for t in TYPES:
-        types[t] = {"fields": COMMON_FIELDS + TYPE_FIELDS[t],
+        types[t] = {"fields": COMMON_FIELDS + (["sensor"] if t in SENSOR_TYPES else []) + TYPE_FIELDS[t],
                     "required": ["x", "y", "w", "h"] + (["sensor"] if t in SENSOR_TYPES else [])
                     + (["text"] if t == "text" else [])}
     return {"types": types, "fields": copy.deepcopy(SPEC), "name_pattern": NAME.pattern,
@@ -414,6 +414,14 @@ class Dashboards:
 
 
 def sensor_list(values, meta):
-    """Werteliste für den Editor aus Stats.sample(): [{"id","name","unit","value"}], nach ID sortiert."""
-    return [{"id": i, "name": (meta.get(i) or {}).get("name", i), "unit": (meta.get(i) or {}).get("unit", ""),
-             "value": values[i]} for i in sorted(values)]
+    """Werteliste für den Editor aus Stats.sample(): [{"id","name","unit","value"}] nach ID sortiert, dazu "min"/"max"
+    (Skalengrenzen des Sensors), wo bekannt - die Vorschau skaliert damit wie die Tablet-Seite."""
+    out = []
+    for i in sorted(values):
+        m = meta.get(i) or {}
+        item = {"id": i, "name": m.get("name", i), "unit": m.get("unit", ""), "value": values[i]}
+        for k in ("min", "max"):
+            if _num(m.get(k)):
+                item[k] = m[k]
+        out.append(item)
+    return out

@@ -465,6 +465,12 @@ class ManageTest(unittest.TestCase):
         out = dashboard.sensor_list({"b.x": 2.5, "a.y": 1}, {"a.y": {"name": "Alpha", "unit": "%"}})
         self.assertEqual(out, [{"id": "a.y", "name": "Alpha", "unit": "%", "value": 1},
                                {"id": "b.x", "name": "b.x", "unit": "", "value": 2.5}])
+        # Skalengrenzen des Sensors werden mitgegeben (nur Zahlen)
+        out = dashboard.sensor_list({"c.z": 5}, {"c.z": {"name": "Z", "unit": "MHz", "min": 0, "max": 5500.5}})
+        self.assertEqual(out, [{"id": "c.z", "name": "Z", "unit": "MHz", "value": 5, "min": 0, "max": 5500.5}])
+        out = dashboard.sensor_list({"c.z": 5}, {"c.z": {"name": "Z", "unit": "", "min": None, "max": True}})
+        self.assertNotIn("min", out[0])
+        self.assertNotIn("max", out[0])
 
     def test_mitgelieferte_im_repo(self):
         m = dashboard.Dashboards(ROOT / "dashboards")
@@ -481,7 +487,7 @@ class SchemaTest(unittest.TestCase):
         used = set()
         for t, info in s["types"].items():
             self.assertTrue(set(info["fields"]) <= set(s["fields"]), t)
-            self.assertTrue(set(info["required"]) <= set(info["fields"]) | {"sensor"}, t)
+            self.assertTrue(set(info["required"]) <= set(info["fields"]), t)     # auch sensor (Eingabefeld im Editor)
             used |= set(info["fields"])
         self.assertEqual(used | {"sensor"}, set(s["fields"]))
         self.assertEqual(s["types"]["gauge"]["required"], ["x", "y", "w", "h", "sensor"])

@@ -52,12 +52,58 @@
     <div id="buttonProps" class="props"><p class="dim">Taste auswählen.</p></div>
   </aside>
 </main>
-<main id="viewDash" class="workspace placeholder" hidden>
-  <div class="empty">
+<div id="dashToolbar" class="toolbar" hidden>
+  <strong id="dName"></strong>
+  <label class="inline">Raster
+    <select id="dGrid"><option value="4">4 px</option><option value="8" selected>8 px</option><option value="16">16 px</option><option value="0">aus</option></select>
+  </label>
+  <button id="dUndo" class="ghost" title="Rückgängig (Strg+Z)">Rückgängig</button>
+  <button id="dRedo" class="ghost" title="Wiederholen (Strg+Y)">Wiederholen</button>
+  <button id="dDup" class="ghost" title="Duplizieren (Strg+D)">Duplizieren</button>
+  <button id="dDel" class="ghost" title="Löschen (Entf)">Löschen</button>
+  <span class="btngroup">
+    <button id="dFront" class="ghost small" title="Ganz nach vorn (Strg+Umschalt+])">Ganz vor</button>
+    <button id="dFwd" class="ghost small" title="Eine Ebene nach vorn (Strg+])">Vor</button>
+    <button id="dBack" class="ghost small" title="Eine Ebene zurück (Strg+[)">Zurück</button>
+    <button id="dBackAll" class="ghost small" title="Ganz nach hinten (Strg+Umschalt+[)">Ganz zurück</button>
+  </span>
+  <span class="grow"></span>
+  <button id="dRevert" class="ghost">Verwerfen</button>
+  <button id="dSave" title="Speichern (Strg+S)">Speichern</button>
+</div>
+<main id="viewDash" class="workspace" hidden>
+  <aside id="dashLeft" class="col">
     <h2>Dashboards</h2>
-    <p>Der Dashboard-Editor kommt im nächsten Schritt.</p>
-    <p class="hint">Bis dahin lassen sich Dashboards als JSON-Dateien im Ordner <code>dashboards/</code> bearbeiten.</p>
-  </div>
+    <ul id="dashList"></ul>
+    <div class="btnrow">
+      <button id="dashNew" class="ghost small" title="Neues leeres Dashboard">Neu</button>
+      <button id="dashCopy" class="ghost small" title="Eigene Kopie anlegen">Kopie bearbeiten</button>
+      <button id="dashRename" class="ghost small">Umbenennen</button>
+      <button id="dashDelete" class="ghost small del" title="In den Papierkorb (nur eigene)">Löschen</button>
+      <button id="dashDefault" class="ghost small" title="Dieses Dashboard zeigt die Kachel „PC-Werte“">Als Standard</button>
+    </div>
+    <h2 class="gap">Hinzufügen</h2>
+    <div id="dashPalette" class="btnrow"></div>
+    <h2 class="gap">Elemente <small>(oben = vorn)</small></h2>
+    <ul id="dashElems"></ul>
+  </aside>
+  <section id="dashMid" class="col stage">
+    <div id="dashBanner" class="banner" hidden>
+      <span>Mitgeliefert und schreibgeschützt - zum Bearbeiten zuerst eine Kopie anlegen.</span>
+      <button id="dashBannerCopy" class="small">Kopie bearbeiten</button>
+    </div>
+    <div id="dashStageBox">
+      <div id="dashStage">
+        <div id="dashPrev"></div>
+        <svg id="dashOv" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg>
+      </div>
+    </div>
+    <p id="dashHint" class="hint"></p>
+    <p id="dashErr" class="err-box"></p>
+  </section>
+  <aside id="dashProps" class="col">
+    <div id="dashPropsBody" class="dprops"></div>
+  </aside>
 </main>
 <dialog id="genDlg">
   <h2>Panel automatisch erzeugen</h2>
@@ -81,6 +127,9 @@
 </dialog>
 <datalist id="keyNames"></datalist>
 <script src="core.js"></script>
+<script src="dashlib.js"></script>
+<script src="/stats/render.js"></script>
+<script src="dash.js"></script>
 <script src="editor.js"></script>
 </body>
 </html>

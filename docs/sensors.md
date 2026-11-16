@@ -137,6 +137,9 @@ Noch zu prüfen für das MSI MPG Z690 Edge WiFi DDR4 (Super-I/O NCT6687D), siehe
 
 `bridge/stats.py` verbindet den Hub mit dem Helfer, `web/stats/` zeigt die Werte (`/stats/`, Dashboard mit
 `?d=<name>`; ohne `?d=` das im Editor gewählte Standard-Dashboard, sonst `deck`; der MoBro-Nachbau ist `?d=mobro`).
+`web/stats/render.js` (`StatsView`) ist der gemeinsame Zeichenbaustein von `stats.js` und dem Dashboard-Editor
+(`web/editor/dash.js`, Reiter „Dashboards“). Die Vorschau im Editor bekommt ihre Live-Werte über den Editor-Kanal
+(`dash_sensors`, alle 2 s, mit `min`/`max` der Sensoren), nicht über `/ws` (das braucht die Kopplung).
 
 - **Abo über `/ws`:** Die Seite sendet `{"t":"stats_sub"}` (nach jedem Verbinden) und `{"t":"stats_unsub"}`;
   beim Trennen meldet der Hub sie selbst ab. Nur solange mindestens eine Seite abonniert hat, fragt der Hub

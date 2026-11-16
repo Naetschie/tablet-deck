@@ -14,9 +14,13 @@
   function connect() {
     if (!token) { status("Kein Zugangstoken – Editor über das Taskleisten-Symbol öffnen.", "err"); return; }
     ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/edit");
-    ws.onopen = function () { ws.send(JSON.stringify({ t: "auth", k: token })); ws.send(JSON.stringify({ t: "games" })); };
+    ws.onopen = function () {
+      ws.send(JSON.stringify({ t: "auth", k: token })); ws.send(JSON.stringify({ t: "games" }));
+      DashEditor.onOpen();
+    };
     ws.onmessage = function (ev) {
       var m = JSON.parse(ev.data);
+      if (DashEditor.onMessage(m)) return;      // dash_* und deren Fehler: Reiter „Dashboards“ (dash.js)
       if (m.t === "games") {
         games = m.games;
         if (!cur.game) {
@@ -78,7 +82,7 @@
   }
   function isDirty() { return layout && JSON.stringify(layout) !== saved; }
   function changed() { if (isDirty()) status("Ungespeicherte Änderungen", "dirty"); else status("Gespeichert", "ok"); }
-  window.addEventListener("beforeunload", function (e) { if (isDirty()) { e.preventDefault(); e.returnValue = ""; } });
+  window.addEventListener("beforeunload", function (e) { if (isDirty() || DashEditor.isDirty()) { e.preventDefault(); e.returnValue = ""; } });
 
   $("save").onclick = function () {
     if (!layout) return;
@@ -716,20 +720,26 @@
   }
 
   // Reiter Panels / Dashboards: der Panel-Editor bleibt beim Wechsel unverändert (nur ausgeblendet)
+  var dashTab = false;
   function showTab(name) {
     var dash = name === "dash";
-    $("viewPanels").hidden = dash; $("toolbar").hidden = dash; $("viewDash").hidden = !dash;
+    if (dashTab && !dash && !DashEditor.canLeave()) return;     // ungespeicherte Dashboard-Änderungen: nachfragen
+    dashTab = dash;
+    $("viewPanels").hidden = dash; $("toolbar").hidden = dash; $("viewDash").hidden = !dash; $("dashToolbar").hidden = !dash;
     $("tabBtnPanels").className = dash ? "" : "on"; $("tabBtnDash").className = dash ? "on" : "";
     try { sessionStorage.setItem("editorTab", name); } catch (e) { /* ohne Speicher: Panels */ }
+    if (dash) DashEditor.activate();
+    else { DashEditor.deactivate(); if (layout) changed(); else status("", ""); }
   }
   Array.prototype.forEach.call($("mainTabs").querySelectorAll("button"), function (bt) {
     bt.onclick = function () { stopCapture(); showTab(bt.getAttribute("data-tab")); };
   });
-  try { if (sessionStorage.getItem("editorTab") === "dash") showTab("dash"); } catch (e) { /* egal */ }
 
   // Strg+S speichert
   document.addEventListener("keydown", function (e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); $("save").click(); }
+    if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); if (dashTab) DashEditor.save(); else $("save").click(); }
   });
+  DashEditor.init({ send: send, status: status, isOpen: function () { return !!ws && ws.readyState === 1; } });
   connect();
+  try { if (sessionStorage.getItem("editorTab") === "dash") showTab("dash"); } catch (e) { /* egal */ }
 })();

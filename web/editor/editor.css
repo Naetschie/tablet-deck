@@ -43,7 +43,9 @@ input, select, textarea { font: inherit; color: var(--text); background: var(--b
   border-radius: 6px; padding: 7px 9px; }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
 textarea { min-height: 140px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
-.row { display: flex; gap: 8px; align-items: flex-end; } .row > * { flex: 1; } .row > button { flex: none; }
+.row { display: flex; gap: 8px; align-items: flex-end; } .row > * { flex: 1; min-width: 0; } .row > button { flex: none; }
+/* Felder füllen ihre Spalte, statt sie zu sprengen (zwei Felder nebeneinander im Eigenschaftenfeld) */
+.props input, .props select, .dprops input, .dprops select { box-sizing: border-box; max-width: 100%; }
 .dim { color: var(--dim); } .hint { color: var(--dim); font-size: 12px; line-height: 1.4; }
 .capture { border-color: var(--danger) !important; }
 #status { color: var(--dim); } #status.err { color: var(--bad); } #status.ok { color: var(--ok); }
@@ -81,3 +83,44 @@ table.rep tr.fehlt td { color: var(--warn); }
   background: linear-gradient(135deg, transparent 50%, var(--ac) 50%); }
 .canvas-hint { margin-top: 6px; }
 .err-box { color: var(--bad); font-size: 13px; white-space: pre-wrap; }
+/* Reiter Dashboards */
+#dName { font-weight: 600; margin-right: 8px; }
+.btngroup { display: inline-flex; gap: 4px; }
+.btnrow { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+#dashList li svg.lock { fill: none; stroke: var(--dim); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.chip { font-size: 11px; padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--dim); }
+.chip.on { border-color: var(--ac); color: var(--tx); background: var(--acSoft); }
+#dashElems { max-height: 260px; overflow: auto; }
+#dashElems li { padding: 5px 8px; font-size: 13px; }
+#dashMid { display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+#dashStageBox { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+#dashStage { position: relative; border: 1px solid var(--line); box-sizing: content-box; line-height: 0; user-select: none; }
+#dashPrev { position: absolute; inset: 0; pointer-events: none; }
+#dashPrev svg { display: block; width: 100%; height: 100%; }
+#dashPrev text { white-space: pre; }
+#dashOv { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+#dashOv .ov-frame { fill: none; stroke: var(--ac); stroke-width: 1.5; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+#dashOv .ov-group { fill: none; stroke: var(--ac); stroke-width: 1.5; vector-effect: non-scaling-stroke; pointer-events: none; }
+#dashOv .ov-guide { stroke: var(--warn); stroke-width: 1; vector-effect: non-scaling-stroke; pointer-events: none; }
+#dashOv .ov-handle { fill: var(--ac); stroke: var(--bg); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.banner { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid var(--warn); background: var(--warnSoft); border-radius: 8px; font-size: 13px; }
+.banner[hidden] { display: none; }
+.banner span { flex: 1; }
+#dashErr:empty { display: none; }
+.dprops { display: flex; flex-direction: column; gap: 10px; }
+.dprops h2 { margin-bottom: 0; }
+.dfield { display: flex; flex-direction: column; gap: 4px; color: var(--dim); font-size: 12px; }
+.dfield .cap { color: var(--dim); }
+.dfield .hint { font-size: 11px; }
+input.bad { border-color: var(--bad); }
+.crow { display: flex; gap: 8px; align-items: center; }
+.crow .ctext { flex: 1; min-width: 0; font-family: var(--fm); }
+input.cpick { width: 40px; height: 34px; padding: 2px; flex: none; cursor: pointer; }
+.zrow { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.zrow .zfrom { width: 64px; flex: none; }
+.zrow .ctext { flex: 1; min-width: 0; font-family: var(--fm); }
+.sensbox { display: flex; flex-direction: column; gap: 6px; }
+ul.sens { max-height: 200px; overflow: auto; margin: 0; gap: 3px; }
+ul.sens li { padding: 4px 8px; font-size: 12px; color: var(--tx); }
+ul.sens li .val { font-family: var(--fm); color: var(--ac); white-space: nowrap; }
+ul.sens li .meta { font-family: var(--fm); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45%; }
