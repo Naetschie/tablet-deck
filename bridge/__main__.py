@@ -1073,6 +1073,8 @@ async def adb_watch(cfg, port, bridge):
         return
     ready, warned, known = set(), set(), set()
     ca_sent = set()   # Tablets, die die WLAN-CA seit dem Anstecken bestätigt haben
+    from .tablet_health import TabletHealth
+    health = TabletHealth()   # Speicher, Laufzeit, Android-Ereignisse fürs Log (spacedesk, Ausschalten)
     usb_switched = set()   # USB-Modus schon umgestellt (nur einmal pro Anstecken)
     last_sync, last_seen = {}, {}
     last_home = -1e9
@@ -1109,6 +1111,7 @@ async def adb_watch(cfg, port, bridge):
                     del last_seen[serial]
                     known.discard(serial)
                     ca_sent.discard(serial)
+                    health.forget(serial)
                     usb_switched.discard(serial)
             # Weiterleitung prüfen: geht verloren, wenn der adb-Server neu startet
             for serial in list(ready):
@@ -1217,6 +1220,12 @@ async def adb_watch(cfg, port, bridge):
             for serial in list(last_sync):
                 if serial not in ready:
                     del last_sync[serial]
+            for serial in ready:
+                if health.due(serial):
+                    try:
+                        await health.check(run, adb, serial)
+                    except Exception as e:  # noqa: BLE001 - nur Diagnose, darf nichts anderes stören
+                        log.info("Tablet %s: Zustand nicht lesbar (%s)", serial, e.__class__.__name__)
         except Exception as e:  # noqa: BLE001
             log.error("adb: %s", e)
         await asyncio.sleep(3)

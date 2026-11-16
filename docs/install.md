@@ -292,6 +292,15 @@ neu auf dem PC des Empfängers.
 - **„Bildschirm“ bleibt schwarz:** In der „spacedesk DRIVER Console“ muss unter COMMUNICATION INTERFACES
   „USB Cable Android“ an sein. Das Tablet einmal ab- und wieder anstecken.
 - **PC-Ton kommt aus dem Tablet:** `audio_output.prefer` prüfen, er muss den Gerätenamen exakt enthalten.
+- **Zustand des Tablets im Log:** Die Bridge schreibt alle 5 Minuten in `bridge.log`, wie viel Speicher frei
+  ist und wie lange das Tablet läuft, dazu neue Android-Ereignisse (Neustart `SYSTEM_BOOT`, Abstürze, hängende
+  Apps `…_anr`, System-Hänger `system_server_pre_watchdog`). Beim Anstecken stehen dort die letzten drei Starts.
+  Suchbegriff: `Tablet <Seriennummer>:`.
+- **Tablet geht mit dem PC nicht aus:** Im Wächter-Log (`supervise.log`) steht „Tablet … ausgeschaltet“. Zeigt
+  `bridge.log` beim nächsten Start einen Android-Start etwa 80 s danach, hat das Tablet ausgeschaltet und ist
+  am weiter stromführenden USB-Anschluss wieder hochgefahren (`fastboot oem off-mode-charge 0` aus der
+  Einrichtung startet es am Ladegerät). Steht dort „kein Tablet per USB/adb gefunden“, war es beim
+  Herunterfahren nicht per adb verbunden.
 - **Tablet zeigt Hochformat:** Der Launcher korrigiert das sofort, wenn er vorn ist, die Bridge spätestens nach 30 s. Sonst `tablet_rotation` und `adb shell appops get app.tabletdeck.launcher WRITE_SETTINGS` (muss `allow` sein, sonst `tablet\setup-launcher.ps1` erneut) prüfen.
 - **`config.json`/`launcher.json` fehlen:** `python -m bridge.firstrun` legt sie aus den Beispielen an (die
   Bridge tut das beim Start ebenfalls). Kaputte Dateien: löschen und neu anlegen lassen.
