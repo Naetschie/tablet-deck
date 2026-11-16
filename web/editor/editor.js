@@ -377,6 +377,10 @@
   function renderCanvas() {
     var box = $("canvasBox"); box.innerHTML = "";
     var p = page();
+    var pe = $("previewEmpty");
+    pe.textContent = !p ? "" : p.type === "free" ? "" : p.type === "shield"
+      ? "Schild-Seiten haben keine Rastervorschau – Tasten und Zonen links wählen und rechts bearbeiten."
+      : "Diese Seite ordnet sich automatisch nach Gruppen an. Mit Typ „Frei (Raster)“ (rechts) erscheint hier eine Vorschau zum Ziehen.";
     if (!p || p.type !== "free") return;
     var cols = p.cols || 12, rows = p.rows || 8;
     var cv = el("div", { cls: "canvas" });
@@ -409,10 +413,14 @@
         e.setPointerCapture(ev.pointerId);
         function mv(m) {
           var c = cellAt(m), dx = c.x - start.x, dy = c.y - start.y;
+          // Begrenzung und Mindestgröße kommen aus dem gemeinsamen Editor-Kern (core.js), Einheit = Zellen
+          var area = { w: cols, h: rows }, item = { id: 0, x: orig.x, y: orig.y, w: orig.w, h: orig.h };
           if (resize) {
-            b.w = Math.max(1, Math.min(cols - orig.x, orig.w + dx)); b.h = Math.max(1, Math.min(rows - orig.y, orig.h + dy));
+            var rs = EditorCore.resize(item, "se", dx, dy, { w: 1, h: 1 }, area);
+            b.w = rs.w; b.h = rs.h;
           } else {
-            b.x = Math.max(0, Math.min(cols - orig.w, orig.x + dx)); b.y = Math.max(0, Math.min(rows - orig.h, orig.y + dy));
+            var mvd = EditorCore.move([item], [0], dx, dy, area)[0];
+            b.x = mvd.x; b.y = mvd.y;
           }
           if (b.x !== orig.x || b.y !== orig.y || b.w !== orig.w || b.h !== orig.h) moved = true;
           place(e, b);
@@ -706,6 +714,18 @@
     $("panelTitle").value = layout.title || "";
     renderPages(); renderButtons(); renderProps();
   }
+
+  // Reiter Panels / Dashboards: der Panel-Editor bleibt beim Wechsel unverändert (nur ausgeblendet)
+  function showTab(name) {
+    var dash = name === "dash";
+    $("viewPanels").hidden = dash; $("toolbar").hidden = dash; $("viewDash").hidden = !dash;
+    $("tabBtnPanels").className = dash ? "" : "on"; $("tabBtnDash").className = dash ? "on" : "";
+    try { sessionStorage.setItem("editorTab", name); } catch (e) { /* ohne Speicher: Panels */ }
+  }
+  Array.prototype.forEach.call($("mainTabs").querySelectorAll("button"), function (bt) {
+    bt.onclick = function () { stopCapture(); showTab(bt.getAttribute("data-tab")); };
+  });
+  try { if (sessionStorage.getItem("editorTab") === "dash") showTab("dash"); } catch (e) { /* egal */ }
 
   // Strg+S speichert
   document.addEventListener("keydown", function (e) {

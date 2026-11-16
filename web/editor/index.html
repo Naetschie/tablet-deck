@@ -4,12 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/lib/base.css">
+<link rel="stylesheet" href="/lib/ui.css">
 <link rel="stylesheet" href="editor.css">
-<title>Panel-Editor</title>
+<title>Tablet Deck Editor</title>
 </head>
 <body>
-<header>
-  <h1>Panel-Editor</h1>
+<header class="top">
+  <h1>Tablet Deck</h1>
+  <nav class="tabs" id="mainTabs" role="tablist">
+    <button class="on" id="tabBtnPanels" data-tab="panels" role="tab">Panels</button>
+    <button id="tabBtnDash" data-tab="dash" role="tab">Dashboards</button>
+  </nav>
+  <span class="grow"></span>
+  <span id="status"></span>
+</header>
+<div id="toolbar" class="toolbar">
   <label class="inline">Spiel <select id="gameSel"></select></label>
   <label class="inline">Panel <select id="panelSel"></select></label>
   <label class="inline">Titel <input id="panelTitle" maxlength="40" size="12"></label>
@@ -19,27 +28,36 @@
   <button id="genPanel" class="ghost" title="Panel aus einer Spielvorlage und deiner Tastenbelegung erzeugen">Automatisch erzeugen …</button>
   <span class="grow"></span>
   <label class="inline">Haltezeit (ms) <input id="holdMs" type="number" min="200" max="5000" step="100"></label>
-  <span id="status"></span>
   <button id="revert" class="ghost">Verwerfen</button>
   <button id="save">Speichern</button>
-</header>
-<main>
-  <section id="pagesCol">
+</div>
+<main id="viewPanels" class="workspace">
+  <aside id="paletteCol" class="col">
     <h2>Seiten</h2>
     <ul id="pages"></ul>
     <button id="addPage" class="ghost">+ Seite</button>
-    <div id="pageProps" class="props"></div>
-  </section>
-  <section id="buttonsCol">
-    <h2>Tasten <small id="pageHint"></small></h2>
-    <div id="canvasBox"></div>
+    <h2 class="gap">Tasten <small id="pageHint"></small></h2>
     <ul id="buttons"></ul>
     <button id="addButton" class="ghost">+ Taste</button>
+  </aside>
+  <section id="previewCol" class="col stage">
+    <h2>Vorschau</h2>
+    <div id="canvasBox"></div>
+    <p id="previewEmpty" class="hint"></p>
   </section>
-  <section id="propsCol">
-    <h2>Eigenschaften</h2>
+  <aside id="propsCol" class="col">
+    <h2>Seite</h2>
+    <div id="pageProps" class="props"></div>
+    <h2 class="gap">Eigenschaften</h2>
     <div id="buttonProps" class="props"><p class="dim">Taste auswählen.</p></div>
-  </section>
+  </aside>
+</main>
+<main id="viewDash" class="workspace placeholder" hidden>
+  <div class="empty">
+    <h2>Dashboards</h2>
+    <p>Der Dashboard-Editor kommt im nächsten Schritt.</p>
+    <p class="hint">Bis dahin lassen sich Dashboards als JSON-Dateien im Ordner <code>dashboards/</code> bearbeiten.</p>
+  </div>
 </main>
 <dialog id="genDlg">
   <h2>Panel automatisch erzeugen</h2>
@@ -62,6 +80,7 @@
   </div>
 </dialog>
 <datalist id="keyNames"></datalist>
+<script src="core.js"></script>
 <script src="editor.js"></script>
 </body>
 </html>
