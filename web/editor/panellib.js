@@ -377,8 +377,10 @@
     if (cur === art) return b;
     var keys = carryKeys(b), confirm = b.mode === "hold-confirm";
     var media = cur === "media" ? b.macro[0].media : MEDIA_DEFAULT;
-    var oldStates = b.states, oldMacro = b.macro;
+    var oldStates = b.states, oldMacro = b.macro, sc = b.sc;
     ["key", "macro", "open", "page", "states", "slider", "hold", "mode", "sc"].forEach(function (k) { delete b[k]; });
+    // sc (Spielaktion für scripts/sc_bindings.py) bleibt, solange es eine Einzeltaste bleibt
+    if (sc !== undefined && (art === "press" || art === "hold" || art === "toggle")) b.sc = sc;
     var mode = confirm ? "hold-confirm" : "tap";
     if (art === "press" || art === "hold" || art === "toggle") {
       if (keys[0]) b.key = keys[0];

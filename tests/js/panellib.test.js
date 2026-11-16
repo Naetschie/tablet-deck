@@ -345,6 +345,15 @@ test("convertArt: jede Art -> jede Art ergibt eine gültige Taste ohne fremde Fe
   }
 });
 
+test("convertArt: sc bleibt zwischen Tastenarten, fällt bei anderen Arten weg", () => {
+  const b = L.convertArt({ id: "t", label: "T", key: "F", sc: "v_flightready" }, "hold");
+  assert.strictEqual(b.sc, "v_flightready");
+  L.convertArt(b, "toggle");
+  assert.strictEqual(b.sc, "v_flightready");
+  L.convertArt(b, "macro");
+  assert.strictEqual(b.sc, undefined);
+});
+
 test("convertArt: Taste wird übernommen", () => {
   const b = L.convertArt({ id: "t", label: "T", key: "LALT+F" }, "hold");
   assert.equal(b.key, "LALT+F"); assert.equal(b.hold, true);

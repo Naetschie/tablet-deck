@@ -892,6 +892,9 @@
     renderAction(box, p, b);
     if (PL.hasPlaceholder(b)) box.appendChild(h("p", { cls: "hint warn", text: b.open ? "Platzhalter-Adresse – bitte die echte URL oder den Pfad eintragen." :
       "Platzhalter-Taste (" + (b.slider ? "Bild↑/Bild↓" : "Rollen") + ") – bitte die echte Taste eintragen." }));
+    var art = PL.artOf(b);
+    if ((art === "press" || art === "hold" || art === "toggle") && !b.key)
+      box.appendChild(h("p", { cls: "hint warn", text: "Keine Taste eingetragen – diese Taste tut am Tablet nichts." }));
     dupHintEl = h("p", { cls: "hint dup-hint", hidden: "" });
     box.appendChild(dupHintEl); updateDupHint();
     box.appendChild(h("div", { cls: "row" }, [
