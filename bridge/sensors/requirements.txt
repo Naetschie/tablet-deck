@@ -1,0 +1,28 @@
+# Pakete des Sensor-Helfers im Admin-Betrieb (scripts/install-sensors.ps1 installiert sie per
+# pip --isolated --require-hashes --no-deps --target nach %ProgramFiles%\TabletDeck\sensors\lib).
+# Feste Versionen mit SHA-256 aller Windows-Wheels (64 Bit) von PyPI: Was dort mit Adminrechten läuft,
+# kommt genau so von pypi.org. Neue Version: Hashes aus https://pypi.org/pypi/<paket>/<version>/json.
+# Alle Abhängigkeiten stehen hier selbst (--no-deps).
+psutil==7.2.2 \
+    --hash=sha256:ab486563df44c17f5173621c7b198955bd6b613fb87c71c161f827d3fb149a9b \
+    --hash=sha256:c7663d4e37f13e884d13994247449e9f8f574bc4655d509c3b95e9ec9e2b9dc1 \
+    --hash=sha256:eb7e81434c8d223ec4a219b5fc1c47d0417b12be7ea866e24fb5ad6e84b3d988
+nvidia-ml-py==13.615.71 \
+    --hash=sha256:959bf4adf6fe1308e4bd739e722236b0d1ec8392e2cefad33ff70c311380b9b6
+HardwareMonitor==1.2.1 \
+    --hash=sha256:e8bdd9ce52564b34a29f57647fc1f51a0eba724d76ce6e65ced67d3b3771d461
+pythonnet==3.2.1 \
+    --hash=sha256:dd5668b74b0c903d9a24e1ba86f728fc490f8e919d56b3c24bf06739b9ee2b7f
+clr_loader==0.3.1 \
+    --hash=sha256:cbad189de20d202a7d621956b0fc38049e13c9bf7ca2923441eff725cd121aa1
+cffi==2.1.1 \
+    --hash=sha256:a48d62ab9d6f4f98c983223a547af44be6ca3691074c31cecced6facd3ba2dc1 \
+    --hash=sha256:42f6930c31dc7f50732c9ae793c2786c7b6b044195967bbdde40bb9be81c4cc0 \
+    --hash=sha256:f53e442b08449d42821fa4a4fba000095af9f62742a500f978a9f557ec44339a \
+    --hash=sha256:1aa5645c30469b09530c4ebca77ebf8f17618293c58f8549cb1a543a50236e7d \
+    --hash=sha256:616f097f2fe415bc92a247f02e11f634e1f9e9a83d327e3c915c15089c87869e \
+    --hash=sha256:3222ba5d678f80a030e6afbcc33dc1ae5cb45facabb61cee2c7016b8432fde48 \
+    --hash=sha256:d9c275eaacd24aa73f94ffd6de08fc3f932424d8b6c376f4bed7cde376fe7bc3 \
+    --hash=sha256:e6e8cff14d6fb0be70a09c0bdc58096f501952d04624ebf867e0e56da2df8960
+pycparser==3.12 \
+    --hash=sha256:a076f3f489b39b43ed13563a1dafe42447445bec2e294154ec5c57fcdda4c85e

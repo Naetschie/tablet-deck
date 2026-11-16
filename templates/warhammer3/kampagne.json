@@ -1,0 +1,30 @@
+{
+  "title": "Kampagne",
+  "holdMs": 1000,
+  "pages": [
+    {"id": "zug", "title": "Zug & Karte", "type": "grid", "buttons": [
+      {"id": "end-turn", "label": "ZUG BEENDEN", "action": "end_turn", "mode": "hold-confirm", "key": "ENTER", "group": "Zug", "style": "accent"},
+      {"id": "end-turn-force", "label": "ZUG BEENDEN (OHNE WARNUNG)", "action": "end_turn_force", "mode": "hold-confirm", "key": "LSHIFT+ENTER", "group": "Zug", "style": "danger"},
+      {"id": "notify-zoom", "label": "ZU MELDUNG", "action": "notify_zoom", "mode": "tap", "key": "H", "group": "Zug"},
+      {"id": "strat-map", "label": "STRATEGIEKARTE", "action": "strat_map", "mode": "tap", "key": "TAB", "group": "Karte"},
+      {"id": "capital", "label": "ZUR HAUPTSTADT", "action": "capital", "mode": "tap", "key": "HOME", "group": "Karte"},
+      {"id": "overlays", "label": "OVERLAYS (HALTEN)", "action": "overlays", "mode": "tap", "key": "SPACE", "group": "Karte", "hold": true},
+      {"id": "labels", "label": "BESCHRIFTUNGEN", "action": "labels", "mode": "tap", "key": "LCTRL+T", "group": "Karte"},
+      {"id": "cam-reset", "label": "KAMERA ZURÜCK", "action": "cam_reset", "mode": "tap", "key": "END", "group": "Karte"}
+    ]},
+    {"id": "verwaltung", "title": "Verwaltung", "type": "grid", "buttons": [
+      {"id": "overview", "label": "ÜBERSICHT", "action": "overview", "mode": "tap", "key": "1", "group": "Siedlung"},
+      {"id": "garrison", "label": "GARNISON", "action": "garrison", "mode": "tap", "key": "2", "group": "Siedlung"},
+      {"id": "buildings", "label": "GEBÄUDE", "action": "buildings", "mode": "tap", "key": "3", "group": "Siedlung"},
+      {"id": "recruit-units", "label": "EINHEITEN REKRUTIEREN", "action": "recruit_units", "mode": "tap", "key": "4", "group": "Rekrutierung", "style": "accent"},
+      {"id": "recruit-agents", "label": "HELDEN & AGENTEN", "action": "recruit_agents", "mode": "tap", "key": "5", "group": "Rekrutierung"},
+      {"id": "finance", "label": "FINANZEN", "action": "finance", "mode": "tap", "key": "MINUS", "group": "Fraktion"},
+      {"id": "clan", "label": "FRAKTION", "action": "clan", "mode": "tap", "key": "EQUALS", "group": "Fraktion"},
+      {"id": "move-speed", "label": "MARSCHTEMPO", "action": "move_speed", "mode": "tap", "key": "R", "group": "Armee"},
+      {"id": "merge", "label": "EINHEITEN ZUSAMMENLEGEN", "action": "merge", "mode": "tap", "key": "LCTRL+M", "group": "Armee"},
+      {"id": "disband", "label": "AUSWAHL AUFLÖSEN", "action": "disband", "mode": "hold-confirm", "key": "LCTRL+P", "group": "Armee", "style": "danger"},
+      {"id": "quicksave", "label": "SCHNELLSPEICHERN", "action": "quicksave", "mode": "tap", "key": "LCTRL+S", "group": "Spiel"},
+      {"id": "quickload", "label": "SCHNELLLADEN", "action": "quickload", "mode": "hold-confirm", "key": "LCTRL+L", "group": "Spiel", "style": "danger"}
+    ]}
+  ]
+}

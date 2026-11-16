@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Tablet Deck – An Tablet senden",
+  "version": "1.2",
+  "description": "Seite, Link oder Bild per Rechtsklick an das Tablet schicken (Tablet Deck Bridge am eigenen PC).",
+  "permissions": [
+    "contextMenus",
+    "menus",
+    "storage",
+    "activeTab"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "action": {
+    "default_title": "Diese Seite ans Tablet senden"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "tabletdeck-send@localhost",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    }
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src ws://127.0.0.1:*"
+  }
+}

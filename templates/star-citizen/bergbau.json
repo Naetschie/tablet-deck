@@ -1,0 +1,31 @@
+{
+  "title": "Bergbau",
+  "holdMs": 1000,
+  "pages": [
+    {"id": "abbau", "title": "Abbau", "type": "grid", "buttons": [
+      {"id": "mining_mode", "label": "BERGBAU-MODUS", "sc": "v_toggle_mining_mode", "mode": "toggle", "group": "Modus", "style": "accent"},
+      {"id": "scan_mode", "label": "SCAN-MODUS", "sc": "v_toggle_scan_mode", "mode": "toggle", "group": "Modus"},
+      {"id": "ping", "label": "PING", "sc": "v_invoke_ping", "mode": "tap", "group": "Modus"},
+      {"id": "laser_fire", "label": "LASER AN/AUS", "sc": "v_toggle_mining_laser_fire", "mode": "toggle", "group": "Laser", "style": "accent"},
+      {"id": "laser_type", "label": "LASER-TYP", "sc": "v_toggle_mining_laser_type", "mode": "tap", "group": "Laser"},
+      {"id": "power_up", "label": "LEISTUNG +", "sc": "v_increase_mining_throttle", "mode": "tap", "group": "Laser", "hold": true},
+      {"id": "power_down", "label": "LEISTUNG −", "sc": "v_decrease_mining_throttle", "mode": "tap", "group": "Laser", "hold": true},
+      {"id": "mod1", "label": "MODUL 1", "sc": "v_mining_use_consumable1", "mode": "tap", "group": "Module"},
+      {"id": "mod2", "label": "MODUL 2", "sc": "v_mining_use_consumable2", "mode": "tap", "group": "Module"},
+      {"id": "mod3", "label": "MODUL 3", "sc": "v_mining_use_consumable3", "mode": "tap", "group": "Module"},
+      {"id": "mod_perm", "label": "DAUERMODUL", "sc": "v_mining_use_permanent_modifier", "mode": "tap", "group": "Module"},
+      {"id": "jettison", "label": "INSTABILE FRACHT ABWERFEN", "sc": "v_jettison_volatile_cargo", "mode": "hold-confirm", "group": "Fracht", "style": "danger"}
+    ]},
+    {"id": "flug", "title": "Flug", "type": "grid", "buttons": [
+      {"id": "flightready", "label": "STARTBEREIT", "sc": "v_flightready", "mode": "tap", "group": "Schiff", "style": "accent"},
+      {"id": "gear", "label": "FAHRWERK", "sc": "v_toggle_landing_system", "mode": "toggle", "group": "Schiff"},
+      {"id": "vtol", "label": "VTOL", "sc": "v_vtol_toggle", "mode": "toggle", "group": "Schiff"},
+      {"id": "lights", "label": "LICHTER", "sc": "v_lights", "mode": "toggle", "group": "Schiff"},
+      {"id": "atc", "label": "LANDEERLAUBNIS", "sc": "v_atc_request", "mode": "tap", "group": "Schiff"},
+      {"id": "power", "label": "ENERGIE GESAMT", "sc": "v_power_toggle", "mode": "tap", "group": "Energie"},
+      {"id": "pw_shields", "label": "SCHILDE AN/AUS", "sc": "v_power_toggle_shields", "mode": "tap", "group": "Energie"},
+      {"id": "pw_thrusters", "label": "TRIEBWERKE AN/AUS", "sc": "v_power_toggle_thrusters", "mode": "tap", "group": "Energie"},
+      {"id": "starmap", "label": "STERNENKARTE", "sc": "v_starmap", "mode": "tap", "group": "Karte"}
+    ]}
+  ]
+}

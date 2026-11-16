@@ -1,0 +1,22 @@
+{
+  "output": "keyboard",
+  "port": 8765,
+  "host": "127.0.0.1",
+  "usb": true,
+  "tablet_autostart": true,
+  "tablet_timezone": "Europe/Berlin",
+  "tray": true,
+  "auto_modes": [],
+  "auto_default": null,
+  "audio_output": {
+    "avoid": "spacedesk",
+    "prefer": null
+  },
+  "spacedesk_usb": true,
+  "spacedesk_silence": true,
+  "tablet_rotation": 1,
+  "wlan": {
+    "enabled": true,
+    "port": 8767
+  }
+}

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Tablet Deck – Einstellungen</title>
+  <style>
+    body { font: 14px system-ui, sans-serif; margin: 16px; min-width: 340px; }
+    label { display: block; margin: 10px 0 4px; font-weight: 600; }
+    input { width: 100%; box-sizing: border-box; padding: 6px; font: inherit; }
+    p { color: #555; margin: 6px 0; }
+    button { margin-top: 12px; padding: 6px 14px; font: inherit; }
+    #status { margin-left: 8px; color: #2a7; }
+  </style>
+</head>
+<body>
+  <p>Schlüssel am PC holen: Taskleisten-Symbol von Tablet Deck → „Schlüssel für Browser-Erweiterung
+    kopieren“, dann hier einfügen. Er erlaubt nur das Senden von Webseiten ans Tablet.</p>
+  <label for="key">Sende-Schlüssel</label>
+  <input id="key" type="password" autocomplete="off" spellcheck="false">
+  <label for="port">Port der Bridge</label>
+  <input id="port" type="number" min="1024" max="65535" value="8765">
+  <button id="save">Speichern</button><span id="status"></span>
+  <script src="options.js"></script>
+</body>
+</html>

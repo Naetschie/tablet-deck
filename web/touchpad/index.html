@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<link rel="stylesheet" href="/lib/base.css">
+<link rel="stylesheet" href="/lib/ui.css">
+<title>Touchpad und Medien</title>
+<style>
+  body { display: flex; gap: var(--sp-4); padding: var(--sp-4); }
+  #left { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
+  #pad { flex: 1; position: relative; border: 1px solid var(--line); border-radius: calc(var(--r) + 8px);
+    background: var(--s1) radial-gradient(var(--line) 1px, transparent 1px) 0 0 / 24px 24px; box-shadow: var(--inset); }
+  .legend { position: absolute; left: var(--sp-4); right: var(--sp-4); bottom: var(--sp-4); display: flex;
+    flex-wrap: wrap; gap: var(--sp-2); pointer-events: none; }
+  .legend span { font-size: 12px; color: var(--dim); background: var(--bg); border: 1px solid var(--line);
+    border-radius: var(--r-pill); padding: 5px 10px; }
+  .legend b { color: var(--tx); font-weight: 600; }
+  .clicks { display: grid; grid-template-columns: 2fr 1fr 2fr; gap: var(--sp-3); }
+  .clicks .key { min-height: 64px; }
+  .kb { display: flex; gap: var(--sp-2); }
+  .kb .field { flex: 1; min-width: 0; }
+  .kb .key { min-width: 0; min-height: 52px; padding: 0 var(--sp-3); font: 600 var(--fs-sm) var(--fm); white-space: nowrap; }
+  .keys .key { min-width: 0; min-height: 52px; padding: 0; white-space: nowrap; }
+  .keys { display: grid; grid-template-columns: repeat(8, 1fr); gap: var(--sp-2); }
+  .keys .key { font: 600 var(--fs-md) var(--fb); }
+
+  #media { width: 340px; flex: none; display: flex; flex-direction: column; gap: var(--sp-3); }
+  .transport { display: flex; justify-content: center; align-items: center; gap: var(--sp-4); padding: var(--sp-2) 0; }
+  .transport .key { width: 56px; height: 56px; }
+  .transport .key.primary { width: 72px; height: 72px; }
+  .transport .ic { width: 28px; height: 28px; }
+  .vol { display: flex; flex-direction: column; gap: var(--sp-3); }
+  .volrow { display: flex; gap: var(--sp-2); }
+  .volrow .key { flex: 1; min-height: 48px; }
+  #mute.on { background: var(--badSoft); border-color: var(--bad); color: var(--tx); }
+  #vol { height: 52px; }
+  #media { min-height: 0; }
+  .mixer { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
+  #apps { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--sp-3);
+    touch-action: pan-y; }
+  #apps.empty::before { content: "Keine App mit Ton"; color: var(--dim); font: 500 var(--fs-sm) var(--fb); }
+  /* je App eine Zeile: Regler mit Namen links und Prozent rechts, daneben Stumm */
+  .app { display: flex; gap: var(--sp-2); flex: none; }
+  .app .slider { flex: 1; min-width: 0; height: 44px; touch-action: pan-y; }
+  .app .slider .nm { position: absolute; left: var(--sp-3); right: 64px; top: 0; bottom: 0; display: flex;
+    align-items: center; font: 600 var(--fs-sm) var(--fb); color: var(--tx); pointer-events: none;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .55); }
+  .app .slider .nm span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .app .key { flex: none; width: 48px; min-height: 44px; padding: 0; touch-action: pan-y; }
+  .app .key.on { background: var(--badSoft); border-color: var(--bad); color: var(--tx); }
+  /* Ausgabe: ein Knopf mit dem aktuellen Gerät; die Liste ersetzt beim Antippen die Apps */
+  #out { flex: none; min-height: 44px; display: flex; flex-direction: row; align-items: center; gap: var(--sp-2); justify-content: flex-start;
+    padding: 0 var(--sp-3); font: 600 var(--fs-sm) var(--fb); }
+  #out .lbl { color: var(--dim); flex: none; }
+  #out .cur { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; }
+  #outs { display: none; flex: 1 1 auto; min-height: 0; flex-direction: column; gap: var(--sp-2); overflow-y: auto;
+    touch-action: pan-y; }
+  .mixer.pick #outs { display: flex; }
+  #mixnote { flex: none; font: 500 var(--fs-sm) var(--fb); color: var(--tx); background: var(--badSoft);
+    border: 1px solid var(--bad); border-radius: var(--r); padding: var(--sp-2) var(--sp-3); }
+  .mixer.pick #apps { display: none; }
+  #outs .chip { touch-action: pan-y; flex: none; min-height: 44px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    display: block; line-height: 42px; text-align: left; }
+</style>
+</head>
+<body>
+<section id="left" aria-label="Touchpad">
+  <div id="pad">
+    <div class="legend">
+      <span><b>1 Finger</b> bewegen · tippen = Klick</span>
+      <span><b>2 Finger</b> tippen = Rechtsklick · ziehen = scrollen</span>
+      <span><b>3 Finger</b> tippen = Mitte</span>
+      <span><b>Doppeltipp halten</b> = ziehen</span>
+    </div>
+  </div>
+  <div class="clicks">
+    <div class="key" data-btn="left">Linksklick</div>
+    <div class="key" data-btn="middle">Mitte</div>
+    <div class="key" data-btn="right">Rechtsklick</div>
+  </div>
+  <div class="kb">
+    <label class="field"><input id="txt" placeholder="Text an den PC tippen …" aria-label="Text an den PC tippen"
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></label>
+    <div class="key" data-key="CTRL+C">Strg+C</div>
+    <div class="key" data-key="CTRL+V">Strg+V</div>
+    <div class="key" data-key="ALT+TAB">Alt+Tab</div>
+  </div>
+  <div class="keys">
+    <div class="key" data-key="ESC">Esc</div>
+    <div class="key" data-key="TAB">Tab</div>
+    <div class="key" data-key="BACKSPACE">⌫</div>
+    <div class="key" data-key="ENTER">⏎</div>
+    <div class="key" data-key="LEFT">←</div>
+    <div class="key" data-key="UP">↑</div>
+    <div class="key" data-key="DOWN">↓</div>
+    <div class="key" data-key="RIGHT">→</div>
+  </div>
+</section>
+<aside id="media" aria-label="Medien">
+  <div class="card">
+    <div class="label">Wiedergabe</div>
+    <div class="transport">
+      <div class="key round" data-media="prev" aria-label="Zurück"><svg class="ic"><use href="/lib/icons.svg#prev"/></svg></div>
+      <div class="key round primary" data-media="playpause" aria-label="Wiedergabe/Pause"><svg class="ic"><use href="/lib/icons.svg#play"/></svg></div>
+      <div class="key round" data-media="next" aria-label="Weiter"><svg class="ic"><use href="/lib/icons.svg#next"/></svg></div>
+    </div>
+  </div>
+  <div class="card vol">
+    <div class="label">Lautstärke</div>
+    <div id="vol" class="slider" aria-label="Lautstärke"><div class="fill" id="fill"></div><div class="val" id="pct">–</div></div>
+    <div class="volrow">
+      <div class="key" data-media="voldown" aria-label="Leiser"><svg class="ic"><use href="/lib/icons.svg#vol-down"/></svg></div>
+      <div class="key" id="mute" aria-label="Stumm"><svg class="ic"><use href="/lib/icons.svg#mute"/></svg></div>
+      <div class="key" data-media="volup" aria-label="Lauter"><svg class="ic"><use href="/lib/icons.svg#vol-up"/></svg></div>
+    </div>
+  </div>
+  <div class="card mixer">
+    <div class="label">Mixer</div>
+    <div id="apps" aria-label="Lautstärke je App"></div>
+    <div id="outs" aria-label="Ausgabegerät wählen"></div>
+    <div id="mixnote" role="status" hidden></div>
+    <div class="key" id="out" aria-label="Ausgabegerät"><span class="lbl">Ausgabe</span><span class="cur">–</span>
+<span class="lbl" aria-hidden="true">▾</span></div>
+  </div>
+</aside>
+<script src="/lib/hub.js"></script>
+<script src="touchpad.js"></script>
+<script src="media.js"></script>
+<script src="mixer.js"></script>
+</body>
+</html>

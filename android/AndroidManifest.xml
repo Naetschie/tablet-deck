@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="app.tabletdeck.launcher"
+    android:versionCode="1"
+    android:versionName="0.1">
+
+    <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="35" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <!-- Proxy für die Web-Kachel umschalten (USB: Bridge-Proxy, WLAN: direkt); wird per adb erteilt -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
+    <!-- Feste Ausrichtung halten (accelerometer_rotation/user_rotation); per adb appops erteilt -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+
+    <application
+        android:label="@string/app_name"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:allowBackup="false"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+
+        <!-- Startbildschirm: ersetzt den Android-Launcher -->
+        <activity
+            android:name=".HomeActivity"
+            android:exported="true"
+            android:launchMode="singleInstance"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|density|locale|layoutDirection|fontScale"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- HOME-Eintrag getrennt: im Begleit-Modus (ohne Root) schaltet der Launcher ihn ab -->
+        <activity-alias
+            android:name=".HomeAlias"
+            android:targetActivity=".HomeActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Kopplung mit dem Hub: nur von der ADB-Shell aufrufbar (DUMP hat keine normale App) -->
+        <receiver
+            android:name=".PairingReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
+
+        <!-- Rückfall: ohne Verbindung zum PC nach 5 min herunterfahren (nur eigener Wecker) -->
+        <receiver
+            android:name=".AutoOffReceiver"
+            android:exported="false" />
+
+        <!-- Griff am Bildschirmrand über fremden Apps (z. B. spacedesk) -->
+        <service
+            android:name=".OverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Rücksprung-Griff zum Launcher über anderen Apps" />
+        </service>
+    </application>
+</manifest>

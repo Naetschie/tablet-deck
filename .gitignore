@@ -1,0 +1,54 @@
+# Werkzeuge und große Downloads
+tools/
+*.img
+*.img.xz
+*.zip
+*.apk
+# Python
+__pycache__/
+*.pyc
+# Android-Build
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.keystore
+# Editor/OS
+.vscode/
+.idea/
+Thumbs.db
+
+# Launcher-Build
+android/build/
+
+# Kopplungsgeheimnis Hub <-> Launcher
+secret.key
+send.key
+
+# Logs der Bridge
+bridge.log*
+supervise.log*
+dist/
+tls/
+
+# Lokale Geheimnisse (z. B. Claude-API-Schlüssel) - nie ins Git
+secrets/
+# Persönliche Daten der Web-Kachel (Lesezeichen, Verlauf)
+bookmarks.json
+web_history.json
+# Zwischenspeicher der Map-Genie-Pruefung
+mapgenie_cache.json
+mapgenie_cache.json.tmp
+profiles/.papierkorb/
+# Sensor-Helfer: eigene Zuordnung und Log
+sensors.json
+sensors.log*
+# PC-gebundene Einstellungen und Kacheln (Vorlagen: config.example.json, launcher.example.json)
+config.json
+launcher.json
+
+# Lokale Entwicklungsnotizen - nicht im öffentlichen Repo
+CLAUDE.md
+PLAN.md
+HANDOFF-tablet.md
+docs/weiter.md

@@ -1,0 +1,30 @@
+{
+  "title": "Schlacht",
+  "holdMs": 1000,
+  "pages": [
+    {"id": "auswahl", "title": "Auswahl", "type": "grid", "buttons": [
+      {"id": "select-all", "label": "ALLE EINHEITEN", "action": "select_all", "mode": "tap", "key": "LCTRL+A", "group": "Auswahl", "style": "accent"},
+      {"id": "select-melee", "label": "NAHKAMPF", "action": "select_melee", "mode": "tap", "key": "LCTRL+I", "group": "Auswahl"},
+      {"id": "select-ranged", "label": "FERNKAMPF", "action": "select_ranged", "mode": "tap", "key": "LCTRL+M", "group": "Auswahl"},
+      {"id": "select-cavalry", "label": "KAVALLERIE", "action": "select_cavalry", "mode": "tap", "key": "LCTRL+C", "group": "Auswahl"},
+      {"id": "select-artillery", "label": "ARTILLERIE", "action": "select_artillery", "mode": "tap", "key": "LCTRL+B", "group": "Auswahl"},
+      {"id": "deselect", "label": "ALLE ABWÄHLEN", "action": "deselect", "mode": "tap", "key": "ENTER", "group": "Auswahl"},
+      {"id": "group-1", "label": "GRUPPE 1", "action": "group_1", "mode": "tap", "key": "1", "group": "Gruppen"},
+      {"id": "group-2", "label": "GRUPPE 2", "action": "group_2", "mode": "tap", "key": "2", "group": "Gruppen"},
+      {"id": "group-3", "label": "GRUPPE 3", "action": "group_3", "mode": "tap", "key": "3", "group": "Gruppen"},
+      {"id": "group-4", "label": "GRUPPE 4", "action": "group_4", "mode": "tap", "key": "4", "group": "Gruppen"},
+      {"id": "group-5", "label": "GRUPPE 5", "action": "group_5", "mode": "tap", "key": "5", "group": "Gruppen"},
+      {"id": "group-soft", "label": "LOSE GRUPPIEREN", "action": "group_soft", "mode": "tap", "key": "G", "group": "Gruppen"},
+      {"id": "group-hard", "label": "FESTE GRUPPE", "action": "group_hard", "mode": "tap", "key": "LCTRL+G", "group": "Gruppen"}
+    ]},
+    {"id": "kamera", "title": "Kamera & Zeit", "type": "grid", "buttons": [
+      {"id": "unit-cam", "label": "EINHEITENKAMERA", "action": "unit_cam", "mode": "tap", "key": "INSERT", "group": "Kamera"},
+      {"id": "cam-reset", "label": "KAMERA ZURÜCK", "action": "cam_reset", "mode": "tap", "key": "END", "group": "Kamera"},
+      {"id": "labels", "label": "BESCHRIFTUNGEN", "action": "labels", "mode": "tap", "key": "LCTRL+T", "group": "Kamera"},
+      {"id": "pause", "label": "PAUSE", "action": "pause", "mode": "tap", "group": "Zeit", "style": "accent"},
+      {"id": "speed-up", "label": "TEMPO +", "action": "speed_up", "mode": "tap", "group": "Zeit"},
+      {"id": "speed-down", "label": "TEMPO −", "action": "speed_down", "mode": "tap", "group": "Zeit"},
+      {"id": "quicksave", "label": "SCHNELLSPEICHERN", "action": "quicksave", "mode": "tap", "key": "LCTRL+S", "group": "Spiel"}
+    ]}
+  ]
+}

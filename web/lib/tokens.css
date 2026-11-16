@@ -1,0 +1,38 @@
+/* Design-Tokens "Clean Dark" (gewählt im Mockup, Schritt 1 des Deck-2.0-Plans).
+   Kontraste (WCAG): --tx auf --bg 15.9:1, --dim auf --bg 7.6:1 bzw. auf --s2 6.3:1, --acTx auf --ac 8.3:1,
+   --warnTx auf --warn 7.9:1.
+   Touchziele mindestens 48 px (--hit). Abstände im 4/8-px-Raster. */
+/* Schriften lokal (über USB gibt es kein CDN): Inter und Space Grotesk, variable Strichstärke, Latin
+   (inkl. Umlaute). SIL Open Font License 1.1, siehe fonts/OFL-*.txt; Quelle: Fontsource 5.1.0 */
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url("fonts/inter-latin-var.woff2") format("woff2"); }
+@font-face { font-family: "Space Grotesk"; font-style: normal; font-weight: 300 700; font-display: swap;
+  src: url("fonts/space-grotesk-latin-var.woff2") format("woff2"); }
+:root {
+  /* Flächen */
+  --bg: #0E1114; --s1: #161A1F; --s2: #1E242B; --s3: #28313B; --line: #2B343E;
+  /* Text */
+  --tx: #E8ECF0; --dim: #9AA6B2;
+  /* Akzent und Zustände */
+  --ac: #4FB3FF; --acTx: #04121D; --acSoft: rgba(79, 179, 255, .14);
+  --warn: #F0923A; --warnTx: #1F0F02; --warnSoft: rgba(240, 146, 58, .13);
+  --ok: #3DDC84; --okSoft: rgba(61, 220, 132, .14);
+  --bad: #E5484D; --badSoft: rgba(229, 72, 77, .16);
+  /* Form */
+  --r: 14px; --r-lg: 18px; --r-sm: 8px; --r-pill: 999px;
+  --shadow: 0 8px 24px rgba(0, 0, 0, .35);
+  --inset: 0 1px 0 rgba(255, 255, 255, .03) inset;
+  /* Abstände */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
+  --hit: 48px;
+  /* Schrift: Inter/Space Grotesk (lib/fonts), Rückfall Roboto (Tablet) bzw. Segoe UI (PC) */
+  --fb: "Inter", Roboto, "Segoe UI", system-ui, sans-serif;
+  --fh: "Space Grotesk", "Inter", Roboto, "Segoe UI", system-ui, sans-serif;
+  --fm: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --fs-xs: 11px; --fs-sm: 13px; --fs-md: 15px; --fs-lg: 18px; --fs-xl: 22px; --fs-2xl: 28px; --fs-3xl: 40px;
+  --dur: 120ms;
+
+  /* Alte Namen (Editor und ältere Seiten) */
+  --panel: var(--s1); --text: var(--tx); --accent: var(--ac); --danger: var(--warn);
+  color-scheme: dark;
+}

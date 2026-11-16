@@ -1,0 +1,227 @@
+allow apexd sysfs_mmc_host file { write }
+allow audioserver vendor_default_prop file { getattr open read }
+allow cnd wifi_hal_prop file { getattr open read }
+allow flags_health_check ab_update_gki_prop file { getattr open }
+allow flags_health_check adaptive_haptics_prop file { getattr open }
+allow flags_health_check adbd_config_prop file { getattr open }
+allow flags_health_check adbd_prop file { getattr open }
+allow flags_health_check adbd_tradeinmode_prop file { getattr open }
+allow flags_health_check adsprpc_prop file { getattr open }
+allow flags_health_check apexd_config_prop file { getattr open }
+allow flags_health_check apexd_payload_metadata_prop file { getattr open }
+allow flags_health_check apexd_private_prop file { getattr open }
+allow flags_health_check apexd_prop file { getattr open }
+allow flags_health_check appsearch_vm_prop file { getattr open }
+allow flags_health_check avf_virtualizationservice_prop file { getattr open }
+allow flags_health_check avf_vm_traced_relay_enabled_prop file { getattr open }
+allow flags_health_check bg_boot_complete_prop file { getattr open }
+allow flags_health_check bg_daemon_prop file { getattr open }
+allow flags_health_check binder_cache_adservices_server_prop file { getattr open }
+allow flags_health_check bluetooth_a2dp_offload_prop file { getattr open }
+allow flags_health_check bluetooth_audio_hal_prop file { getattr open }
+allow flags_health_check bluetooth_finder_prop file { getattr open }
+allow flags_health_check bluetooth_lea_prop file { getattr open }
+allow flags_health_check bluetooth_prop file { getattr open }
+allow flags_health_check bootanim_config_prop file { getattr open }
+allow flags_health_check bootloader_boot_reason_prop file { getattr open }
+allow flags_health_check boottime_prop file { getattr open }
+allow flags_health_check boottime_public_prop file { getattr open }
+allow flags_health_check bpf_progs_loaded_prop file { getattr open }
+allow flags_health_check bservice_prop file { getattr open }
+allow flags_health_check build_attestation_prop file { getattr open }
+allow flags_health_check camera2_extensions_prop file { getattr open }
+allow flags_health_check camera_calibration_prop file { getattr open }
+allow flags_health_check camerax_extensions_prop file { getattr open }
+allow flags_health_check charger_config_prop file { getattr open }
+allow flags_health_check charger_prop file { getattr open }
+allow flags_health_check cnd_vendor_prop file { getattr open }
+allow flags_health_check codec2_config_prop file { getattr open }
+allow flags_health_check cold_boot_done_prop file { getattr open }
+allow flags_health_check composd_vm_art_prop file { getattr open }
+allow flags_health_check composd_vm_vendor_prop file { getattr open }
+allow flags_health_check cpu_variant_prop file { getattr open }
+allow flags_health_check crashrecovery_prop file { getattr open }
+allow flags_health_check ctl_LKCore_prop file { getattr open }
+allow flags_health_check ctl_adbd_prop file { getattr open }
+allow flags_health_check ctl_apex_load_prop file { getattr open }
+allow flags_health_check ctl_apexd_prop file { getattr open }
+allow flags_health_check ctl_artd_pre_reboot_prop file { getattr open }
+allow flags_health_check ctl_bootanim_prop file { getattr open }
+allow flags_health_check ctl_bugreport_prop file { getattr open }
+allow flags_health_check ctl_console_prop file { getattr open }
+allow flags_health_check ctl_default_prop file { getattr open }
+allow flags_health_check ctl_dumpstate_prop file { getattr open }
+allow flags_health_check ctl_fm_prop file { getattr open }
+allow flags_health_check ctl_fuse_prop file { getattr open }
+allow flags_health_check ctl_gsid_prop file { getattr open }
+allow flags_health_check ctl_interface_restart_prop file { getattr open }
+allow flags_health_check ctl_interface_start_prop file { getattr open }
+allow flags_health_check ctl_interface_stop_prop file { getattr open }
+allow flags_health_check ctl_mdnsd_prop file { getattr open }
+allow flags_health_check ctl_mediatranscoding_prop file { getattr open }
+allow flags_health_check ctl_odsign_prop file { getattr open }
+allow flags_health_check ctl_prefetch_prop file { getattr open }
+allow flags_health_check ctl_qcrild_prop file { getattr open }
+allow flags_health_check ctl_restart_prop file { getattr open }
+allow flags_health_check ctl_rildaemon_prop file { getattr open }
+allow flags_health_check ctl_stop_prop file { getattr open }
+allow flags_health_check ctl_uprobestats_prop file { getattr open }
+allow flags_health_check ctl_vendor_hbtp_prop file { getattr open }
+allow flags_health_check ctl_vendor_imsrcsservice_prop file { getattr open }
+allow flags_health_check ctl_vendor_mmid_prop file { getattr open }
+allow flags_health_check ctl_vendor_netmgrd_prop file { getattr open }
+allow flags_health_check ctl_vendor_qmuxd_prop file { getattr open }
+allow flags_health_check ctl_vendor_rild_prop file { getattr open }
+allow flags_health_check ctl_vendor_rmt_storage_prop file { getattr open }
+allow flags_health_check ctl_vendor_wigigsvc_prop file { getattr open }
+allow flags_health_check custom_version_prop file { getattr open }
+allow flags_health_check dck_prop file { getattr open }
+allow flags_health_check debug_tracing_desktop_mode_visible_tasks_prop file { getattr open }
+allow flags_health_check debugfs_restriction_prop file { getattr open }
+allow flags_health_check device_logging_prop file { getattr open }
+allow flags_health_check dmesgd_start_prop file { getattr open }
+allow flags_health_check drm_config_prop file { getattr open }
+allow flags_health_check drm_forcel3_prop file { getattr open }
+allow flags_health_check drm_service_config_prop file { getattr open }
+allow flags_health_check dumpstate_options_prop file { getattr open }
+allow flags_health_check dynamic_system_prop file { getattr open }
+allow flags_health_check enable_16k_pages_prop file { getattr open }
+allow flags_health_check exported_bluetooth_prop file { getattr open }
+allow flags_health_check exported_overlay_prop file { getattr open }
+allow flags_health_check fastbootd_protocol_prop file { getattr open }
+allow flags_health_check ffs_control_prop file { getattr open }
+allow flags_health_check firstboot_prop file { getattr open }
+allow flags_health_check fm_prop file { getattr open }
+allow flags_health_check framework_watchdog_config_prop file { getattr open }
+allow flags_health_check freq_prop file { getattr open }
+allow flags_health_check fstype_prop file { getattr open }
+allow flags_health_check future_pm_prop file { getattr open }
+allow flags_health_check game_manager_config_prop file { getattr open }
+allow flags_health_check gesture_prop file { getattr open }
+allow flags_health_check graphics_vulkan_prop file { getattr open }
+allow flags_health_check gsid_prop file { getattr open }
+allow flags_health_check hal_dumpstate_config_prop file { getattr open }
+allow flags_health_check heapprofd_enabled_prop file { getattr open }
+allow flags_health_check hidl_memory_prop file { getattr open }
+allow flags_health_check high_barometer_quality_prop file { getattr open }
+allow flags_health_check hint_manager_config_prop file { getattr open }
+allow flags_health_check hsum_boot_strategy_prop file { getattr open }
+allow flags_health_check hvdcp_opti_prop file { getattr open }
+allow flags_health_check hwservicemanager_prop file { getattr open }
+allow flags_health_check hwui_prop file { getattr open }
+allow flags_health_check hypervisor_prop file { getattr open }
+allow flags_health_check hypervisor_pvmfw_prop file { getattr open }
+allow flags_health_check hypervisor_restricted_prop file { getattr open }
+allow flags_health_check hypervisor_virtualizationmanager_prop file { getattr open }
+allow flags_health_check incremental_prop file { getattr open }
+allow flags_health_check init_perf_lsm_hooks_prop file { getattr open }
+allow flags_health_check init_storage_prop file { getattr open }
+allow flags_health_check init_svc_debug_prop file { getattr open }
+allow flags_health_check input_device_config_prop file { getattr open }
+allow flags_health_check kcmdline_prop file { getattr open }
+allow flags_health_check keyguard_config_prop file { getattr open }
+allow flags_health_check keystore_config_prop file { getattr open }
+allow flags_health_check keystore_diagnostics_prop file { getattr open }
+allow flags_health_check keystore_listen_prop file { getattr open }
+allow flags_health_check last_boot_reason_prop file { getattr open }
+allow flags_health_check legal_url_prop file { getattr open }
+allow flags_health_check llkd_prop file { getattr open }
+allow flags_health_check lmkd_prop file { getattr open }
+allow flags_health_check location_prop file { getattr open }
+allow flags_health_check logd_auditrate_prop file { getattr open }
+allow flags_health_check logpersistd_logging_prop file { getattr open }
+allow flags_health_check lower_kptr_restrict_prop file { getattr open }
+allow flags_health_check lowpan_prop file { getattr open }
+allow flags_health_check lpdumpd_prop file { getattr open }
+allow flags_health_check media_config_prop file { getattr open }
+allow flags_health_check media_variant_prop file { getattr open }
+allow flags_health_check misctrl_prop file { getattr open }
+allow flags_health_check mm_events_config_prop file { getattr open }
+allow flags_health_check mm_parser_prop file { getattr open }
+allow flags_health_check mm_video_prop file { getattr open }
+allow flags_health_check mmc_prop file { getattr open }
+allow flags_health_check mmd_prop file { getattr open }
+allow flags_health_check mmd_shared_prop file { getattr open }
+allow flags_health_check mmd_shared_status_prop file { getattr open }
+allow flags_health_check mmd_status_prop file { getattr open }
+allow flags_health_check mock_ota_prop file { getattr open }
+allow flags_health_check msm_irqbalance_prop file { getattr open }
+allow flags_health_check msm_irqbl_sdm630_prop file { getattr open }
+allow flags_health_check net_464xlat_fromvendor_prop file { getattr open }
+allow flags_health_check net_connectivity_prop file { getattr open }
+allow flags_health_check net_dns_prop file { getattr open }
+allow flags_health_check netd_stable_secret_prop file { getattr open }
+allow flags_health_check nfc_nq_prop file { getattr open }
+allow flags_health_check nnapi_ext_deny_product_prop file { getattr open }
+allow flags_health_check odm_cast_prop file { getattr open }
+allow flags_health_check odsign_prop file { getattr open }
+allow flags_health_check oem_unlock_prop file { getattr open }
+allow flags_health_check oemowninfo_prop file { getattr open }
+allow flags_health_check ota_build_prop file { getattr open }
+allow flags_health_check overlay_prop file { getattr open }
+allow flags_health_check packagemanager_config_prop file { getattr open }
+allow flags_health_check page_size_prop file { getattr open }
+allow flags_health_check perf_drop_caches_prop file { getattr open }
+allow hal_audio_default sysfs dir { open read }
+allow hal_audio_sysbta vendor_default_prop file { getattr open read }
+allow hal_capabilityconfigstore_qti_default vendor_cap_configstore_dbg_prop file { getattr open read }
+allow hal_fingerprint_oppo_compat default_android_hwservice hwservice_manager { find }
+allow hal_gnss_qti vendor_pd_locater_dbg_prop file { getattr open read }
+allow init init netlink_socket { bind create getattr setopt }
+allow init oemfs dir { mounton }
+allow init same_process_hal_file file { execute }
+allow init sysfs file { write }
+allow init sysfs_green file { setattr }
+allow init vendor_toolbox_exec file { execute_no_trans }
+allow kcmdlinectrl sysfs_dt_firmware_android dir { open read }
+allow kcmdlinectrl sysfs_dt_firmware_android file { getattr open read }
+allow kernel kernel capability { dac_override }
+allow misctrl sysfs_dt_firmware_android dir { open read }
+allow misctrl sysfs_dt_firmware_android file { getattr open read }
+allow phhsu_daemon firmware_file filesystem { getattr }
+allow qti_init_shell cache_file dir { getattr }
+allow qti_init_shell configfs dir { add_name write }
+allow qti_init_shell configfs file { create }
+allow qti_init_shell init_exec lnk_file { read }
+allow qti_init_shell init_service_status_private_prop file { getattr open read }
+allow qti_init_shell linkerconfig_file dir { getattr }
+allow qti_init_shell metadata_file dir { getattr }
+allow qti_init_shell mirror_data_file dir { getattr }
+allow qti_init_shell postinstall_mnt_dir dir { getattr }
+allow qti_init_shell qemu_hw_prop property_service { set }
+allow qti_init_shell qti_init_shell capability { dac_override }
+allow qti_init_shell rootfs dir { open read }
+allow qti_init_shell shell_data_file dir { getattr search }
+allow qti_init_shell sysfs file { setattr }
+allow qti_init_shell system_data_file dir { search }
+allow qti_init_shell system_dlkm_file dir { getattr }
+allow qti_init_shell vendor_file file { entrypoint }
+allow sensors sysfs dir { open read }
+allow surfaceflinger default_android_hwservice hwservice_manager { find }
+allow system_app default_android_hwservice hwservice_manager { find }
+allow system_app default_android_service service_manager { find }
+allow system_server default_android_hwservice hwservice_manager { find }
+allow system_server default_android_service service_manager { find }
+allow system_server sysfs file { getattr open read }
+allow traced traced socket { create }
+allow ueventd debugfs dir { open read }
+allow ueventd debugfs file { getattr }
+allow ueventd debugfs_wakeup_sources file { getattr }
+allow vendor_init build_prop property_service { set }
+allow vendor_init device file { create write }
+allow vendor_init firstboot_prop file { read }
+allow vendor_init freq_prop property_service { set }
+allow vendor_init init_service_status_private_prop file { read }
+allow vendor_init ipa_dev file { create open write }
+allow vendor_init persist_backgrounddata_prop property_service { set }
+allow vendor_init persist_debug_prop file { read }
+allow vendor_init system_data_file dir { ioctl open read setattr }
+allow vendor_init tombstone_data_file dir { getattr ioctl open read setattr }
+allow vendor_per_mgr vendor_per_mgr capability { net_raw }
+allow vndk_detect vendor_file file { getattr open read }
+allow vold sysfs_mmc_host file { write }
+allow wcnss_service init unix_stream_socket { connectto }
+allow wcnss_service property_socket sock_file { write }
+allow wcnss_service serialno_prop file { getattr open read }
+allow wcnss_service vendor_default_prop property_service { set }
+allow zygote vendor_default_prop file { getattr open read }

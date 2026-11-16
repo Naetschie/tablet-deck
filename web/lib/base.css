@@ -1,0 +1,12 @@
+@import url("tokens.css");
+/* Grundlage aller Tablet-Seiten: Reset, Schrift, Touch-Verhalten, Verbindungsanzeige. Komponenten: ui.css */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--bg); color: var(--tx); overflow: hidden;
+  font: 500 var(--fs-md)/1.3 var(--fb);
+  -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+  touch-action: none; -webkit-touch-callout: none; }
+button, input, select, textarea { font: inherit; color: inherit; }
+/* Verbindungsanzeige: Balken oben, solange der Hub nicht erreichbar ist */
+.offline body::before { content: "Keine Verbindung zum PC"; position: fixed; top: 0; left: 0; right: 0;
+  z-index: 10; padding: 6px; text-align: center; background: var(--bad); color: #fff; font-size: var(--fs-sm);
+  font-weight: 600; }

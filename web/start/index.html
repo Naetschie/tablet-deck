@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<link rel="stylesheet" href="/lib/base.css">
+<link rel="stylesheet" href="/lib/ui.css">
+<title>Startseite</title>
+<style>
+  #scroll { height: 100%; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; padding: var(--sp-4);
+    display: flex; flex-direction: column; gap: var(--sp-4); }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+  .head .chip { min-height: 44px; }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: var(--sp-3); margin-top: var(--sp-3); }
+  .tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; min-height: 120px;
+    padding: var(--sp-3); background: var(--s1); border: 1px solid var(--line); border-radius: var(--r-lg);
+    text-align: center; touch-action: pan-y; }
+  .tile:active, .row:active { background: var(--s3); }
+  .tile .t { font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tile .h { font-size: var(--fs-xs); color: var(--dim); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: var(--acSoft); border: 1px solid var(--ac); color: var(--tx); font: 700 var(--fs-xl) var(--fh); flex: none; }
+  .tile .del { position: absolute; top: 4px; right: 4px; width: 48px; height: 48px; border-radius: 50%;
+    display: none; align-items: center; justify-content: center; background: var(--badSoft); border: 1px solid var(--bad);
+    color: var(--tx); touch-action: pan-y; }
+  .edit .tile .del { display: flex; }
+  .cols { display: flex; gap: var(--sp-4); align-items: flex-start; }
+  .col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
+  .col .head { padding: 0 var(--sp-1); }
+  .list { max-height: 420px; overflow-y: auto; touch-action: pan-y; display: flex; flex-direction: column; gap: var(--sp-2); }
+  .row { display: flex; align-items: center; gap: var(--sp-3); min-height: 64px; padding: 0 var(--sp-2) 0 var(--sp-3);
+    background: var(--s1); border: 1px solid var(--line); border-radius: var(--r); touch-action: pan-y; }
+  .row .badge { width: 40px; height: 40px; font-size: var(--fs-md); }
+  .row .m { flex: 1; min-width: 0; }
+  .row .t { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .h { font-size: var(--fs-xs); color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .star { flex: none; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 24px; color: var(--dim); touch-action: pan-y; }
+  .star.on { color: var(--warn); }
+  .empty { padding: var(--sp-4); color: var(--dim); font-size: var(--fs-sm); text-align: center; border: 1px dashed var(--line);
+    border-radius: var(--r); }
+  #clear { position: relative; overflow: hidden; touch-action: none; min-height: 44px; }
+  #clear .bar { position: absolute; inset: 0; background: var(--badSoft); transform: scaleX(0);
+    transform-origin: left; pointer-events: none; }
+  #clear.arming .bar { transform: scaleX(1); transition: transform 1000ms linear; }
+  #clear span { position: relative; display: inline-flex; align-items: center; gap: var(--sp-2); }
+  #clear:disabled { opacity: .4; }
+</style>
+</head>
+<body>
+<div id="scroll">
+  <section aria-label="Lesezeichen">
+    <div class="head">
+      <div class="label">Lesezeichen</div>
+      <button class="chip" id="editBtn" type="button">Bearbeiten</button>
+    </div>
+    <div id="grid"></div>
+  </section>
+  <div class="cols">
+    <section class="col" aria-label="Vom PC gesendet">
+      <div class="head"><div class="label">Vom PC gesendet</div></div>
+      <div class="list" id="sent"></div>
+    </section>
+    <section class="col" aria-label="Verlauf">
+      <div class="head">
+        <div class="label">Verlauf</div>
+        <button class="chip" id="clear" type="button" aria-label="Verlauf löschen (halten)"><i class="bar"></i>
+          <span><svg class="ic"><use href="/lib/icons.svg#x"/></svg>Alles löschen (halten)</span></button>
+      </div>
+      <div class="list" id="hist"></div>
+    </section>
+  </div>
+</div>
+<script src="/lib/hub.js"></script>
+<script src="start.js"></script>
+</body>
+</html>

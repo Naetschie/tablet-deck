@@ -1,0 +1,93 @@
+/* Panel (/). Grundlage: lib/base.css, lib/ui.css */
+body { display: flex; flex-direction: column; }
+
+header { position: relative; z-index: 2; background: var(--bg); display: flex; flex-direction: column;
+  gap: var(--sp-2); padding: var(--sp-3) var(--sp-4) var(--sp-2); flex: none; }
+header .row { display: flex; align-items: center; gap: var(--sp-3); min-height: var(--hit); }
+#game { display: flex; align-items: center; gap: var(--sp-3); min-height: var(--hit); padding: 0 var(--sp-3) 0 0;
+  border: 0; background: transparent; color: var(--tx); text-align: left; }
+.cv { width: 40px; height: 40px; flex: none; border-radius: calc(var(--r) - 4px); background: var(--s3);
+  color: var(--ac); display: flex; align-items: center; justify-content: center; font: 700 var(--fs-sm) var(--fh); }
+#game .gn { font: 600 var(--fs-lg) var(--fh); white-space: nowrap; }
+#game.multi .gn::after { content: " ▾"; color: var(--dim); font-size: var(--fs-sm); }
+#panels { flex: 1; min-width: 0; display: flex; gap: var(--sp-2); justify-content: flex-end; overflow-x: auto; }
+#tabs { min-width: 0; }
+#pick { position: fixed; inset: 0; z-index: 5; display: none; flex-direction: column; align-items: flex-start;
+  gap: var(--sp-2); padding: 76px var(--sp-4) var(--sp-4); background: rgba(0, 0, 0, .55); }
+#pick.open { display: flex; }
+#pick .chip { min-width: 280px; justify-content: flex-start; background: var(--s1); color: var(--tx);
+  font-size: var(--fs-md); box-shadow: var(--shadow); }
+#pick .chip .cv { width: 32px; height: 32px; }
+#pick .chip.on { background: var(--acSoft); }
+#last { max-width: 240px; color: var(--dim); font-size: var(--fs-sm); overflow: hidden; white-space: nowrap;
+  text-overflow: ellipsis; }
+#conn { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; }
+#conn::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--ok);
+  box-shadow: 0 0 8px var(--ok); }
+#conn.off::after { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+
+main { flex: 1; min-height: 0; padding: var(--sp-1) var(--sp-4) var(--sp-4); overflow-y: auto; touch-action: pan-y; }
+
+/* Gruppen */
+.group { margin-bottom: var(--sp-4); padding: var(--sp-3); background: var(--s1); border: 1px solid var(--line);
+  border-radius: var(--r-lg); }
+.group h2 { font: 700 var(--fs-xs)/1.2 var(--fb); color: var(--dim); text-transform: uppercase; letter-spacing: .1em;
+  margin: 2px 2px var(--sp-3); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--sp-2); }
+.grid .wide { grid-column: 1 / -1; }
+
+/* Tasten (auf .key aus ui.css) */
+.btn { min-height: 84px; font-size: var(--fs-md); hyphens: auto; }
+.btn.accent { background: var(--acSoft); border-color: var(--ac); color: var(--tx); }
+.btn.danger { background: var(--warnSoft); border-color: var(--warn); color: var(--tx); }
+.btn.accent.down { background: var(--ac); color: var(--acTx); }
+.btn.danger.down { background: var(--warn); border-color: var(--warn); color: var(--warnTx); }
+.btn.nomap { border-style: dashed; opacity: .5; }
+.no-keys .btn .sub { display: none; }
+/* Halten: Füllbalken unten */
+.btn .bar { position: absolute; left: 0; bottom: 0; height: 4px; width: 100%; background: var(--warn);
+  transform: scaleX(0); transform-origin: left; }
+.btn.arming .bar { transform: scaleX(1); transition: transform var(--hold, 1000ms) linear; }
+.btn .hint { position: absolute; top: 6px; right: 8px; font: 700 9px/1 var(--fb); letter-spacing: .1em;
+  color: var(--warn); }
+.btn.down .hint { color: inherit; }
+/* Schalter: Leuchtleiste unten */
+.btn .lamp { position: absolute; left: 12px; right: 12px; bottom: 6px; height: 3px; border-radius: 2px;
+  background: var(--s3); }
+.btn.on .lamp { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.btn.on { border-color: var(--ok); }
+
+/* Mehrfach-Schalter: alle Zustände in einer Zeile, aktiver hervorgehoben */
+.btn .states { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 8px; }
+.btn .st { padding: 1px 4px; border-radius: 4px; }
+.btn .st.on { background: var(--ac); color: var(--acTx); font-weight: 700; }
+.btn.down .st.on { background: var(--acTx); color: var(--ac); }
+
+/* Regler: waagerecht, Ziehen ändert die Stufe */
+.btn-slider { min-height: 84px; user-select: none; }
+.btn-slider .lbl { position: absolute; left: var(--sp-3); top: 0; bottom: 0; display: flex; align-items: center;
+  font: 600 var(--fs-md) var(--fb); color: var(--tx); pointer-events: none; text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
+.btn-slider.nomap { opacity: .5; outline: 1px dashed var(--line); }
+.free .btn-slider { height: auto; min-height: 0; }
+
+/* Freie Seite (Raster) */
+main.fill { overflow: hidden; }
+.free { display: grid; gap: var(--sp-2); height: 100%; }
+.free .btn { min-height: 0; }
+
+/* Schilde */
+.shield { display: flex; gap: var(--sp-3); height: 100%; }
+.shield svg { flex: 1; min-width: 0; height: 100%; touch-action: none; }
+.zone { fill: var(--s2); stroke: var(--bg); stroke-width: 6; }
+.zone.down { fill: var(--ac); }
+.zone.nomap { fill-opacity: .5; }
+.zlabel { fill: var(--dim); font: 700 24px var(--fb); text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+.ship { fill: var(--s3); stroke: var(--ac); stroke-width: 2; pointer-events: none; }
+.side { width: 30%; max-width: 260px; display: flex; flex-direction: column; gap: var(--sp-3); }
+.side .btn { flex: 1; }
+.side .reset { flex: 1.6; font-size: var(--fs-2xl); }
+
+#overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: none; align-items: center;
+  justify-content: center; background: rgba(14, 17, 20, .85); color: var(--bad); font-size: var(--fs-xl);
+  font-weight: 600; pointer-events: none; }
+.offline #overlay { display: flex; }

@@ -1,0 +1,6 @@
+id=hardening
+name=hardening (Angriffsfläche)
+version=1.6
+versionCode=7
+author=touchtabletexpansion
+description=Stoppt das WLAN-Testwerkzeug ptt_wlan und blockt neue eingehende Verbindungen über WLAN.

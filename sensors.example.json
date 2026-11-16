@@ -1,0 +1,37 @@
+{
+  "_hinweis": [
+    "Vorlage für sensors.json (liegt neben config.json, nicht im Git). Sie überschreibt oder ergänzt die",
+    "eingebauten Zuordnungen aus bridge/sensors/mapping.py. Schlüssel mit _ am Anfang sind Kommentare.",
+    "Rohsensoren mit Pfad, Name und aktuellem Wert zeigt (als Administrator): python -m bridge.sensors --list",
+    "Zum Zuordnen einen Lüfter kurz anhalten bzw. im BIOS/MSI Center die Drehzahl ändern und schauen,",
+    "welcher Wert sich bewegt. Nach dem Ändern den Sensor-Helfer neu starten."
+  ],
+
+  "_felder": {
+    "source": "psutil | nvml | lhm | presentmon",
+    "path": "genauer Pfad des Rohsensors (Spalte Pfad), ODER",
+    "sensor": "Name des Rohsensors (Spalte Name), optional eingegrenzt mit type (Spalte Typ) und hardware (Pfadanfang)",
+    "factor": "optional: Rohwert wird damit multipliziert (z. B. Spannungsteiler)",
+    "label, unit, min, max": "optional: Anzeigename, Einheit, Skalengrenzen",
+    "from": "optional statt source/path: Liste mehrerer Kandidaten, der erste mit Wert gewinnt",
+    "null": "als Wert einer ID: diese ID abschalten"
+  },
+
+  "_auszufuellen": [
+    "MSI MPG Z690 Edge WiFi DDR4 (NCT6687D). Eingebaut sind nur die Namen, die LibreHardwareMonitor für",
+    "diesen Baustein selbst vergibt: CPU Fan, System Fan #1-#3, +12V, +5V, DIMM. Bitte mit --list prüfen:",
+    "1. Systemlüfter: Stimmen System Fan #1-#3 mit den Anschlüssen SYS_FAN1-3 überein? Sonst unten den",
+    "   passenden Pfad eintragen (auch für Pump Fan bzw. System Fan #4-#6, falls dort etwas hängt).",
+    "2. 3,3 V: LHM kennt bei diesem Baustein keinen Sensor namens +3.3V. In Frage kommt AVCC3 oder eine",
+    "   der Voltage #n - erst eintragen, wenn der Wert mit dem BIOS (ca. 3,3 V) übereinstimmt.",
+    "3. Spannungen mit Teiler (12 V, 5 V): zeigt --list nur einen Bruchteil, den Faktor ergänzen.",
+    "Die Pfade unten sind Platzhalter - die echten stehen in der Spalte Pfad."
+  ],
+
+  "_beispiel fan.sys1": {"source": "lhm", "path": "/lpc/nct6687d/0/fan/2"},
+  "_beispiel fan.sys2": {"source": "lhm", "sensor": "System Fan #4", "type": "Fan", "hardware": "/lpc"},
+  "_beispiel volt.3v3": {"source": "lhm", "sensor": "AVCC3", "type": "Voltage", "hardware": "/lpc"},
+  "_beispiel volt.12v": {"source": "lhm", "sensor": "+12V", "type": "Voltage", "hardware": "/lpc", "factor": 1.0},
+  "_beispiel eigene ID": {"source": "lhm", "sensor": "GPU Bus", "type": "Load", "label": "GPU-Bus", "unit": "%", "min": 0, "max": 100},
+  "_beispiel abschalten": null
+}

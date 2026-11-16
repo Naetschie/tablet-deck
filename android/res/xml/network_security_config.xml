@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Klartext bleibt erlaubt (Hub per USB: http://localhost, Web-Kachel: http-Seiten).
+     Vertrauen: nur System-CAs. Die CA des Hubs ist NICHT eingebaut (eine APK für alle PCs): der Hub schickt sie
+     per ADB, der Launcher prüft sie nur für die WLAN-Adresse des Hubs selbst (HubTrust).
+     Benutzer-CAs bleiben außen vor. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

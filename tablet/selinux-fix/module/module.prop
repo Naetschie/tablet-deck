@@ -1,0 +1,6 @@
+id=selinuxfix
+name=selinuxfix (GSI-Regeln)
+version=1.0
+versionCode=1
+author=touchtabletexpansion
+description=Erlaubt die im permissive-Betrieb beobachteten Zugriffe (GSI auf altem Lenovo-Vendor), damit SELinux enforcing laufen kann.

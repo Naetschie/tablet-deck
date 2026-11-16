@@ -1,0 +1,57 @@
+/* Komponenten im Stil "Clean Dark". Nutzt nur Tokens aus tokens.css. */
+
+/* Icons aus dem Sprite: <svg class="ic"><use href="/lib/icons.svg#play"/></svg> */
+.ic { width: 24px; height: 24px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round; }
+
+/* Taste (Panel, Touchpad, Medien). Zustände: .down gedrückt, .on eingeschaltet */
+.key { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; min-height: var(--hit); padding: var(--sp-2) var(--sp-3); text-align: center;
+  background: var(--s2); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--inset);
+  color: var(--tx); font: 600 var(--fs-md)/1.2 var(--fb); overflow: hidden; overflow-wrap: anywhere;
+  touch-action: none; transition: background var(--dur), border-color var(--dur); }
+.key.down { background: var(--ac); border-color: var(--ac); color: var(--acTx); }
+.key .sub { font: 500 var(--fs-xs)/1 var(--fm); color: var(--dim); letter-spacing: .02em; }
+.key.down .sub { color: inherit; opacity: .75; }
+.key.primary { background: var(--ac); border-color: var(--ac); color: var(--acTx); }
+.key.ghost { background: transparent; }
+.key.round { border-radius: 50%; padding: 0; }
+
+/* Karte / Fläche */
+.card { padding: var(--sp-4); background: var(--s1); border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: var(--inset); }
+.label { font: 700 var(--fs-xs)/1.2 var(--fb); color: var(--dim); text-transform: uppercase; letter-spacing: .1em; }
+
+/* Reiter (Segment) */
+.tabs { display: flex; gap: var(--sp-1); padding: var(--sp-1); background: var(--s1); border: 1px solid var(--line);
+  border-radius: var(--r); overflow-x: auto; }
+.tabs button { min-height: 44px; padding: 0 var(--sp-4); border: 0; border-radius: calc(var(--r) - 4px);
+  background: transparent; color: var(--dim); font: 600 var(--fs-md) var(--fb); white-space: nowrap; }
+.tabs button.on { background: var(--s3); color: var(--tx); box-shadow: inset 0 -2px 0 var(--ac); }
+
+/* Chip / Auswahlknopf */
+.chip { display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); min-height: var(--hit);
+  padding: 0 var(--sp-4); border: 1px solid var(--line); border-radius: var(--r); background: transparent;
+  color: var(--dim); font: 600 var(--fs-sm) var(--fb); }
+.chip.on { border-color: var(--ac); background: var(--acSoft); color: var(--tx); }
+
+/* Eingabefeld */
+.field { display: flex; align-items: center; gap: var(--sp-2); min-height: 52px; padding: 0 var(--sp-4);
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); }
+.field:focus-within { border-color: var(--ac); }
+.field input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--tx); outline: none;
+  font: 500 var(--fs-md) var(--fb); user-select: text; -webkit-user-select: text; touch-action: manipulation; }
+.field input::placeholder { color: var(--dim); }
+
+/* Regler (waagerecht, eigene Darstellung statt input[type=range]) */
+.slider { position: relative; height: var(--hit); border-radius: var(--r); background: var(--s3);
+  overflow: hidden; touch-action: none; }
+.slider .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--ac); }
+.slider.muted .fill { background: var(--dim); }
+.slider .val { position: absolute; right: var(--sp-3); top: 0; bottom: 0; display: flex; align-items: center;
+  font: 600 var(--fs-sm) var(--fb); color: var(--tx); font-variant-numeric: tabular-nums; pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
+
+/* Status-Punkt */
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.dot.off { background: var(--bad); box-shadow: 0 0 8px var(--bad); }

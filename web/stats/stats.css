@@ -1,0 +1,7 @@
+/* PC-Werte: das Dashboard (SVG) füllt die Fläche, das Seitenverhältnis bleibt (viewBox + meet). */
+#stage { position: fixed; inset: 0; }
+#stage svg { display: block; width: 100%; height: 100%; }
+#stage text { white-space: pre; }
+#msg { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  padding: var(--sp-6); text-align: center; color: var(--dim); font-size: var(--fs-lg); }
+#msg[hidden] { display: none; }

@@ -1,0 +1,9 @@
+websockets>=13
+pyserial>=3.5
+pycaw>=20240316
+pystray>=0.19
+pillow>=10
+cryptography>=42
+anthropic>=2.8
+psutil>=5.9
+nvidia-ml-py>=12

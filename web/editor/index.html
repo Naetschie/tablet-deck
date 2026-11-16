@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/lib/base.css">
+<link rel="stylesheet" href="editor.css">
+<title>Panel-Editor</title>
+</head>
+<body>
+<header>
+  <h1>Panel-Editor</h1>
+  <label class="inline">Spiel <select id="gameSel"></select></label>
+  <label class="inline">Panel <select id="panelSel"></select></label>
+  <label class="inline">Titel <input id="panelTitle" maxlength="40" size="12"></label>
+  <button id="newPanel" class="ghost" title="Neues leeres Panel für dieses Spiel">+ Panel</button>
+  <button id="dupPanel" class="ghost" title="Aktuelles Panel kopieren">Duplizieren</button>
+  <button id="delPanel" class="ghost" title="Panel in den Papierkorb (profiles/.papierkorb)">Löschen</button>
+  <button id="genPanel" class="ghost" title="Panel aus einer Spielvorlage und deiner Tastenbelegung erzeugen">Automatisch erzeugen …</button>
+  <span class="grow"></span>
+  <label class="inline">Haltezeit (ms) <input id="holdMs" type="number" min="200" max="5000" step="100"></label>
+  <span id="status"></span>
+  <button id="revert" class="ghost">Verwerfen</button>
+  <button id="save">Speichern</button>
+</header>
+<main>
+  <section id="pagesCol">
+    <h2>Seiten</h2>
+    <ul id="pages"></ul>
+    <button id="addPage" class="ghost">+ Seite</button>
+    <div id="pageProps" class="props"></div>
+  </section>
+  <section id="buttonsCol">
+    <h2>Tasten <small id="pageHint"></small></h2>
+    <div id="canvasBox"></div>
+    <ul id="buttons"></ul>
+    <button id="addButton" class="ghost">+ Taste</button>
+  </section>
+  <section id="propsCol">
+    <h2>Eigenschaften</h2>
+    <div id="buttonProps" class="props"><p class="dim">Taste auswählen.</p></div>
+  </section>
+</main>
+<dialog id="genDlg">
+  <h2>Panel automatisch erzeugen</h2>
+  <p class="hint" id="genSource"></p>
+  <div class="row">
+    <label>Vorlage <select id="genTpl"></select></label>
+  </div>
+  <div id="genPages" class="checks"></div>
+  <details id="genAi">
+    <summary>Keine passende Vorlage? Mit KI erstellen (Claude, kostet API-Guthaben)</summary>
+    <label>Was soll aufs Panel? (optional, z. B. Spielweise, wichtige Menüs, Link zur Steuerungsseite)
+      <textarea id="genHint" maxlength="2000" placeholder="z. B. Fokus auf Inventar, Heilung und Karte"></textarea></label>
+    <div class="row end"><button id="genAiRun" class="ghost">Mit KI erzeugen</button></div>
+  </details>
+  <div id="genReport"></div>
+  <div class="row end">
+    <button id="genClose" class="ghost">Schließen</button>
+    <button id="genRun" class="ghost">Erzeugen</button>
+    <button id="genTake" disabled>Als neues Panel übernehmen</button>
+  </div>
+</dialog>
+<datalist id="keyNames"></datalist>
+<script src="editor.js"></script>
+</body>
+</html>

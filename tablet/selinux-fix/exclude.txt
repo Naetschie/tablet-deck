@@ -1,0 +1,11 @@
+# Regeln, die avc2rule.py NICHT erzeugen soll (Regex auf "quelle ziel klasse").
+# Begründung siehe Review zu Commit fde30c5 und docs/tablet-setup.md.
+
+# init darf keine Vendor-Programme ohne Domänenwechsel ausführen und keine Netzwerkdienste öffnen
+# (ptt_socket_app: Qualcomm-WLAN-Testwerkzeug als root im init-Kontext; wird ohnehin abgeschaltet)
+^init vendor_file file$
+^init init tcp_socket$
+^init port tcp_socket$
+^init node tcp_socket$
+# Qualcomm-Diagnoseschnittstelle (Modem/NV-Zugriff) - Zugriffe sind nur Debug-Logging der Dienste
+^\S+ diag_device chr_file$

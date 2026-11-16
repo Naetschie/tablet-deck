@@ -1,0 +1,31 @@
+{
+  "games": [
+    {
+      "id": "star-citizen", "name": "Star Citizen", "exe": ["StarCitizen.exe"], "steam": null,
+      "panels": ["main"],
+      "bindings": {"adapter": "cryengine", "default": "tools/sc/Data/Libs/Config/defaultProfile.plain.xml"},
+      "maps": [
+        {"name": "Ark Starmap", "url": "https://robertsspaceindustries.com/en/starmap"},
+        {"name": "VerseGuide", "url": "https://verseguide.com/"},
+        {"name": "Star Citizen Wiki – Orte", "url": "https://starcitizen.tools/Locations"}
+      ]
+    },
+    {
+      "id": "warhammer3", "name": "Total War: Warhammer III", "exe": ["Warhammer3.exe"], "steam": 1142710,
+      "panels": [], "maps": []
+    },
+    {
+      "id": "frostpunk", "name": "Frostpunk", "exe": ["Frostpunk.exe"], "steam": 323190,
+      "panels": [], "maps": []
+    },
+    {
+      "id": "stalker2", "name": "S.T.A.L.K.E.R. 2", "exe": ["Stalker2-Win64-Shipping.exe", "Stalker2.exe"],
+      "steam": 1643320, "panels": [],
+      "maps": [
+        {"name": "Map Genie", "url": "https://mapgenie.io/stalker-2-heart-of-chornobyl/maps/the-zone"},
+        {"name": "Gamepressure", "url": "https://www.gamepressure.com/stalker-2/interactive-map/zc116bb"},
+        {"name": "Gamer Guides", "url": "https://www.gamerguides.com/stalker-2-heart-of-chornobyl/maps"}
+      ]
+    }
+  ]
+}

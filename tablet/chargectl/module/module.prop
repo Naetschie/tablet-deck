@@ -1,0 +1,6 @@
+id=chargectl
+name=chargectl (Akku-Ladegrenze)
+version=1.0
+versionCode=1
+author=touchtabletexpansion
+description=Hält den Akku zwischen 45 und 55 % (Konfiguration /data/adb/chargectl.conf). Darüber läuft das Tablet vom USB-Strom. LineageOS-Ladesteuerung bitte aus lassen.
