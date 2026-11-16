@@ -1032,6 +1032,7 @@
     row.addEventListener("mousedown", sel1);
     var handle = h("span", { cls: "mh", text: "⠿", title: "Ziehen zum Umsortieren" });
     handle.addEventListener("mousedown", function () { row.draggable = true; });
+    handle.addEventListener("mouseup", function () { row.draggable = false; });   // Klick ohne Ziehen
     row.addEventListener("dragstart", function (e) {
       if (!row.draggable) return;
       macroDrag = i; try { e.dataTransfer.setData("text/plain", "schritt"); } catch (x) { /* egal */ }
@@ -1065,7 +1066,7 @@
   function macroRecordBar(b, msgEl) {
     var rec = h("button", { cls: "ghost", type: "button", text: "Abfolge aufnehmen",
       title: "Nacheinander Tasten oder Kombinationen auf der PC-Tastatur drücken, Pausen dazwischen werden als Warten übernommen. Esc beendet." });
-    var events = [], cap = null, t0 = 0, running = false;
+    var events = [], cap = null, t0 = 0, running = false, finishing = false;
     function evOf(e, type) {
       e.preventDefault(); e.stopPropagation();
       return { type: type, code: e.code, altGraph: !!(e.getModifierState && e.getModifierState("AltGraph")) };
@@ -1082,11 +1083,17 @@
       }
     }
     function stop() {
+      // von außen abgebrochen (Fokuswechsel, anderes Aufnehmen, Neuzeichnen): sagen, was verworfen wurde
+      if (running && !finishing) {
+        macroMsg = events.length ? "Aufnahme abgebrochen – " + events.length + " aufgenommene Taste(n) verworfen." : "Aufnahme abgebrochen.";
+        msgEl.textContent = macroMsg; msgEl.classList.add("warn");
+      }
       running = false;
       document.removeEventListener("keydown", onDown, true); document.removeEventListener("keyup", onUp, true);
       rec.textContent = "Abfolge aufnehmen"; rec.classList.remove("recording");
     }
     function finish() {
+      finishing = true;
       stopCapture();
       var res = PL.recordToSteps(events, PL.MACRO_MAX - b.macro.length);
       var r = PL.macroInsertMany(b.macro, res.steps, macroSel >= 0 ? macroSel : undefined);
@@ -1098,7 +1105,7 @@
       if (running) return finish();
       stopCapture();
       if (b.macro.length >= PL.MACRO_MAX) { msgEl.textContent = "Höchstens " + PL.MACRO_MAX + " Schritte."; msgEl.classList.add("warn"); return; }
-      events = []; cap = PL.newCapture(); t0 = performance.now(); running = true;
+      events = []; cap = PL.newCapture(); t0 = performance.now(); running = true; finishing = false;
       rec.textContent = "Aufnahme läuft – Esc beendet"; rec.classList.add("recording");
       msgEl.classList.remove("warn"); msgEl.textContent = "Tasten nacheinander drücken (Pausen werden mit aufgenommen). Esc beendet.";
       document.addEventListener("keydown", onDown, true); document.addEventListener("keyup", onUp, true);

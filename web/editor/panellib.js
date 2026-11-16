@@ -497,7 +497,7 @@
       if (keyNames && keyNames.length && parts.some(function (p) { return keyNames.indexOf(ALIAS[p] || p) < 0 && keyNames.indexOf(p) < 0; })) return "Unbekannter Tastenname";
       return "";
     }
-    if (k === "text") return typeof v === "string" && v.length > 0 && v.length <= MACRO_TEXT_MAX ? "" : "Text: 1–" + MACRO_TEXT_MAX + " Zeichen";
+    if (k === "text") return typeof v === "string" && v.length > 0 && Array.from(v).length <= MACRO_TEXT_MAX ? "" : "Text: 1–" + MACRO_TEXT_MAX + " Zeichen";   // Länge in Zeichen wie in Python
     if (k === "wait") return typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= MACRO_WAIT_MAX ? "" : "Warten: ganze Zahl 0–" + MACRO_WAIT_MAX + " ms";
     var list = mediaNames && mediaNames.length ? mediaNames : MEDIA_FALLBACK;
     return list.indexOf(v) >= 0 ? "" : "Unbekannte Medienfunktion";

@@ -604,3 +604,8 @@ test("Profile: artOf aller Makros unverändert (Medien nur bei genau einem media
     }
   }
 });
+
+test("stepError: Textlänge in Zeichen wie layout.py (Emojis zählen einfach)", () => {
+  assert.equal(L.stepError({ text: "😀".repeat(500) }), "");
+  assert.notEqual(L.stepError({ text: "😀".repeat(501) }), "");
+});
