@@ -4,16 +4,18 @@
 #   - Sperrbildschirm aus, Bildschirm an jeder Stromquelle an
 # Mit -Companion (Begleit-Modus, Tablet ohne Root): nur APK, Berechtigungen und Kopplung - kein Startbildschirm,
 # kein Sperrbildschirm-Eingriff, Browser bleibt, keine feste Ausrichtung per settings (nur WRITE_SETTINGS-Recht).
-param([switch]$Companion)
+# Mit -Serial <Seriennummer>: dieses Gerät (nötig, wenn mehrere Android-Geräte angesteckt sind).
+param([switch]$Companion, [string]$Serial)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $adb = Join-Path $root "tools\platform-tools\adb.exe"
 $apk = Join-Path $root "android\build\tablet-deck.apk"
 $pkg = "app.tabletdeck.launcher"
 
+$sel = @(); if ($Serial) { $sel = @("-s", $Serial) }
 function Adb {
     $ErrorActionPreference = "Continue"
-    $out = & $adb @args 2>&1
+    $out = & $adb @sel @args 2>&1
     if ($LASTEXITCODE -ne 0) { throw "adb $($args -join ' ') fehlgeschlagen: $out" }
     $out
 }
@@ -34,7 +36,7 @@ if (-not $Companion) {
     Adb shell settings put system accelerometer_rotation 0
     Adb shell settings put system user_rotation 1
     # Kein Browser auf dem Tablet, solange SELinux permissive läuft (keine fremden Inhalte, docs/tablet-setup.md)
-    & $adb shell pm disable-user --user 0 org.lineageos.jelly 2>&1 | Out-Null   # fehlt die App: egal
+    & $adb @sel shell pm disable-user --user 0 org.lineageos.jelly 2>&1 | Out-Null   # fehlt die App: egal
 }
 # Kopplung: Geheimnis des Hubs (secret.key, wird von der Bridge beim ersten Start erzeugt) an den Launcher
 $secretFile = Join-Path $root "secret.key"

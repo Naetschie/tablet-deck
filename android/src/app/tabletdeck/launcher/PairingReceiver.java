@@ -10,12 +10,28 @@ import android.util.Log;
  * Diese Berechtigung hat die ADB-Shell (Setup am PC per Kabel), normale Apps nicht. So kann keine andere
  * App auf dem Tablet die Kopplung überschreiben.
  *   adb shell am broadcast -n app.tabletdeck.launcher/.PairingReceiver --es deck_secret <geheimnis>
+ * Betriebsart dieses Tablets (Hub: tablet_modes pro Seriennummer, bei jedem Anstecken):
+ *   adb shell am broadcast -n app.tabletdeck.launcher/.PairingReceiver --es tablet_mode home|companion
  * Außerdem die WLAN-CA des Hubs (öffentliche Zertifikate, schickt der Hub bei jedem Anstecken):
  *   adb shell am broadcast -n app.tabletdeck.launcher/.PairingReceiver --es hub_ca <Base64 des PEM-Bündels>
  */
 public class PairingReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context ctx, Intent intent) {
+        String mode = intent.getStringExtra("tablet_mode");
+        if (mode != null) {
+            boolean ok = "home".equals(mode) || "companion".equals(mode);
+            if (ok) {
+                // fest: der Steuerkanal (gleicher Wert für alle Tablets) überschreibt das nicht mehr
+                ctx.getSharedPreferences("deck", Context.MODE_PRIVATE).edit()
+                        .putBoolean("companion", "companion".equals(mode)).putBoolean("mode_pinned", true).commit();
+                Log.i(HomeActivity.TAG, "Kopplung: Betriebsart " + mode);
+                HomeActivity a = HomeActivity.current;
+                if (a != null) a.ui.post(() -> a.applyTabletModeFromPrefs());
+            }
+            setResultCode(ok ? 1 : 2);
+            return;
+        }
         String ca = intent.getStringExtra("hub_ca");
         if (ca != null) {
             boolean ok = HubTrust.store(ctx, ca);

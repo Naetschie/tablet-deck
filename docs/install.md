@@ -125,6 +125,18 @@ oder nur das Tablet: `python android\build.py`, dann `tablet\setup-launcher.ps1 
 Ohne `-Companion` bleibt der Wert in `config.json` unverändert. Der Hub schickt die Betriebsart beim Verbinden an
 die App, die danach ihren HOME-Eintrag selbst abschaltet bzw. wieder einschaltet.
 
+**Mehrere Tablets** (z. B. ein gerootetes als Startbildschirm und ein zweites im Begleit-Modus): Betriebsart pro
+Gerät in `config.json` unter `tablet_modes` (Seriennummer aus `tools\platform-tools\adb.exe devices`), alle
+anderen nehmen `tablet_mode`:
+```
+"tablet_modes": { "<Seriennummer>": "companion" }
+```
+Einrichten nur dieses Geräts: `tablet\setup-launcher.ps1 -Companion -Serial <Seriennummer>` (bei mehreren
+angesteckten Geräten ist `-Serial` nötig; `install.ps1 -Companion` würde `tablet_mode` für alle umstellen). Der Hub
+schickt jedem Tablet seine Betriebsart beim Anstecken per ADB. Geräte **ohne** installierten Tablet-Deck-Launcher
+(Handy zum Laden, neues Tablet vor der Einrichtung) richtet der Hub gar nicht ein - kein Proxy, keine
+Daueranzeige, kein Eingriff in Ausrichtung oder Startbildschirm.
+
 **Was anders ist:**
 - Die App ist kein Startbildschirm: kein `set-home-activity`, keine Prüfung des Startbildschirms, kein
   Rücksprung-Griff über anderen Apps. Beim Anstecken startet der Hub sie wie einen Tipp auf das App-Symbol.
@@ -193,6 +205,7 @@ SHA-256 `69572e37…aa8c48`. Beim ersten Verbinden fragt Android einmal nach der
 
 | Feld | Standard | Bedeutung |
 |---|---|---|
+| `tablet_modes` | – | Betriebsart pro Seriennummer, z. B. `{"ABC123": "companion"}`; überschreibt `tablet_mode` für dieses Gerät (siehe Begleit-Modus, mehrere Tablets) |
 | `tablet_mode` | `"home"` | `"home"` = Startbildschirm-Modus (gerootetes Tablet, Launcher ersetzt den Android-Startbildschirm), `"companion"` = Begleit-Modus ohne Root, siehe unten. Ungültige Werte gelten als `home` (mit Logeintrag). Setzen: `install.ps1 -Companion` oder von Hand |
 | `tablet_rotation` | `1` | feste Ausrichtung (0–3 wie Android `user_rotation`). spacedesk schaltet beim Start die automatische Drehung mit Hochformat ein: Der Launcher stellt die Ausrichtung wieder her, sobald er vorn ist (braucht `appops … WRITE_SETTINGS allow`, setzt `setup-launcher.ps1`), die Bridge prüft zusätzlich alle 30 s. `null` = nicht anfassen |
 | `spacedesk_usb` | `true` | Tablet beim Verbinden auf MTP+ADB stellen, damit der spacedesk-Treiber es übernehmen kann. Dadurch erscheint das Tablet im Explorer als Gerät |

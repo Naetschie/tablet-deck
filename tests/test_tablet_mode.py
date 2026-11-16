@@ -12,7 +12,7 @@ import unittest
 from types import SimpleNamespace
 
 from bridge.__main__ import (HOME_ACTIVITY, HOME_COMPONENT, Bridge, home_is_launcher, home_start_args,
-                             launcher_start_args, tablet_mode)
+                             launcher_start_args, tablet_mode, device_mode)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -58,6 +58,20 @@ class TabletModeTest(unittest.TestCase):
         self.assertIn("android.intent.category.HOME", home_start_args())
         for a in (launcher_start_args(), home_start_args()):
             self.assertEqual(a[-2:], ("-n", HOME_ACTIVITY))
+
+
+class DeviceModeTest(unittest.TestCase):
+    def test_pro_geraet(self):
+        cfg = {"tablet_mode": "home", "tablet_modes": {"HUAWEI1": "companion", "KAPUTT": "irgendwas"}}
+        logging.disable(logging.CRITICAL)
+        try:
+            self.assertEqual(device_mode(cfg, "HUAWEI1"), "companion")
+            self.assertEqual(device_mode(cfg, "LENOVO1"), "home")       # nicht eingetragen: Standard
+            self.assertEqual(device_mode(cfg, "KAPUTT"), "home")        # ungültig: Standard
+            self.assertEqual(device_mode({"tablet_mode": "companion"}, "X"), "companion")
+            self.assertEqual(device_mode({"tablet_modes": "kein dict"}, "X"), "home")
+        finally:
+            logging.disable(logging.NOTSET)
 
 
 class SetConfigTest(unittest.TestCase):

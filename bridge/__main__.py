@@ -1048,6 +1048,21 @@ def hub_ca_bundle(tls_dir):
     return base64.b64encode(pem).decode("ascii")
 
 
+LAUNCHER_PKG = "app.tabletdeck.launcher"
+
+
+def device_mode(cfg, serial):
+    """Betriebsart eines Tablets: tablet_modes[serial] aus config.json, sonst tablet_mode (Standard home).
+    So kann ein gerootetes Tablet Startbildschirm sein und ein zweites gleichzeitig im Begleit-Modus laufen."""
+    modes = cfg.get("tablet_modes")
+    if isinstance(modes, dict) and serial in modes:
+        if modes[serial] in ("home", "companion"):
+            return modes[serial]
+        log.error("config tablet_modes[%s]=%r ungültig (home oder companion) - nehme tablet_mode", serial,
+                  modes[serial])
+    return tablet_mode(cfg)
+
+
 def tablet_mode(cfg):
     """Betriebsart aus config.json: "home" (Startbildschirm, Standard) oder "companion" (normale App, ohne Root)."""
     mode = cfg.get("tablet_mode", "home")
@@ -1090,7 +1105,10 @@ async def adb_watch(cfg, port, bridge):
     proxy_port = int(cfg.get("web_proxy_port", 8766)) if cfg.get("web", True) else 0
     ports = [port] + ([proxy_port] if proxy_port else [])
     rot = tablet_rotation(cfg)
-    companion = tablet_mode(cfg) == "companion"
+    def companion(serial):
+        return device_mode(cfg, serial) == "companion"
+    launcher_seen = {}   # serial -> (Launcher installiert?, Prüfzeit) - fremde Geräte bleiben unangetastet
+    mode_sent = set()    # Tablets, die ihre Betriebsart seit dem Anstecken bestätigt haben
     GONE_S = 15  # erst nach so langer Abwesenheit gilt das Tablet als abgesteckt
     while True:
         try:
@@ -1107,6 +1125,23 @@ async def adb_watch(cfg, port, bridge):
                         if serial not in warned:
                             log.warning("Tablet %s: USB-Debugging am Tablet bestätigen!", serial)
             warned = unauth
+            # Nur Geräte mit dem Tablet-Deck-Launcher einrichten. Andere (Handy zum Laden, zweites Tablet vor
+            # der Installation) bekämen sonst Proxy, Daueranzeige, Ausrichtung und Startbildschirm verstellt.
+            t_chk = asyncio.get_running_loop().time()
+            for serial in list(now):
+                ok, at = launcher_seen.get(serial, (None, -1e9))
+                if ok is None or (not ok and t_chk - at >= 60):   # nachinstalliert? jede Minute neu prüfen
+                    rc, o = await run(adb, "-s", serial, "shell", "pm", "path", LAUNCHER_PKG)
+                    new_ok = rc == 0 and "package:" in o
+                    if not new_ok and ok is None:
+                        log.info("Gerät %s: kein Tablet-Deck-Launcher installiert - wird nicht eingerichtet", serial)
+                    launcher_seen[serial] = (new_ok, t_chk)
+                    ok = new_ok
+                if not ok:
+                    now.discard(serial)
+            for serial in list(launcher_seen):
+                if serial not in now and t_chk - launcher_seen[serial][1] > 120:
+                    del launcher_seen[serial]   # abgesteckt: beim nächsten Anstecken neu prüfen
             ready &= now
             bridge.usb_serials = set(ready)
             # Abgesteckt -> beim nächsten Anstecken wieder komplett einrichten. Kurze USB-Neuanmeldungen
@@ -1120,6 +1155,7 @@ async def adb_watch(cfg, port, bridge):
                     del last_seen[serial]
                     known.discard(serial)
                     ca_sent.discard(serial)
+                    mode_sent.discard(serial)
                     health.forget(serial)
                     usb_switched.discard(serial)
             # Weiterleitung prüfen: geht verloren, wenn der adb-Server neu startet
@@ -1169,7 +1205,7 @@ async def adb_watch(cfg, port, bridge):
                 # Chromium nimmt localhost selbst vom Proxy aus, der Hub bleibt direkt erreichbar.
                 await run(adb, "-s", serial, "shell", "settings", "put", "global", "http_proxy",
                           f"localhost:{proxy_port}" if proxy_port else ":0")
-                if not companion:
+                if not companion(serial):
                     # Ein App-Update (adb install -r) setzt die Startbildschirm-Wahl zurück - immer neu setzen.
                     # War der Alias aus dem Begleit-Modus noch aus (die Shell darf ihn unter Android 16 nicht
                     # einschalten), schaltet ihn der Launcher nach der ctl-Nachricht ein; die 30-s-Prüfung
@@ -1179,7 +1215,7 @@ async def adb_watch(cfg, port, bridge):
                 if cfg.get("tablet_autostart", True):
                     # Launcher-App in den Vordergrund. Startbildschirm-Modus: per HOME (holt ihn aus anderen
                     # Apps); Begleit-Modus: wie ein Tipp auf das App-Symbol
-                    args = launcher_start_args() if companion else home_start_args()
+                    args = launcher_start_args() if companion(serial) else home_start_args()
                     await run(adb, "-s", serial, "shell", *args)
             # Uhrzeit vom PC übernehmen (Tablet hat ohne Netz keine Zeitquelle): beim Verbinden + stündlich
             loop_t = asyncio.get_running_loop().time()
@@ -1200,7 +1236,14 @@ async def adb_watch(cfg, port, bridge):
                                 ca_sent.add(serial)
                             else:
                                 log.warning("Tablet %s: WLAN-CA nicht übernommen (%s)", serial, o.strip()[-120:])
-                    if not companion:
+                    # Betriebsart pro Tablet per ADB (der Steuerkanal kann Tablets per USB nicht unterscheiden -
+                    # alle kommen über adb reverse von 127.0.0.1); der Launcher übernimmt sie fest
+                    if serial not in mode_sent:
+                        rc, o = await run(adb, "-s", serial, "shell", "am", "broadcast", "--include-stopped-packages",
+                                          "-n", PAIRING_RECEIVER, "--es", "tablet_mode", device_mode(cfg, serial))
+                        if rc == 0 and "result=1" in o:
+                            mode_sent.add(serial)
+                    if not companion(serial):
                         rc, o = await run(adb, "-s", serial, "shell", "cmd", "package", "resolve-activity",
                                           "--brief", "-a", "android.intent.action.MAIN",
                                           "-c", "android.intent.category.HOME")

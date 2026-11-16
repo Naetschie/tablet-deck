@@ -746,12 +746,19 @@ public class HomeActivity extends Activity {
 
     // ------------------------------------------------------------------ Lebenszyklus
 
-    /** Vom Hub (config tablet_mode): "home" (Startbildschirm, Standard) oder "companion". */
+    /** Vom Hub über den Steuerkanal (config tablet_mode): "home" (Startbildschirm) oder "companion". Gilt nur,
+     *  solange der Hub die Betriebsart nicht per ADB für genau dieses Tablet festgelegt hat (mode_pinned). */
     void setTabletMode(String m) {
         boolean c = "companion".equals(m);
         if (!c && !"home".equals(m)) return;
+        if (getSharedPreferences("deck", MODE_PRIVATE).getBoolean("mode_pinned", false)) return;
         getSharedPreferences("deck", MODE_PRIVATE).edit().putBoolean("companion", c).apply();
-        companion = c;
+        applyTabletModeFromPrefs();
+    }
+
+    /** Betriebsart aus den Einstellungen anwenden (nach setTabletMode oder dem PairingReceiver). */
+    void applyTabletModeFromPrefs() {
+        companion = getSharedPreferences("deck", MODE_PRIVATE).getBoolean("companion", false);
         applyTabletMode();
         setStatus(connected);
     }
