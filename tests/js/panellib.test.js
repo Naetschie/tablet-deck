@@ -301,3 +301,181 @@ test("metaText / kindOf / isMapped", () => {
   assert.ok(!L.isMapped({ id: "x" }));
   assert.equal(L.metaText({ key: "A", mode: "toggle", group: "G" }), "G · A · Schalter");
 });
+
+// ---------------------------------------------------------------- Art (Schritt 6)
+const ART_IDS = L.ARTS.map((a) => a.id);
+
+test("artOf erkennt bestehende Tasten", () => {
+  assert.equal(L.artOf({ key: "A" }), "press");
+  assert.equal(L.artOf({ key: "A", mode: "hold-confirm" }), "press");
+  assert.equal(L.artOf({ key: "A", hold: true }), "hold");
+  assert.equal(L.artOf({ key: "A", mode: "toggle" }), "toggle");
+  assert.equal(L.artOf({ key: "A", states: [{ label: "a" }, { label: "b" }] }), "states");
+  assert.equal(L.artOf({ slider: { up: "A", down: "B", steps: 5 } }), "slider");
+  assert.equal(L.artOf({ page: "x" }), "page");
+  assert.equal(L.artOf({ open: "https://x.de" }), "open");
+  assert.equal(L.artOf({ macro: [{ key: "A" }, { wait: 5 }] }), "macro");
+  assert.equal(L.artOf({ macro: [{ media: "mute" }] }), "media");
+  assert.equal(L.artOf({ id: "leer" }), "press");
+});
+
+test("convertArt: jede Art -> jede Art ergibt eine gültige Taste ohne fremde Felder", needPy, () => {
+  const starts = {
+    press: { key: "LALT+F" }, hold: { key: "F", hold: true }, toggle: { key: "F", mode: "toggle" },
+    states: { key: "F", mode: "tap", states: [{ label: "A" }, { label: "B", key: "G" }] },
+    slider: { slider: { up: "PGUP", down: "PGDN", steps: 4 } }, page: { page: "b" }, open: { open: "https://x.de" },
+    macro: { macro: [{ key: "H" }, { wait: 10 }] }, media: { macro: [{ media: "volup" }] }
+  };
+  const allowed = {
+    press: ["key", "mode", "sc"], hold: ["key", "mode", "hold", "sc"], toggle: ["key", "mode", "sc"],
+    states: ["key", "mode", "states"], slider: ["mode", "slider"], page: ["page"], open: ["mode", "open"],
+    macro: ["mode", "macro"], media: ["mode", "macro"]
+  };
+  const base = ["id", "label", "group", "style", "x", "y", "w", "h"];
+  for (const from of ART_IDS) for (const to of ART_IDS) {
+    const l = lay({ id: "a", title: "A", type: "free", cols: 6, rows: 3, buttons: [] }, { id: "b", title: "B", buttons: [] });
+    const b = Object.assign({ id: "t", label: "T", group: "G", style: "accent", sc: "v_x", x: 0, y: 0, w: 2, h: 1 },
+      JSON.parse(JSON.stringify(starts[from])));
+    l.pages[0].buttons.push(b);
+    L.convertArt(b, to, { page: l.pages[0], pages: l.pages });
+    assert.equal(L.artOf(b), to, from + " -> " + to);
+    assert.equal(pyValid(l), null, from + " -> " + to);
+    if (from === to) continue;
+    for (const k of Object.keys(b)) assert.ok(base.concat(allowed[to]).includes(k), from + " -> " + to + ": Feld " + k);
+  }
+});
+
+test("convertArt: Taste wird übernommen", () => {
+  const b = L.convertArt({ id: "t", label: "T", key: "LALT+F" }, "hold");
+  assert.equal(b.key, "LALT+F"); assert.equal(b.hold, true);
+  L.convertArt(b, "macro");
+  assert.deepEqual(b.macro, [{ key: "LALT+F" }]);
+  L.convertArt(b, "toggle");
+  assert.equal(b.key, "LALT+F"); assert.equal(b.mode, "toggle"); assert.equal(b.hold, undefined);
+  const s = L.convertArt({ id: "s", label: "S", slider: { up: "A", down: "B", steps: 3 } }, "states");
+  assert.equal(s.key, "A");
+});
+
+test("convertArt: Spielaktion (sc) bleibt nur bei Tastenarten, hold-confirm bleibt wo erlaubt", () => {
+  const b = { id: "t", label: "T", sc: "v_x", key: "A", mode: "hold-confirm" };
+  L.convertArt(b, "macro");
+  assert.equal(b.sc, undefined);
+  assert.equal(b.mode, "hold-confirm");
+  L.convertArt(b, "slider");
+  assert.equal(b.mode, undefined);
+  assert.equal(b.slider.up, "A");
+});
+
+test("convertArt: Seite wechseln nimmt eine andere Seite; Platzhalter statt leerer Felder", () => {
+  const l = lay({ id: "a", title: "A", buttons: [] }, { id: "b", title: "B", buttons: [] });
+  const b = { id: "t", label: "T", key: "A" };
+  L.convertArt(b, "page", { page: l.pages[1], pages: l.pages });
+  assert.equal(b.page, "a");
+  assert.equal(b.key, undefined);
+  const s = L.convertArt({ id: "u", label: "U" }, "states");
+  assert.equal(s.key, L.PLACEHOLDER.states);
+  assert.ok(L.hasPlaceholder(s));
+  assert.ok(L.hasPlaceholder(L.convertArt({ id: "v", label: "V" }, "open")));
+});
+
+test("convertArt: Medien <-> Makro behält den Schritt, gleiche Art ändert nichts", () => {
+  const b = { id: "t", label: "T", macro: [{ media: "mute" }] };
+  L.convertArt(b, "macro");
+  assert.deepEqual(b.macro, [{ media: "mute" }, { wait: 200 }]);
+  assert.equal(L.artOf(b), "macro");
+  const k = { id: "k", label: "K", key: "A", hold: true };
+  assert.equal(L.convertArt(k, "hold"), k);
+  assert.deepEqual(k, { id: "k", label: "K", key: "A", hold: true });
+});
+
+// ---------------------------------------------------------------- Aufnahme
+function press(codes, keyNames, altGraph) {   // Folge von [type, code] -> Ergebnisse
+  const st = L.newCapture(), out = [];
+  for (const [type, code] of codes) {
+    const r = L.captureEvent(st, { type, code, altGraph: !!altGraph }, keyNames);
+    if (r) out.push(r);
+  }
+  return out;
+}
+
+test("codeName: Buchstaben, Ziffern, F-Tasten, Numpad, Pfeile, Sondertasten", () => {
+  const exp = { KeyR: "R", Digit7: "7", F5: "F5", F12: "F12", Numpad9: "NUMPAD9", NumpadEnter: "NUMPADENTER",
+    NumpadAdd: "NUMPADADD", ArrowUp: "UP", PageDown: "PGDN", Backquote: "GRAVE", ControlRight: "RCTRL", AltRight: "RALT",
+    Backslash: "BACKSLASH", Space: "SPACE" };
+  for (const k of Object.keys(exp)) assert.equal(L.codeName(k), exp[k], k);
+  for (const k of ["F13", "F0", "PrintScreen", "Pause", "NumLock", "MetaLeft", "IntlBackslash", "toString", ""]) assert.equal(L.codeName(k), null, k);
+});
+
+test("Aufnahme: Kombination mit Zusatztasten in fester Reihenfolge", () => {
+  assert.deepEqual(press([["down", "AltLeft"], ["down", "ControlRight"], ["down", "Numpad9"]]), [{ done: "RCTRL+LALT+NUMPAD9" }]);
+  assert.deepEqual(press([["down", "ShiftLeft"], ["down", "KeyF"]]), [{ done: "LSHIFT+F" }]);
+  assert.deepEqual(press([["down", "F5"]]), [{ done: "F5" }]);
+});
+
+test("Aufnahme: Esc bricht ab, Strg+Esc wird aufgenommen, Zusatztasten allein", () => {
+  assert.deepEqual(press([["down", "Escape"]]), [{ cancel: true }]);
+  assert.deepEqual(press([["down", "ControlLeft"], ["down", "Escape"]]), [{ done: "LCTRL+ESC" }]);
+  assert.deepEqual(press([["down", "ShiftLeft"], ["up", "ShiftLeft"]]), [{ done: "LSHIFT" }]);
+  assert.deepEqual(press([["down", "ShiftLeft"], ["down", "KeyA"], ["up", "KeyA"], ["up", "ShiftLeft"]]), [{ done: "LSHIFT+A" }]);
+});
+
+test("Aufnahme: AltGr wird zu RALT ohne Strg-links", () => {
+  assert.deepEqual(press([["down", "ControlLeft"], ["down", "AltRight"], ["down", "KeyQ"]], null, true), [{ done: "RALT+Q" }]);
+  assert.deepEqual(press([["down", "ControlLeft"], ["down", "AltRight"], ["up", "AltRight"]], null, true), [{ done: "RALT" }]);
+});
+
+test("Aufnahme: nicht abbildbare Tasten geben einen Hinweis", () => {
+  assert.match(press([["down", "MetaLeft"]])[0].hint, /Windows/);
+  assert.match(press([["down", "F13"]])[0].hint, /F13/);
+  assert.match(press([["down", "AudioVolumeUp"]])[0].hint, /Medien/);
+  assert.match(press([["down", "KeyA"]], ["B"])[0].hint, /nicht senden/);
+});
+
+test("Aufnahme erzeugt nur Namen, die bridge/keys.py kennt", needPy, () => {
+  const codes = ["KeyA", "Digit0", "F1", "F12", "Numpad0", "Numpad9", "NumpadAdd", "NumpadSubtract", "NumpadMultiply", "NumpadDivide",
+    "NumpadDecimal", "NumpadEnter", "ArrowLeft", "Home", "End", "PageUp", "Insert", "Delete", "Tab", "Space", "Enter", "Backspace",
+    "Minus", "Equal", "BracketLeft", "BracketRight", "Semicolon", "Quote", "Backquote", "Backslash", "Comma", "Period", "Slash",
+    "CapsLock", "ScrollLock", "Escape"];
+  const b = codes.map((c, i) => ({ id: "b" + i, label: "x", key: "LCTRL+" + L.codeName(c) }));
+  assert.equal(pyValid(lay({ id: "a", title: "A", buttons: b })), null);
+  const mods = ["LCTRL", "RCTRL", "LSHIFT", "RSHIFT", "LALT", "RALT"].map((m, i) => ({ id: "m" + i, label: "x", key: m }));
+  assert.equal(pyValid(lay({ id: "a", title: "A", buttons: mods })), null);
+});
+
+// ---------------------------------------------------------------- Doppelbelegung
+test("normKey: Groß-/Kleinschreibung, Aliase, Reihenfolge der Zusatztasten", () => {
+  assert.equal(L.normKey("lalt + f"), "LALT+F");
+  assert.equal(L.normKey("F+LALT"), "LALT+F");
+  assert.equal(L.normKey("CTRL+NP_9"), "LCTRL+NUMPAD9");
+  assert.equal(L.normKey("KP_7"), "NUMPAD7");
+  assert.equal(L.normKey("RCTRL+LCTRL+X"), "LCTRL+RCTRL+X");
+  assert.notEqual(L.normKey("LCTRL+A"), L.normKey("RCTRL+A"));
+  assert.equal(L.normKey(""), "");
+  assert.equal(L.normKey(null), "");
+});
+
+test("duplicates: gleiche Taste auch über Seiten, Regler/Zustände zählen, Makro/Platzhalter nicht", () => {
+  const st = [{ label: "x" }, { label: "y" }];
+  const l = lay(
+    { id: "a", title: "A", buttons: [
+      { id: "a1", label: "Eins", key: "LALT+F" },
+      { id: "a2", label: "Zwei", key: "f+lalt" },
+      { id: "a3", label: "Drei", key: "G" },
+      { id: "a4", label: "Reg", slider: { up: "H", down: "J", steps: 3 } },
+      { id: "a5", label: "Mak", macro: [{ key: "G" }] },
+      { id: "a6", label: "Pl1", key: "SCROLLLOCK", states: st },
+      { id: "a7", label: "Pl2", key: "SCROLLLOCK", states: st }] },
+    { id: "b", title: "B", buttons: [
+      { id: "b1", label: "Andere Seite", key: "g" },
+      { id: "b2", label: "Zust", key: "X", states: [{ label: "a" }, { label: "b", key: "H" }] },
+      { id: "b3", label: "Link", page: "a" }] });
+  const d = L.duplicates(l);
+  assert.deepEqual(d.groups.map((g) => g.key), ["LALT+F", "G", "H"]);
+  assert.equal(d.keys, 3);
+  assert.equal(d.count, 6);
+  assert.deepEqual(d.byId.a3[0].others.map((o) => o.id), ["b1"]);
+  assert.equal(d.byId.b1[0].others[0].pageTitle, "A");
+  assert.equal(d.byId.a5, undefined);
+  assert.equal(d.byId.a6, undefined);
+  assert.equal(L.duplicates(lay({ id: "a", title: "A", buttons: [{ id: "q", label: "q", key: "A", states: st }] })).count, 0);
+});

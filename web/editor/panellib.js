@@ -11,7 +11,7 @@
   var MAX_COLS = 16, MAX_ROWS = 12, DEF_COLS = 12, DEF_ROWS = 8;
   var ZONES = ["front", "back", "left", "right", "top", "bottom", "reset"];
   // Platzhaltertasten der Bausteine (gültig nach layout.py, im Spiel kaum belegt) - der Nutzer trägt die echte ein
-  var PLACEHOLDER = { states: "SCROLLLOCK", up: "PGUP", down: "PGDN" };
+  var PLACEHOLDER = { states: "SCROLLLOCK", up: "PGUP", down: "PGDN", open: "https://example.org/" };
 
   var BLOCKS = [
     { kind: "key", label: "Taste", hint: "Drücken sendet eine Taste", w: 2, h: 1 },
@@ -63,6 +63,7 @@
 
   // Taste mit Platzhaltertaste (Baustein noch nicht fertig belegt)
   function hasPlaceholder(b) {
+    if (b.open === PLACEHOLDER.open) return true;
     if (b.slider) return b.slider.up === PLACEHOLDER.up && b.slider.down === PLACEHOLDER.down;
     return !!b.states && b.key === PLACEHOLDER.states;
   }
@@ -333,6 +334,184 @@
     return made;
   }
 
+  // ---------------------------------------------------------------- Art der Taste (Aktion nach Art zuordnen)
+  var ARTS = [
+    { id: "press", label: "Taste drücken", hint: "Kurzer Impuls (80 ms) – richtig für die meisten Spielaktionen." },
+    { id: "hold", label: "Taste halten", hint: "Die Taste bleibt gedrückt, solange der Finger liegt (z. B. Ping, Hupe)." },
+    { id: "toggle", label: "Umschalten", hint: "Die Tablet-Taste merkt An/Aus und zeigt es an." },
+    { id: "states", label: "Mehrfach-Schalter", hint: "Jeder Tipp schaltet weiter (2–6 Zustände)." },
+    { id: "slider", label: "Regler", hint: "Ziehen sendet je Stufe einen Tastendruck für mehr / weniger." },
+    { id: "page", label: "Seite wechseln", hint: "Wechselt am Tablet die Seite, sendet nichts an den PC." },
+    { id: "open", label: "Programm öffnen", hint: "Öffnet am PC eine URL, ein Programm, eine Datei oder einen Ordner." },
+    { id: "macro", label: "Makro", hint: "Mehrere Schritte nacheinander (Taste, Text, Warten, Medien)." },
+    { id: "media", label: "Medien", hint: "Wiedergabe, Lautstärke, nächster/voriger Titel." }
+  ];
+  var MEDIA_DEFAULT = "playpause";
+
+  // Art aus den vorhandenen Feldern ableiten (Rangfolge: slider, states, page, open, macro, sonst Taste)
+  function artOf(b) {
+    if (b.slider) return "slider";
+    if (b.states) return "states";
+    if (b.page !== undefined) return "page";
+    if (b.open !== undefined) return "open";
+    if (b.macro) return b.macro.length === 1 && b.macro[0] && b.macro[0].media !== undefined ? "media" : "macro";
+    if (b.mode === "toggle") return "toggle";
+    return b.hold ? "hold" : "press";
+  }
+  // Alle Tasten, die die Taste kennt (für die Übernahme beim Wechsel der Art)
+  function carryKeys(b) {
+    var out = [];
+    function add(k) { if (typeof k === "string" && k && out.indexOf(k) < 0) out.push(k); }
+    add(b.key);
+    if (b.states) b.states.forEach(function (s) { add(s && s.key); });
+    if (b.slider) { add(b.slider.up); add(b.slider.down); }
+    if (b.macro) b.macro.forEach(function (s) { add(s && s.key); });
+    return out;
+  }
+  // Taste auf eine andere Art umbauen (verändert die Taste, gibt sie zurück). Danach gibt es nur Felder dieser Art;
+  // id, label, group, style und Lage (zone/x/y/w/h/wide) bleiben. ctx: {page: aktuelle Seite, pages: alle Seiten}.
+  // „Erst nach Halten auslösen“ (mode hold-confirm) bleibt bei Arten, bei denen layout.py es erlaubt.
+  function convertArt(b, art, ctx) {
+    ctx = ctx || {};
+    var cur = artOf(b);
+    if (cur === art) return b;
+    var keys = carryKeys(b), confirm = b.mode === "hold-confirm";
+    var media = cur === "media" ? b.macro[0].media : MEDIA_DEFAULT;
+    var oldStates = b.states, oldMacro = b.macro;
+    ["key", "macro", "open", "page", "states", "slider", "hold", "mode", "sc"].forEach(function (k) { delete b[k]; });
+    var mode = confirm ? "hold-confirm" : "tap";
+    if (art === "press" || art === "hold" || art === "toggle") {
+      if (keys[0]) b.key = keys[0];
+      if (art === "toggle") b.mode = "toggle";
+      else { b.mode = mode; if (art === "hold") b.hold = true; }
+    } else if (art === "states") {
+      b.mode = "tap";
+      b.key = keys[0] || PLACEHOLDER.states;
+      b.states = oldStates || [{ label: "AUS" }, { label: "AN" }];
+    } else if (art === "slider") {
+      var up = keys[0] || PLACEHOLDER.up, down = keys[1] || PLACEHOLDER.down;
+      if (down === up) down = up === PLACEHOLDER.down ? PLACEHOLDER.up : PLACEHOLDER.down;
+      b.mode = "tap";
+      b.slider = { up: up, down: down, steps: 10 };
+    } else if (art === "page") {
+      var pages = ctx.pages || [], other = pages.filter(function (x) { return x !== ctx.page; })[0] || ctx.page || pages[0];
+      b.page = other ? other.id : "";
+    } else if (art === "open") {
+      b.mode = mode;
+      b.open = PLACEHOLDER.open;
+    } else if (art === "macro") {
+      b.mode = mode;
+      b.macro = cur === "media" ? oldMacro.concat([{ wait: 200 }]) : [keys[0] ? { key: keys[0] } : { wait: 200 }];   // ein Medien-Schritt allein wäre wieder „Medien“
+    } else if (art === "media") {
+      b.mode = mode;
+      b.macro = [{ media: media }];
+    }
+    if (b.mode === "tap") delete b.mode;
+    return b;
+  }
+
+  // ---------------------------------------------------------------- Tasten aufnehmen (KeyboardEvent.code -> Schreibweise von keys.py)
+  var CODE = { Escape: "ESC", Enter: "ENTER", Tab: "TAB", Space: "SPACE", Backspace: "BACKSPACE", Delete: "DELETE",
+    Insert: "INSERT", Home: "HOME", End: "END", PageUp: "PGUP", PageDown: "PGDN", ArrowUp: "UP", ArrowDown: "DOWN",
+    ArrowLeft: "LEFT", ArrowRight: "RIGHT", ShiftLeft: "LSHIFT", ShiftRight: "RSHIFT", ControlLeft: "LCTRL",
+    ControlRight: "RCTRL", AltLeft: "LALT", AltRight: "RALT", Minus: "MINUS", Equal: "EQUALS", BracketLeft: "LBRACKET",
+    BracketRight: "RBRACKET", Semicolon: "SEMICOLON", Quote: "APOSTROPHE", Backquote: "GRAVE", Backslash: "BACKSLASH",
+    Comma: "COMMA", Period: "PERIOD", Slash: "SLASH", CapsLock: "CAPSLOCK", ScrollLock: "SCROLLLOCK",
+    NumpadAdd: "NUMPADADD", NumpadSubtract: "NUMPADSUBTRACT", NumpadMultiply: "NUMPADMULTIPLY",
+    NumpadDivide: "NUMPADDIVIDE", NumpadDecimal: "NUMPADDECIMAL", NumpadEnter: "NUMPADENTER" };
+  var MODS = ["LCTRL", "RCTRL", "LSHIFT", "RSHIFT", "LALT", "RALT"];
+  var MEDIA_CODES = { AudioVolumeUp: 1, AudioVolumeDown: 1, AudioVolumeMute: 1, MediaPlayPause: 1, MediaTrackNext: 1,
+    MediaTrackPrevious: 1, MediaStop: 1 };
+  // KeyboardEvent.code -> Tastenname (keys.py) oder null
+  function codeName(code) {
+    code = String(code || "");
+    if (Object.prototype.hasOwnProperty.call(CODE, code)) return CODE[code];
+    var m = code.match(/^Key([A-Z])$/) || code.match(/^Digit([0-9])$/) || code.match(/^(F(?:[1-9]|1[0-2]))$/);
+    if (m) return m[1];
+    m = code.match(/^Numpad([0-9])$/);
+    return m ? "NUMPAD" + m[1] : null;
+  }
+  function isMod(n) { return MODS.indexOf(n) >= 0; }
+  function comboOf(mods, main) {
+    return MODS.filter(function (x) { return mods[x]; }).concat(main ? [main] : []).join("+");
+  }
+  // Zustand einer Aufnahme (rein; die Ereignisse liefert die Oberfläche). ev: {type: "down"|"up", code, altGraph}.
+  // Ergebnis: null (weiter warten) | {done: "LALT+F"} | {cancel: true} | {hint: "Text"}.
+  // AltGr meldet Windows als Strg-links + Alt-rechts: dann bleibt nur RALT (altGraph = getModifierState("AltGraph")).
+  // Esc ohne Zusatztaste bricht ab. Nur Zusatztasten gedrückt und losgelassen: die Zusatztasten allein ("LSHIFT").
+  // keyNames (optional): gültige Namen des Hubs; andere Tasten gelten als nicht abbildbar.
+  function newCapture() { return { mods: Object.create(null), main: false }; }
+  function captureEvent(st, ev, keyNames) {
+    var code = ev.code, n = codeName(code);
+    if (ev.type === "up") {
+      if (n && isMod(n) && !st.main && MODS.some(function (x) { return st.mods[x]; })) {
+        var c = comboOf(st.mods);
+        st.mods = Object.create(null);
+        return { done: c };
+      }
+      if (n && isMod(n)) delete st.mods[n];
+      return null;
+    }
+    if (/^Meta(Left|Right)$/.test(code) || code === "OSLeft" || code === "OSRight") {
+      return { hint: "Die Windows-Taste kann nicht gesendet werden." };
+    }
+    if (MEDIA_CODES[code]) return { hint: "Medientasten bitte über die Art „Medien“ (oder den Makro-Schritt media) einstellen." };
+    if (n === "ESC" && !MODS.some(function (x) { return st.mods[x]; })) return { cancel: true };
+    if (!n || (keyNames && keyNames.length && keyNames.indexOf(n) < 0)) {
+      return { hint: "Diese Taste (" + (code || "?") + ") kann der Hub nicht senden." };
+    }
+    if (ev.altGraph && (n === "RALT" || st.mods.RALT)) delete st.mods.LCTRL;
+    if (isMod(n)) { st.mods[n] = true; return null; }
+    st.main = true;
+    return { done: comboOf(st.mods, n) };
+  }
+
+  // ---------------------------------------------------------------- Doppelbelegung
+  var ALIAS = { CTRL: "LCTRL", SHIFT: "LSHIFT", ALT: "LALT", RETURN: "ENTER", NP_ENTER: "NUMPADENTER" };
+  for (var ai = 0; ai < 10; ai++) { ALIAS["NP_" + ai] = "NUMPAD" + ai; ALIAS["KP_" + ai] = "NUMPAD" + ai; }
+  // Tastenkombination vergleichbar machen: Großschreibung, Aliase (CTRL, NP_9 ...), Zusatztasten in fester Reihenfolge
+  function normKey(text) {
+    if (typeof text !== "string" || !text.trim()) return "";
+    var parts = text.toUpperCase().replace(/\s+/g, "").split("+").map(function (p) { return ALIAS[p] || p; });
+    var mods = parts.filter(isMod).filter(function (p, i, a) { return a.indexOf(p) === i; });
+    mods.sort(function (a, b) { return MODS.indexOf(a) - MODS.indexOf(b); });
+    return mods.concat(parts.filter(function (p) { return !isMod(p); })).join("+");
+  }
+  // Tasten, die eine Panel-Taste am PC drückt (Makros zählen nicht: eine Abfolge ist keine Einzeltaste;
+  // Platzhalter zählen nicht: noch nicht belegt)
+  function sentKeys(b) {
+    if (b.page !== undefined || b.open !== undefined || b.macro || hasPlaceholder(b)) return [];
+    var out = [];
+    function add(k) { var n = normKey(k); if (n && out.indexOf(n) < 0) out.push(n); }
+    if (b.slider) { add(b.slider.up); add(b.slider.down); return out; }
+    if (b.states) { b.states.forEach(function (s) { add((s && s.key) || b.key); }); return out; }
+    add(b.key);
+    return out;
+  }
+  // Doppelbelegung im ganzen Panel (auch über Seiten hinweg: am PC ist es dieselbe Taste).
+  // -> {groups: [{key, items: [{id, label, page, pageTitle}]}], byId: {id: [{key, others: [item]}]}, count: Tasten, keys: Kombinationen}
+  function duplicates(layout) {
+    var map = Object.create(null), order = [];
+    layout.pages.forEach(function (p) {
+      p.buttons.forEach(function (b) {
+        sentKeys(b).forEach(function (k) {
+          if (!map[k]) { map[k] = []; order.push(k); }
+          map[k].push({ id: b.id, label: b.label || b.id, page: p.id, pageTitle: p.title });
+        });
+      });
+    });
+    var groups = [], byId = Object.create(null);
+    order.forEach(function (k) {
+      var items = map[k];
+      if (items.length < 2) return;
+      groups.push({ key: k, items: items });
+      items.forEach(function (it) {
+        (byId[it.id] = byId[it.id] || []).push({ key: k, others: items.filter(function (o) { return o.id !== it.id; }) });
+      });
+    });
+    return { groups: groups, byId: byId, count: Object.keys(byId).length, keys: groups.length };
+  }
+
   // ---------------------------------------------------------------- Beschreibung
   function kindOf(b) {
     return b.slider ? "slider" : b.states ? "states" : b.macro ? "macro" : b.open !== undefined ? "open" : b.page !== undefined ? "page" : "key";
@@ -397,6 +576,8 @@
     toItems: toItems, applyItems: applyItems, area: area, arrangeState: arrangeState,
     moveBy: moveBy, alignCells: alignCells, distributeCells: distributeCells, sameSizeCells: sameSizeCells,
     resizeCells: resizeCells, selectInRect: selectInRect, duplicate: duplicate,
+    ARTS: ARTS, artOf: artOf, convertArt: convertArt, carryKeys: carryKeys, codeName: codeName,
+    newCapture: newCapture, captureEvent: captureEvent, normKey: normKey, sentKeys: sentKeys, duplicates: duplicates,
     kindOf: kindOf, isMapped: isMapped, metaText: metaText,
     applies: applies, commonFields: commonFields, setShared: setShared
   };

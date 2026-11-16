@@ -210,3 +210,7 @@ ul.sens li .meta { font-family: var(--fm); font-size: 11px; overflow: hidden; te
 .ov-drop.bad { background: var(--badSoft); border-color: var(--bad); }
 #toast { align-self: center; }
 #previewNote { text-align: center; }
+.tv .btn.dup, .tv .btn-slider.dup { outline: 2px solid #e6b800; outline-offset: -2px; }
+li.dup .name::before { content: "\26A0  "; color: #e6b800; }
+.dup-note, .dup-hint { color: #e6b800; }
+#dupNote { text-align: center; }

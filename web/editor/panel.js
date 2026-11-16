@@ -13,6 +13,7 @@
   var layout = null, hist = null, pageIdx = 0, sel = [], primary = null, active = false;
   var keyNames = [], mediaNames = [], info = { game: "", panels: [], panel: "" };
   var actionsData = null, actionsGame = null, actionsError = "", actionsQuery = "", openKeys = {};
+  var dups = { groups: [], byId: Object.create(null), count: 0, keys: 0 }, dupHintEl = null;
   var scale = 1, drag = null, dragPayload = null, listDrag = -1, dropMark = null, marquee = null, toastTimer = 0;
   var $ = function (id) { return document.getElementById(id); };
 
@@ -53,6 +54,25 @@
   function page() { return layout && layout.pages[pageIdx]; }
   function isFree(p) { return !!p && p.type === "free"; }
   function btnById(id) { var p = page(); return p ? p.buttons.filter(function (b) { return b.id === id; })[0] : null; }
+  // Doppelbelegung neu berechnen (billig); Treffer tragen die Klasse „dup“ in Vorschau und Liste
+  function calcDups() { dups = layout ? PL.duplicates(layout) : { groups: [], byId: Object.create(null), count: 0, keys: 0 }; }
+  function dupText(b, p) {
+    var l = dups.byId[b.id];
+    if (!l) return "";
+    return l.map(function (d) {
+      return keyText(d.key) + " auch bei: " + d.others.map(function (o) { return o.label + (o.page !== p.id ? " (" + o.pageTitle + ")" : ""); }).join(", ");
+    }).join(" · ");
+  }
+  function updateDupHint() {
+    var p = page(), b = sel.length === 1 ? btnById(sel[0]) : null;
+    if (dupHintEl) { var t = p && b ? dupText(b, p) : ""; dupHintEl.textContent = t ? "Gleiche Taste wie: " + t : ""; dupHintEl.hidden = !t; }
+    var n = $("dupNote");
+    if (n) {
+      n.hidden = !dups.count;
+      n.textContent = dups.count ? "Doppelbelegung: " + dups.count + " Tasten teilen sich " + dups.keys + " Tastenkombination" + (dups.keys === 1 ? "" : "en") +
+        " (gelb markiert; auch seitenübergreifend – am PC ist es dieselbe Taste). Nur ein Hinweis, Speichern geht." : "";
+    }
+  }
   function selButtons() { return sel.map(btnById).filter(Boolean); }
 
   // ---------------------------------------------------------------- Zustand und Verlauf
@@ -204,13 +224,15 @@
   function makeBtn(b, extra) {
     var mapped = PL.isMapped(b);
     if (b.slider) {
-      var s = div("slider btn-slider " + (b.style || "") + " " + (extra || "") + (b.wide ? " wide" : "") + (mapped ? "" : " nomap"));
+      var s = div("slider btn-slider " + (b.style || "") + " " + (extra || "") + (b.wide ? " wide" : "") + (mapped ? "" : " nomap") + (dups.byId[b.id] ? " dup" : ""));
       s.setAttribute("data-id", b.id);
+      if (dups.byId[b.id]) s.title = "Gleiche Taste wie: " + dupText(b, page());
       s.appendChild(span("fill")); s.appendChild(span("lbl", b.label)); s.appendChild(span("val", "0 / " + b.slider.steps));
       return s;
     }
-    var e = div("key btn " + (b.style || "") + " " + (extra || "") + (b.wide ? " wide" : "") + (mapped ? "" : " nomap"));
+    var e = div("key btn " + (b.style || "") + " " + (extra || "") + (b.wide ? " wide" : "") + (mapped ? "" : " nomap") + (dups.byId[b.id] ? " dup" : ""));
     e.setAttribute("data-id", b.id);
+    if (dups.byId[b.id]) e.title = "Gleiche Taste wie: " + dupText(b, page());
     e.appendChild(span("lbl", b.label));
     if (b.states) {
       var row = span("sub states");
@@ -218,11 +240,11 @@
       e.appendChild(row);
     } else if (b.key) e.appendChild(span("sub", keyText(b.key)));
     else if (b.page) e.appendChild(span("sub", "→ Seite"));
-    else if (b.macro) e.appendChild(span("sub", "Makro"));
+    else if (b.macro) e.appendChild(span("sub", PL.artOf(b) === "media" ? "Medien" : "Makro"));
     else if (b.open) e.appendChild(span("sub", "öffnen"));
     if (b.mode === "hold-confirm") { e.appendChild(span("hint", "HALTEN")); e.appendChild(span("bar")); }
     if (b.mode === "toggle") e.appendChild(span("lamp"));
-    if (PL.hasPlaceholder(b)) e.title = "Platzhalter-Taste – echte Taste eintragen";
+    if (PL.hasPlaceholder(b)) e.title = "Platzhalter – echten Wert eintragen";
     return e;
   }
 
@@ -321,6 +343,7 @@
   }
 
   function renderPage() {
+    calcDups(); updateDupHint();
     var p = page(), box = $("tvPage"); clear(box); freeEl = null;
     var main = $("tvMain");
     main.classList.toggle("fill", !!p && p.type !== "grid" && !!p.type);
@@ -462,7 +485,7 @@
   function gridToFreeForDrag() {
     var p = page();
     if (!PL.setPageType(p, "free")) { alert("Zu viele Tasten für ein Raster (höchstens 12 × 12) – Seite teilen oder Tasten entfernen."); return false; }
-    renderPage();                       // kein eigener Verlaufsschritt: onUp schreibt Umwandlung + Verschieben als einen touch(); renderProps(); renderToolbar();
+    renderPage(); renderProps(); renderToolbar();   // kein eigener Verlaufsschritt: onUp committet (touch() kommt aus onMove)
     toast("Diese Seite ist jetzt frei (Raster) – die Positionen bleiben wie zuvor.", true);
     return true;
   }
@@ -633,8 +656,10 @@
     var ul = $("buttons"); clear(ul);
     var p = page();
     if (!p) return;
+    calcDups();
     p.buttons.forEach(function (b, i) {
-      var li = h("li", { cls: (sel.indexOf(b.id) >= 0 ? "sel " : "") + (b.style || "") + (PL.isMapped(b) ? "" : " nomap"), draggable: "true" }, [
+      var li = h("li", { cls: (sel.indexOf(b.id) >= 0 ? "sel " : "") + (b.style || "") + (PL.isMapped(b) ? "" : " nomap") + (dups.byId[b.id] ? " dup" : ""),
+        draggable: "true", title: dups.byId[b.id] ? "Gleiche Taste wie: " + dupText(b, p) : "" }, [
         h("span", { cls: "name", text: b.label || "(ohne Text)" }), h("span", { cls: "meta", text: PL.metaText(b) })]);
       li.addEventListener("click", function (e) {
         if (e.shiftKey || e.ctrlKey || e.metaKey) {
@@ -713,55 +738,60 @@
   }
 
   // ---------------------------------------------------------------- Eigenschaften
-  var CODE = { Escape: "ESC", Enter: "ENTER", Tab: "TAB", Space: "SPACE", Backspace: "BACKSPACE", Delete: "DELETE",
-    Insert: "INSERT", Home: "HOME", End: "END", PageUp: "PGUP", PageDown: "PGDN", ArrowUp: "UP", ArrowDown: "DOWN",
-    ArrowLeft: "LEFT", ArrowRight: "RIGHT", ShiftLeft: "LSHIFT", ShiftRight: "RSHIFT", ControlLeft: "LCTRL",
-    ControlRight: "RCTRL", AltLeft: "LALT", AltRight: "RALT", Minus: "MINUS", Equal: "EQUALS", BracketLeft: "LBRACKET",
-    BracketRight: "RBRACKET", Semicolon: "SEMICOLON", Quote: "APOSTROPHE", Backquote: "GRAVE", Backslash: "BACKSLASH",
-    Comma: "COMMA", Period: "PERIOD", Slash: "SLASH", CapsLock: "CAPSLOCK", ScrollLock: "SCROLLLOCK",
-    NumpadAdd: "NUMPADADD", NumpadSubtract: "NUMPADSUBTRACT", NumpadMultiply: "NUMPADMULTIPLY",
-    NumpadDivide: "NUMPADDIVIDE", NumpadDecimal: "NUMPADDECIMAL", NumpadEnter: "NUMPADENTER" };
-  var MODS = ["LCTRL", "RCTRL", "LSHIFT", "RSHIFT", "LALT", "RALT"];
-  function codeName(code) {
-    if (CODE[code]) return CODE[code];
-    var m = code.match(/^Key([A-Z])$/) || code.match(/^Digit([0-9])$/) || code.match(/^(F[0-9]{1,2})$/);
-    if (m) return m[1];
-    m = code.match(/^Numpad([0-9])$/); if (m) return "NUMPAD" + m[1];
-    return null;
-  }
   // Tastenaufnahme: höchstens eine aktiv; wird bei jedem Neuaufbau der Eigenschaften beendet
   var capture = null;
   function stopCapture() { if (capture) { capture(); capture = null; } }
   window.addEventListener("blur", stopCapture);
 
   // Ansicht nach Änderungen an einer Taste (Eingabefelder bleiben unangetastet)
-  function refresh() { renderPage(); renderOverlay(); renderList(); renderActions(); touch(); }
+  function refresh() { renderPage(); renderOverlay(); renderList(); renderActions(); updateDupHint(); touch(); }
 
-  function keyField(b) {
-    var inp = input(b.key, function (v) { b.key = v.toUpperCase().replace(/\s+/g, ""); if (!b.key) delete b.key; refresh(); },
-      { list: "keyNames", placeholder: "z. B. LALT+F oder NUMPAD8" });
-    var rec = h("button", { cls: "ghost", text: "Aufnehmen" });
-    var mods = {};
-    function onUp(e) { var n = codeName(e.code); if (n) delete mods[n]; }
-    function onKeyRec(e) {
-      e.preventDefault(); e.stopPropagation();
-      var n = codeName(e.code); if (!n) return;
-      if (MODS.indexOf(n) >= 0) { mods[n] = 1; return; }
-      var combo = MODS.filter(function (x) { return mods[x]; }).concat([n]).join("+");
-      inp.value = combo; b.key = combo; stopCapture(); refresh(); hist.push(snap()); renderToolbar();
+  // Tastenfeld mit „Aufnehmen“: get/set lesen und schreiben den Wert an der Taste (set("") = entfernen).
+  // Die Übersetzung KeyboardEvent.code -> Name (Zusatztasten, AltGr, Esc = Abbruch) liegt in panellib.js.
+  function keyInput(label, get, set, ph, hintText) {
+    var warn = h("span", { cls: "hint", text: "" });
+    function chk() {
+      var v = get();
+      var bad = v && v.split("+").some(function (k) { return keyNames.indexOf(PL.normKey(k)) < 0 && keyNames.indexOf(k) < 0; });
+      warn.textContent = bad ? "Unbekannter Tastenname – Speichern würde abgelehnt." : "";
+      warn.classList.toggle("warn", !!bad);
     }
+    var inp = input(get(), function (v) { set(v.toUpperCase().replace(/\s+/g, "")); chk(); refresh(); },
+      { list: "keyNames", placeholder: ph || "z. B. LALT+F oder NUMPAD8" });
+    var rec = h("button", { cls: "ghost", text: "Aufnehmen", title: "Taste oder Kombination auf der PC-Tastatur drücken (Esc bricht ab)" });
+    function onEv(type) {
+      return function (e) {
+        e.preventDefault(); e.stopPropagation();
+        if (type === "down" && e.repeat) return;
+        var r = PL.captureEvent(cap, { type: type, code: e.code, altGraph: !!(e.getModifierState && e.getModifierState("AltGraph")) }, keyNames);
+        if (!r) return;
+        if (r.hint) { warn.textContent = r.hint; warn.classList.add("warn"); return; }
+        stopCapture();
+        if (r.done) { set(r.done); inp.value = r.done; refresh(); hist.push(snap()); renderToolbar(); }
+        chk();
+      };
+    }
+    var cap = null, down = onEv("down"), up = onEv("up");
     rec.onclick = function () {
       if (capture) return stopCapture();
-      mods = {}; inp.classList.add("capture"); rec.textContent = "Taste drücken …";
-      document.addEventListener("keydown", onKeyRec, true); document.addEventListener("keyup", onUp, true);
+      cap = PL.newCapture(); inp.classList.add("capture"); rec.textContent = "Taste drücken …";
+      warn.textContent = "Jetzt die Taste oder Kombination drücken – Esc bricht ab."; warn.classList.remove("warn");
+      document.addEventListener("keydown", down, true); document.addEventListener("keyup", up, true);
       capture = function () {
         inp.classList.remove("capture"); rec.textContent = "Aufnehmen";
-        document.removeEventListener("keydown", onKeyRec, true); document.removeEventListener("keyup", onUp, true);
+        document.removeEventListener("keydown", down, true); document.removeEventListener("keyup", up, true);
+        chk();
       };
     };
-    var bad = b.key && b.key.split("+").some(function (k) { return keyNames.indexOf(k) < 0; });
-    return field("Taste / Kombination", h("div", { cls: "row" }, [inp, rec]),
-      bad ? "Unbekannter Tastenname – Speichern würde abgelehnt." : "Wird als Tastendruck gesendet. Aufnehmen: Kombination auf der PC-Tastatur drücken.");
+    chk();
+    var f = field(label, h("div", { cls: "row" }, [inp, rec]), hintText);
+    f.appendChild(warn);
+    return f;
+  }
+  function keyField(b, label) {
+    return keyInput(label || "Taste / Kombination", function () { return b.key || ""; },
+      function (v) { if (v) b.key = v; else delete b.key; }, null,
+      "Wird als Tastendruck gesendet. Aufnehmen: Kombination auf der PC-Tastatur drücken (Strg/Alt/Umschalt links und rechts werden unterschieden).");
   }
 
   function macroToText(m) { return (m || []).map(function (s) { var k = Object.keys(s)[0]; return k + " " + s[k]; }).join("\n"); }
@@ -807,7 +837,7 @@
   }
 
   function renderProps() {
-    stopCapture();
+    stopCapture(); dupHintEl = null; calcDups();
     renderPageProps();
     var box = $("buttonProps"); clear(box); propsInputs = {};
     var p = page();
@@ -836,12 +866,7 @@
     } else {
       box.appendChild(field("Gruppe (Überschrift)", input(b.group, function (v) { if (v) b.group = v; else delete b.group; refresh(); })));
     }
-    if (!b.page && !b.slider && !b.states) box.appendChild(field("Verhalten", select(b.mode || "tap", MODE_OPTIONS, function (v) { b.mode = v; refresh(); })));
     box.appendChild(field("Farbe", select(b.style || "", STYLE_OPTIONS, function (v) { if (v) b.style = v; else delete b.style; refresh(); })));
-    var hold = h("input", { type: "checkbox" }); hold.checked = !!b.hold;
-    hold.onchange = function () { if (hold.checked) b.hold = true; else delete b.hold; touch(); };
-    if (!b.page && !b.slider) box.appendChild(field("", h("label", { cls: "check" }, [hold, document.createTextNode("Taste halten, solange der Finger liegt")]),
-      "Aus = kurzer Impuls (80 ms) – nötig für die meisten Spielaktionen. An z. B. für Ping oder Hupe."));
     if (isFree(p)) {
       var cols = p.cols || 12, rows = p.rows || 8;
       var num = function (key, max) {
@@ -865,7 +890,10 @@
       box.appendChild(h("label", { cls: "check" }, [wide, document.createTextNode("Ganze Breite")]));
     }
     renderAction(box, p, b);
-    if (PL.hasPlaceholder(b)) box.appendChild(h("p", { cls: "hint warn", text: "Platzhalter-Taste (" + (b.slider ? "Bild↑/Bild↓" : "Rollen") + ") – bitte die echte Taste eintragen." }));
+    if (PL.hasPlaceholder(b)) box.appendChild(h("p", { cls: "hint warn", text: b.open ? "Platzhalter-Adresse – bitte die echte URL oder den Pfad eintragen." :
+      "Platzhalter-Taste (" + (b.slider ? "Bild↑/Bild↓" : "Rollen") + ") – bitte die echte Taste eintragen." }));
+    dupHintEl = h("p", { cls: "hint dup-hint", hidden: "" });
+    box.appendChild(dupHintEl); updateDupHint();
     box.appendChild(h("div", { cls: "row" }, [
       h("button", { cls: "ghost", text: "Duplizieren", onclick: duplicateSel }),
       h("button", { cls: "del", text: "Löschen", onclick: removeSel })]));
@@ -875,27 +903,35 @@
     ["toggle", "Schalter (merkt An/Aus)"]];
   var STYLE_OPTIONS = [["", "Normal"], ["accent", "Blau"], ["danger", "Orange (Gefahr)"]];
 
-  // Aktion: Taste, Makro, Programm/URL öffnen, Seiten-Link, Mehrfach-Schalter, Regler
+  var MEDIA_LABELS = { playpause: "Wiedergabe / Pause", next: "Nächster Titel", prev: "Voriger Titel", stop: "Stopp",
+    mute: "Stumm", voldown: "Leiser", volup: "Lauter" };
+  var CONFIRM_ARTS = { press: 1, hold: 1, open: 1, macro: 1, media: 1 };
+
+  // Art der Taste (Taste drücken/halten, Umschalten, Mehrfach-Schalter, Regler, Seite, Programm, Makro, Medien):
+  // der Wechsel baut die Felder um (PL.convertArt), danach gibt es nur noch die passenden. Ein Verlaufsschritt.
   function renderAction(box, p, b) {
-    var kind = PL.kindOf(b);
-    box.appendChild(field("Aktion", select(kind, [["key", "Taste / Kombination"], ["macro", "Makro (mehrere Schritte)"],
-      ["open", "Programm / URL am PC öffnen"], ["page", "Seiten-Link (am Tablet)"],
-      ["states", "Mehrfach-Schalter (2–6 Zustände)"], ["slider", "Regler (mehr / weniger)"]], function (v) {
-      var firstKey = b.key || (b.macro && b.macro[0] && b.macro[0].key);
-      delete b.macro; delete b.open; delete b.key; delete b.page; delete b.states; delete b.slider;
-      if (v === "macro") b.macro = [{ key: firstKey || "SPACE" }];
-      else if (v === "open") b.open = "https://";
-      else if (v === "page") { b.page = (layout.pages.filter(function (x) { return x !== p; })[0] || p).id; delete b.mode; delete b.hold; }
-      else if (v === "states") { b.mode = "tap"; if (firstKey) b.key = firstKey; b.states = [{ label: "AUS" }, { label: "AN" }]; }
-      else if (v === "slider") { b.mode = "tap"; delete b.hold; b.slider = { steps: 10 }; }
-      else if (firstKey) b.key = firstKey;
+    var art = PL.artOf(b), kind = art === "press" || art === "hold" || art === "toggle" ? "key" : art === "media" ? "media" : art;
+    var def = PL.ARTS.filter(function (x) { return x.id === art; })[0];
+    box.appendChild(field("Art", select(art, PL.ARTS.map(function (x) { return [x.id, x.label]; }), function (v) {
+      PL.convertArt(b, v, { page: p, pages: layout.pages });
       refresh(); renderProps();
-    })));
-    if (kind === "page") {
+    }), def ? def.hint : ""));
+    if (CONFIRM_ARTS[art]) {
+      var cf = h("input", { type: "checkbox" }); cf.checked = b.mode === "hold-confirm";
+      cf.onchange = function () { if (cf.checked) b.mode = "hold-confirm"; else delete b.mode; refresh(); };
+      box.appendChild(field("", h("label", { cls: "check" }, [cf, document.createTextNode("Erst nach längerem Halten auslösen (gefährlich)")]),
+        "Schutz gegen versehentliches Tippen: der Finger muss die Haltezeit des Panels liegen bleiben."));
+    }
+    if (kind === "media") {
+      var cur = b.macro[0].media, opts = (mediaNames.length ? mediaNames : Object.keys(MEDIA_LABELS));
+      if (opts.indexOf(cur) < 0) opts = opts.concat([cur]);
+      box.appendChild(field("Funktion", select(cur, opts.map(function (m) { return [m, MEDIA_LABELS[m] || m]; }),
+        function (v) { b.macro = [{ media: v }]; refresh(); })));
+    } else if (kind === "key") box.appendChild(keyField(b));
+    else if (kind === "page") {
       box.appendChild(field("Ziel-Seite", select(b.page, layout.pages.map(function (x) { return [x.id, x.title]; }),
         function (v) { b.page = v; refresh(); }), "Wechselt am Tablet auf diese Seite, sendet nichts an den PC."));
-    } else if (kind === "key") box.appendChild(keyField(b));
-    else if (kind === "states") {
+    } else if (kind === "states") {
       var sta = h("textarea"); sta.value = statesToText(b.states);
       var serr = h("div", { cls: "err-box" });
       sta.addEventListener("input", function () {
@@ -906,23 +942,12 @@
       box.appendChild(field("Zustände – eine Zeile pro Zustand", sta,
         "BEZEICHNUNG = TASTE (Taste optional), 2–6 Zeilen, Bezeichnung bis 20 Zeichen. Jeder Tipp schaltet reihum weiter."));
       box.appendChild(serr);
-      box.appendChild(keyField(b));
+      box.appendChild(keyField(b, "Ersatz-Taste (für Zustände ohne eigene)"));
       box.appendChild(h("span", { cls: "hint", text: "Taste oben ist der Ersatz für Zustände ohne eigene Taste. Mindestens eine Quelle nötig." }));
     } else if (kind === "slider") {
       var sl = b.slider;
       var slKey = function (prop, label, ph) {
-        var warn = h("span", { cls: "hint", text: "" });
-        var chk = function () {
-          var bad = sl[prop] && sl[prop].split("+").some(function (k) { return keyNames.indexOf(k) < 0; });
-          warn.textContent = bad ? "Unbekannter Tastenname – Speichern würde abgelehnt." : "";
-        };
-        var lab = field(label, input(sl[prop], function (v) {
-          v = v.toUpperCase().replace(/\s+/g, "");
-          if (v) sl[prop] = v; else delete sl[prop];
-          chk(); refresh();
-        }, { list: "keyNames", placeholder: ph }));
-        lab.appendChild(warn); chk();
-        return lab;
+        return keyInput(label, function () { return sl[prop] || ""; }, function (v) { if (v) sl[prop] = v; else delete sl[prop]; }, ph);
       };
       box.appendChild(slKey("up", "Taste „mehr“", "z. B. LALT+PGUP"));
       box.appendChild(slKey("down", "Taste „weniger“", "z. B. LALT+PGDN"));
