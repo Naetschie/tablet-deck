@@ -11,7 +11,7 @@
   var EPS = 1e-6;
 
   function copy(o) { var c = {}; for (var k in o) c[k] = o[k]; return c; }
-  function toSet(ids) { var s = {}; (ids || []).forEach(function (i) { s[i] = true; }); return s; }
+  function toSet(ids) { var s = Object.create(null); (ids || []).forEach(function (i) { s[i] = true; }); return s; }
   function num(v, d) { return typeof v === "number" && isFinite(v) ? v : d; }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
@@ -153,21 +153,23 @@
     });
   }
 
-  // Gleiche Lücken zwischen den Elementen; das erste und letzte (nach Position) bleiben stehen. Ab 3 Elementen.
+  // Gleiche Lücken zwischen den Elementen innerhalb ihrer gemeinsamen Ausdehnung (vom linkesten Anfang bis zum
+  // rechtesten Ende). Ab 3 Elementen.
   // axis: "x"/"h" (waagrecht) oder "y"/"v" (senkrecht).
   function distribute(items, ids, axis) {
     var sel = pick(items, ids);
     if (sel.length < 3) return items.map(copy);
     var horiz = axis === "x" || axis === "h", pos = horiz ? "x" : "y", size = horiz ? "w" : "h";
     var order = sel.slice().sort(function (a, b) { return (a[pos] - b[pos]) || (a[size] - b[size]); });
-    var first = order[0], last = order[order.length - 1];
-    var total = last[pos] + last[size] - first[pos], used = 0;
-    order.forEach(function (it) { used += it[size]; });
-    var gap = (total - used) / (order.length - 1), at = first[pos], np = {};
+    var start = Infinity, end = -Infinity, used = 0;
+    order.forEach(function (it) {
+      start = Math.min(start, it[pos]); end = Math.max(end, it[pos] + it[size]); used += it[size];
+    });
+    var gap = (end - start - used) / (order.length - 1), at = start, np = Object.create(null);
     order.forEach(function (it) { np[it.id] = at; at += it[size] + gap; });
     return items.map(function (it) {
       var c = copy(it);
-      if (np.hasOwnProperty(it.id)) c[pos] = np[it.id];
+      if (it.id in np) c[pos] = np[it.id];
       return c;
     });
   }
@@ -250,18 +252,26 @@
   // Kopiert die (auf Gruppen erweiterte) Auswahl, versetzt um offset {x,y}, mit neuen IDs. newId(item, items)
   // liefert eine freie ID (items = Liste inkl. bereits erzeugter Kopien). Gruppen bleiben als neue Gruppen erhalten.
   // Ergebnis {items, ids}: items mit den Kopien oben drauf (am Ende), ids = die neuen IDs.
+  function freeId(base, list) {
+    var used = Object.create(null);
+    list.forEach(function (it) { used[it.id] = true; });
+    if (!used[base]) return base;
+    for (var n = 2; ; n++) if (!used[base + "_" + n]) return base + "_" + n;
+  }
+
   function duplicate(items, ids, offset, newId) {
     var sel = toSet(expandSelection(items, ids)), src = items.filter(function (it) { return sel[it.id]; });
     if (!src.length) return { items: items.map(copy), ids: [] };
     var ox = num(offset && offset.x, 0), oy = num(offset && offset.y, 0);
     var out = items.map(copy), newIds = [], gmap = {};
     src.forEach(function (it) {
-      var c = copy(it), id = typeof newId === "function" ? newId(it, out) : it.id + "_kopie";
+      var c = copy(it), id = typeof newId === "function" ? newId(it, out) : freeId(it.id + "_kopie", out);
       c.id = id; c.x = it.x + ox; c.y = it.y + oy;
       if (it.group) {
+        // groupId(out) sieht die bereits eingefügten Kopien: zwei Gruppen im selben Duplikat bekommen
+        // verschiedene neue IDs, weil out.push(c) vor der nächsten Abfrage passiert
         if (!gmap[it.group]) { gmap[it.group] = groupId(out); }
         c.group = gmap[it.group];
-        // die neue Gruppen-ID muss für die nächste Berechnung schon vorkommen
       }
       out.push(c); newIds.push(id);
     });

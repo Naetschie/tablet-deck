@@ -269,3 +269,34 @@ test("boundsOf", () => {
   assert.equal(C.boundsOf([]), null);
   assert.deepEqual(C.boundsOf([R("a", 1, 2, 3, 4), R("b", 5, 0, 1, 1)]), { x: 1, y: 0, w: 5, h: 6 });
 });
+
+test("Review: distribute mit breitem, früh beginnendem Element", () => {
+  const items = [{ id: "a", x: 0, y: 0, w: 100, h: 10 }, { id: "b", x: 10, y: 0, w: 10, h: 10 },
+    { id: "c", x: 50, y: 0, w: 10, h: 10 }];
+  const out = C.distribute(items, ["a", "b", "c"], "x");
+  const xs = Object.fromEntries(out.map((i) => [i.id, i.x]));
+  // Ausdehnung 0..100, belegt 120 -> Lücke -10; Reihenfolge a, b, c bleibt
+  assert.deepStrictEqual([xs.a, xs.b, xs.c], [0, 90, 90]);
+});
+
+test("Review: IDs wie constructor/hasOwnProperty", () => {
+  const items = [{ id: "constructor", x: 0, y: 0, w: 1, h: 1 }, { id: "hasOwnProperty", x: 5, y: 0, w: 1, h: 1 },
+    { id: "z", x: 9, y: 0, w: 1, h: 1 }];
+  assert.strictEqual(C.selectInRect(items, { x: 100, y: 100, w: 1, h: 1 }).length, 0);
+  const out = C.distribute(items, ["constructor", "hasOwnProperty", "z"], "x");
+  assert.strictEqual(out.length, 3);
+});
+
+test("Review: zweimal duplizieren ergibt verschiedene IDs, zwei Gruppen bleiben getrennt", () => {
+  let items = [{ id: "a", x: 0, y: 0, w: 1, h: 1 }];
+  items = C.duplicate(items, ["a"], { x: 1, y: 0 }).items;
+  items = C.duplicate(items, ["a"], { x: 2, y: 0 }).items;
+  assert.strictEqual(new Set(items.map((i) => i.id)).size, items.length);
+  const g = [{ id: "p", x: 0, y: 0, w: 1, h: 1, group: "g1" }, { id: "q", x: 2, y: 0, w: 1, h: 1, group: "g1" },
+    { id: "r", x: 4, y: 0, w: 1, h: 1, group: "g2" }];
+  const d = C.duplicate(g, ["p", "r"], { x: 0, y: 5 });
+  const neu = d.items.filter((i) => d.ids.includes(i.id));
+  const groups = new Set(neu.map((i) => i.group));
+  assert.strictEqual(groups.size, 2);
+  assert.ok(!groups.has("g1") && !groups.has("g2"));
+});
