@@ -27,7 +27,8 @@ LIST_PAGE = """<html><head><title>Testspiel PC Keyboard Controls Guide</title></
 class PageKeyTest(unittest.TestCase):
     def test_keys(self):
         cases = {"Space Bar": ("SPACE", False), "Left Shift (Hold)": ("LSHIFT", True), "Hold F": ("F", True),
-                 "Ctrl + C": ("LCTRL+C", False), "F1 / F2": ("F1", False), "Page Up": ("PGUP", False),
+                 "Ctrl + C": ("LCTRL+C", False), "F1 / F2": (None, False), "Page Up": ("PGUP", False),
+                 "W, A, S, D": (None, False), "Left / Right Arrow": (None, False), "Ctrl + Shift + S": ("LCTRL+LSHIFT+S", False),
                  "Left Mouse Button": (None, False), "WASD": (None, False), "1-9": (None, False),
                  "Esc": ("ESC", False)}
         for text, want in cases.items():
@@ -54,7 +55,7 @@ class ParseTest(unittest.TestCase):
         build(tpl)                                                          # lässt sich anordnen
 
     def test_only_public_addresses(self):
-        def fake(host, port):
+        def fake(host, port, **kw):
             ip = {"intern.local": "192.168.1.5", "example.com": "93.184.216.34"}[host]
             return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, port))]
         with mock.patch.object(socket, "getaddrinfo", fake):
@@ -62,6 +63,38 @@ class ParseTest(unittest.TestCase):
             for bad in ("https://intern.local/", "file:///c:/x", "ftp://example.com/", "https://user:pw@example.com/"):
                 with self.assertRaises(ValueError):
                     web._public_url(bad)
+
+    def test_linear_on_unclosed_tags(self):
+        import time
+        t0 = time.monotonic()
+        web.parse_page("<article>" + "<li>x" * 20000 + "</article>")
+        web.parse_page("<p>x" * 20000)
+        self.assertLess(time.monotonic() - t0, 2)
+
+    def test_redirect_checked_before_follow(self):
+        calls = []
+
+        def fake_get(url, deadline):
+            calls.append(url)
+            web._check_url(url)
+            if "start" in url:
+                return None, "http://127.0.0.1:8765/geheim"
+            return "ok", None
+
+        def fake_ip(host, port):
+            if host == "127.0.0.1":
+                raise ValueError("nur öffentliche Adressen")
+            return "93.184.216.34"
+        with mock.patch.object(web, "_public_ip", fake_ip), mock.patch.object(web, "_get", side_effect=lambda u, d: (
+                fake_get(u, d) if "start" in u else (fake_ip(web._check_url(u)[1], 80), ("ok", None))[1])):
+            with self.assertRaises(ValueError):
+                web.fetch("https://example.com/start")
+        with self.assertRaises(ValueError):
+            web._check_url("https://example.com:8765/")                    # nur Standard-Ports
+
+    def test_search_names(self):
+        self.assertEqual(web.name_variants("S.T.A.L.K.E.R. 2", "Anno 117: Pax Romana")[:3],
+                         ["STALKER 2", "Anno 117 Pax Romana", "Anno 117"])
 
     def test_save_and_list_with_source(self):
         from bridge.generate import list_templates, save_web_template, template_bindings
@@ -74,6 +107,13 @@ class ParseTest(unittest.TestCase):
             self.assertEqual(template_bindings(d, "testspiel").bindings["Map"].key, "M")   # KI-Ersatzquelle
             with self.assertRaises(ValueError):
                 save_web_template(d, "../böse", tpl)
+            self.assertEqual(save_web_template(d, "testspiel", tpl), "web-example")       # gleiche Adresse: ersetzen
+            other = dict(tpl, source=dict(tpl["source"], url="https://example.com/y"))
+            self.assertEqual(save_web_template(d, "testspiel", other), "web-example-2")   # andere Seite: neu
+            bad = dict(tpl, source=dict(tpl["source"], url="javascript:alert(1)"))
+            save_web_template(d, "testspiel", bad)
+            urls = [e["source"].get("url") for e in list_templates(d, "testspiel")]
+            self.assertNotIn("javascript:alert(1)", urls)                                 # nur http(s)-Links
 
     def test_repo_templates_name_their_source(self):
         root = Path(__file__).resolve().parent.parent

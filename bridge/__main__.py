@@ -429,8 +429,10 @@ class Bridge:
                         loop = asyncio.get_running_loop()
                         if t == "web_find":
                             url = msg.get("url") if isinstance(msg.get("url"), str) and msg.get("url").strip() else None
-                            name = (library_entry(gi).get("name") if not self.profiles.game(g) else gi.get("name")) or g
-                            res = await loop.run_in_executor(None, web_lookup, name, url[:500] if url else None)
+                            lib_name = (await loop.run_in_executor(None, library_entry, gi)).get("name")
+                            name = gi.get("name") or lib_name or g
+                            res = await loop.run_in_executor(None, web_lookup, name, url[:500] if url else None,
+                                                             lib_name)
                             self.web_pending[gi["id"]] = res["template"]
                             await ws.send(json.dumps({"t": "web_found", "game": gi["id"], "site": res["site"],
                                                       "url": res["url"], "title": res["title"], "count": len(res["rows"]),

@@ -50,8 +50,8 @@ def list_templates(root, game):
                      else [{"id": p["id"], "title": p["title"]} for p in lay["pages"]])
             src = t.get("source") if isinstance(t.get("source"), dict) else None
             entry = {"id": f.stem, "title": t.get("title", f.stem), "semantic": semantic, "pages": pages,
-                     "source": {k: str(v)[:200] for k, v in src.items() if k in ("site", "url", "note", "date",
-                                                                                  "title")} if src else None,
+                     "source": {k: str(v)[:200] for k, v in src.items() if k in ("site", "url", "note", "date", "title")
+                                and (k != "url" or re.match(r"https?://", str(v)))} if src else None,
                      "web": f.stem.startswith("web-")}
             _LIST_CACHE[ck] = entry
             out.append(entry)
@@ -296,10 +296,19 @@ def save_web_template(root, gid, template):
     if not ID.fullmatch(gid or ""):
         raise ValueError("ungültiges Spiel")
     auto_build(template)   # muss sich anordnen lassen
-    site = re.sub(r"[^a-z0-9]+", "-", str(template.get("source", {}).get("site", "netz")).lower()).strip("-")[:20]
-    tid = f"web-{site or 'netz'}"
+    src = template.get("source", {})
+    site = re.sub(r"[^a-z0-9]+", "-", str(src.get("site", "netz")).lower()).strip("-")[:20] or "netz"
     d = Path(root) / "templates" / gid
     d.mkdir(parents=True, exist_ok=True)
+    # gleiche Adresse: aktualisieren; andere Seite derselben Website: eigene Vorlage (nichts still überschreiben)
+    tid, n = f"web-{site}", 2
+    while (d / f"{tid}.json").exists():
+        try:
+            if json.loads((d / f"{tid}.json").read_text(encoding="utf-8")).get("source", {}).get("url") == src.get("url"):
+                break
+        except (OSError, ValueError):
+            pass
+        tid, n = f"web-{site}-{n}", n + 1
     f = d / f"{tid}.json"
     tmp = f.with_suffix(".tmp")
     tmp.write_text(json.dumps(template, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
@@ -321,7 +330,8 @@ def template_bindings(root, gid):
             if isinstance(act, str) and isinstance(key, str) and key and act not in found:
                 found[act] = Binding(key, bool(t.get("hold")), "Vorlage", t.get("press_ms") or 0)
 
-    for entry in list_templates(root, gid):
+    # geprüfte Vorlagen zuerst, aus dem Netz gelesene zuletzt (gleiche Aktion: geprüfte gewinnt)
+    for entry in sorted(list_templates(root, gid), key=lambda e: e.get("web", False)):
         try:
             t = read_template(root, gid, entry["id"])
         except (ValueError, OSError):

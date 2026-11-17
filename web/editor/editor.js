@@ -386,7 +386,7 @@
     if (!s) return;
     box.appendChild(document.createTextNode("Tasten der Vorlage aus: " + (s.site || "?") + (s.note ? " (" + s.note + ")" : "") +
       (s.date ? ", Stand " + s.date : "") + (s.url ? " – " : "")));
-    if (s.url) { var a = el("a", { text: "Quelle" }); a.href = s.url; a.target = "_blank"; a.rel = "noopener noreferrer"; box.appendChild(a); }
+    if (s.url && /^https?:\/\//i.test(s.url)) { var a = el("a", { text: "Quelle" }); a.href = s.url; a.target = "_blank"; a.rel = "noopener noreferrer"; box.appendChild(a); }
   }
 
   function genOptions() { return { style: $("genStyle").value, skip_device: $("genSkipDev").checked }; }
