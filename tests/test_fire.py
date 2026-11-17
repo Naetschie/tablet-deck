@@ -95,6 +95,37 @@ class FireTest(unittest.TestCase):
         self.assertEqual(mid, [("press", "h")])     # noch gehalten
         self.assertEqual(end, [("press", "h"), ("release", "h")])
 
+    def test_press_ms_second_release_and_repress(self):
+        # zwei Loslassen vor Ablauf: nur ein Termin; erneuter Druck dazwischen hebt ihn auf
+        async def run():
+            br = make_bridge()
+            btn = {"id": "h", "key": "M", "hold": True, "press_ms": 300}
+            br.fire(btn, True)
+            br.fire(btn, False)
+            br.fire(btn, False)
+            br.fire(btn, True)                      # wieder gedrückt: bleibt gedrückt
+            await asyncio.sleep(0.4)
+            mid = list(br.out.events)
+            br.fire(btn, False)                     # jetzt länger als press_ms gehalten: sofort los
+            return mid, br.out.events
+        mid, end = asyncio.run(run())
+        self.assertEqual(mid, [("press", "h"), ("press", "h")])
+        self.assertEqual(end, [("press", "h"), ("press", "h"), ("release", "h")])
+
+    def test_press_ms_flush_and_no_pileup(self):
+        async def run():
+            br = make_bridge()
+            hold = {"id": "h", "key": "M", "hold": True, "press_ms": 1000}
+            br.fire(hold, True)
+            br.fire(hold, False)
+            self.assertEqual(br.flush_late_releases(), 1)   # Ansichtswechsel: sofort los
+            tap = {"id": "t", "key": "N", "press_ms": 200}
+            for _ in range(4):                      # hektisches Tippen auf einen langen Druck
+                br.fire(tap, True)
+            await asyncio.sleep(0.4)
+            return br.out.events
+        self.assertEqual(asyncio.run(run()), [("press", "h"), ("release", "h"), ("press", "t"), ("release", "t")])
+
     def test_unmapped_does_nothing(self):
         async def run():
             br = make_bridge()

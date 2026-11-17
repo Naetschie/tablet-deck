@@ -305,11 +305,13 @@ class BundledTest(unittest.TestCase):
           <ActivationMode name="press" pressTriggerThreshold="-1"/>
           <ActivationMode name="delayed_press" pressTriggerThreshold="0.25"/>
           <ActivationMode name="delayed_press_long" pressTriggerThreshold="1.5"/>
+          <ActivationMode name="delayed_hold_long" pressTriggerThreshold="1.5"/>
         </ActivationModes><actionmap name="m">
           <action name="a_tap" activationMode="press" keyboard="f1"/>
           <action name="a_long" activationMode="delayed_press_long" keyboard="f2"/>
           <action name="a_own" activationMode="press" pressTriggerThreshold="0.5" keyboard="f3"/>
           <action name="a_user" activationMode="press" keyboard="f4"/>
+          <action name="a_dhold" activationMode="delayed_hold_long" keyboard="f6"/>
         </actionmap></profile>"""
         user = """<ActionMaps><actionmap name="m"><action name="a_user">
           <rebind input="kb1_f5" activationMode="delayed_press"/></action></actionmap></ActionMaps>"""
@@ -322,6 +324,7 @@ class BundledTest(unittest.TestCase):
         self.assertEqual(b["a_long"].min_ms, 1600)            # 1,5 s + 100 ms Reserve
         self.assertEqual(b["a_own"].min_ms, 600)              # eigene Schwelle der Aktion
         self.assertEqual((b["a_user"].key, b["a_user"].min_ms), ("F5", 350))   # Modus aus actionmaps.xml
+        self.assertEqual((b["a_dhold"].hold, b["a_dhold"].min_ms), (True, 1600))   # Halten erst ab Schwelle
 
 
 if __name__ == "__main__":

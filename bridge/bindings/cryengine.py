@@ -21,7 +21,8 @@ SC_TOKENS = {
 }
 MODIFIERS = ["LCTRL", "RCTRL", "LSHIFT", "RSHIFT", "LALT", "RALT"]
 # smart_toggle: Tippen schaltet um (Impuls), Halten wirkt nur solange - deshalb NICHT als hold
-HOLD_MODES = {"hold", "delayed_hold", "hold_toggle", "hold_no_retrigger"}
+HOLD_MODES = {"hold", "delayed_hold", "delayed_hold_long", "delayed_hold_no_retrigger", "hold_toggle",
+              "hold_no_retrigger"}   # delayed_hold*: halten, aber erst nach der Schwelle (press_ms)
 MULTI_MODES = {"double_tap", "double_tap_nonblocking"}
 PRESS_MARGIN_MS = 100   # Reserve auf die Mindest-Haltezeit des Spiels (Bildrate, Eingabeabfrage)
 PRESS_MAX_MS = 3000

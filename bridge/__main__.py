@@ -879,7 +879,7 @@ class Bridge:
 
     async def release_everything(self):
         self.cancel_macros()
-        n = self.pc.release_all() + self.release_panel_keys() + self.drop_pulses()
+        n = self.pc.release_all() + self.release_panel_keys() + self.drop_pulses() + self.flush_late_releases()
         if n:
             await self.broadcast({"t": "released"})   # Seiten setzen ihren Tastenzustand zurück
 
@@ -942,23 +942,33 @@ class Bridge:
             self._enqueue_pulse(btn, target, owner)
             return
         min_s = btn.get("press_ms", 0) / 1000
+        late = self.late_release.pop(target, None)
+        if late:
+            late[0].cancel()   # verzögertes Loslassen ersetzt (erneuter Druck oder neuer Termin)
         if down:
-            late = self.late_release.pop(target, None)
-            if late:
-                late.cancel()   # noch verzögert gehalten: erneuter Druck verlängert einfach
             self.hold_since[target] = time.monotonic()
         elif min_s:
             # Spiel wertet erst lange Drücke: frühestens nach press_ms loslassen
             rest = min_s - (time.monotonic() - self.hold_since.get(target, 0))
             if rest > 0:
-                self.late_release[target] = asyncio.get_running_loop().call_later(
-                    rest, self._late_release, btn, target)
+                h = asyncio.get_running_loop().call_later(rest, self._late_release, btn, target)
+                self.late_release[target] = (h, btn)
                 return
         self._press_release(btn, down, target)
 
     def _late_release(self, btn, target):
         self.late_release.pop(target, None)
         self._press_release(btn, False, target)
+
+    def flush_late_releases(self):
+        """Verzögert gehaltene Tasten (press_ms) sofort loslassen - Ansichtswechsel, Hub-Ende."""
+        n = 0
+        for target, (h, btn) in list(self.late_release.items()):
+            h.cancel()
+            self.late_release.pop(target, None)
+            self._press_release(btn, False, target)
+            n += 1
+        return n
 
     def _press_release(self, btn, down, target):
         try:
@@ -973,6 +983,10 @@ class Bridge:
         einzigen Druck. Warteschlange begrenzt (Flut)."""
         k = target
         q = self.pulse_q.setdefault(k, [])
+        if btn.get("press_ms") and (q or k in self.pulse_tasks):
+            # langer Druck läuft schon: weitere Tipps nicht anhängen (sonst Sekunden gedrückt, mehrfach ausgelöst)
+            log.info("PULS %-22s verworfen (langer Druck läuft noch)", btn["id"])
+            return
         if len(q) >= PULSE_MAX_QUEUE:
             log.warning("Impulse für %s verworfen (Warteschlange voll)", btn["id"])
             return
@@ -1491,6 +1505,7 @@ async def main():
     finally:
         bridge.cancel_macros()
         bridge.drop_pulses(stop=True)   # wartende Impulse verwerfen; out.close() lässt alles Gedrückte los
+        bridge.flush_late_releases()
         if tray:
             tray.close()
         bridge.out.close()
