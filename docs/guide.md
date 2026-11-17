@@ -17,7 +17,7 @@ Alltag; Einrichtung und Fehlersuche stehen in [install.md](install.md).
 ---
 
 ## 1. Die Leiste am Tablet
-Links am Tablet sitzt die Leiste mit den Kacheln (einstellbar in `launcher.json`):
+Links am Tablet sitzt die Leiste mit den Kacheln (einstellbar in `launcher.json`, beim ersten Start aus `launcher.example.json` angelegt):
 
 | Kachel | Wozu |
 |---|---|
@@ -35,7 +35,8 @@ Tablet von selbst auf dessen Panel (Spiele und Programmnamen in `games.json`).
 ## 2. Spiel-Panels
 ![Star-Citizen-Panel, Seite Flug & Kampf](bilder/tablet-panel-flug.png)
 
-- Oben stehen das Spiel (Tipp auf den Namen = anderes Panel) und die Seiten als Reiter.
+- Oben stehen das Spiel (Tipp auf den Namen = anderes Spiel, wenn mehrere Panels haben), daneben die Panels
+  des Spiels (falls es mehrere gibt) und darunter die Seiten als Reiter.
 - Jede Taste zeigt ihre Funktion und darunter die **echte Taste** am PC, gelesen aus deiner Belegung im Spiel.
   Ein Tipp schickt genau diese Tastenkombination an den PC; das Spiel merkt keinen Unterschied zur Tastatur.
 - **Bereiche** (Energie, Systeme, Waffen …) fassen zusammengehörige Tasten zusammen.
