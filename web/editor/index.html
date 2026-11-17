@@ -188,7 +188,7 @@
     <div class="row"><input id="genWebUrl" type="url" placeholder="https://… (optional)" spellcheck="false">
       <button id="genWebFind" class="ghost small">Suchen</button>
       <button id="genWebAi" class="ghost small" title="Claude sucht im Netz; jede Taste wird danach gegen die Seite geprüft. Kostet API-Guthaben.">Mit KI suchen</button></div>
-    <p class="hint">„Mit KI suchen“: Claude findet auch Wikis und Foren. Behalten wird nur, was auf der genannten
+    <p class="hint">„Mit KI suchen“: die KI (Anbieter unter ⚙ Einstellungen) findet auch Wikis und Foren. Behalten wird nur, was auf der genannten
       Seite wörtlich steht. Braucht den API-Schlüssel (⚙ Einstellungen) und kostet etwas Guthaben.</p>
     <div id="genWebOut"></div>
   </details>
@@ -204,7 +204,7 @@
   <p class="hint">Nur sinnvoll mit Eingabegerät (Flugsimulation, Controller). Die Schiffsansicht bleibt immer; weggelassene
     Aktionen stehen im Bericht und lassen sich später aus der Palette dazunehmen.</p>
   <details id="genAi">
-    <summary>Keine passende Vorlage? Mit KI erstellen (Claude, kostet API-Guthaben)</summary>
+    <summary>Keine passende Vorlage? Mit KI erstellen (Claude oder OpenAI, kostet API-Guthaben)</summary>
     <p class="hint warn" id="genAiNoKey" hidden>Noch kein API-Schlüssel hinterlegt.
       <button id="genAiSet" class="ghost small">⚙ Schlüssel eintragen</button></p>
     <label>Was soll aufs Panel? (optional, z. B. Spielweise, wichtige Menüs, Link zur Steuerungsseite)
@@ -228,10 +228,15 @@
 </dialog>
 <dialog id="setDlg" class="narrow">
   <h2>Einstellungen</h2>
-  <h3>KI für die Panel-Erzeugung</h3>
-  <p class="hint">Für „Automatisch … → Mit KI erstellen“. Dafür brauchst du einen eigenen API-Schlüssel von Anthropic
-    (console.anthropic.com → API Keys); jede Erzeugung kostet etwas API-Guthaben. Der Schlüssel bleibt auf diesem PC
-    (secrets/anthropic.key), wird nie angezeigt und geht nur an die Anthropic-API.</p>
+  <h3>KI für Panel-Erzeugung und Tastensuche</h3>
+  <p class="hint">Für „Mit KI erstellen“ und „Mit KI suchen“. Dafür brauchst du einen eigenen API-Schlüssel des Anbieters
+    (Anthropic: console.anthropic.com → API Keys; OpenAI: platform.openai.com → API keys); jede Nutzung kostet etwas
+    API-Guthaben. Der Schlüssel bleibt auf diesem PC (secrets/), wird nie angezeigt und geht nur an den Anbieter.</p>
+  <div class="row">
+    <label>Anbieter <select id="aiProv"><option value="anthropic">Anthropic (Claude)</option>
+      <option value="openai">OpenAI</option></select></label>
+    <label id="aiModelLab" hidden>Modell <input id="aiModel" spellcheck="false" maxlength="80"></label>
+  </div>
   <p id="aiKeyState" class="hint"></p>
   <div class="row">
     <input id="aiKeyIn" type="password" autocomplete="new-password" spellcheck="false" placeholder="sk-ant-…" aria-label="API-Schlüssel">

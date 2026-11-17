@@ -34,7 +34,7 @@ from .games import watch_games
 from .generate import (actions_message, ai_draft, binding_status, draft, learn_finish, learn_snapshot,
                        library_entry, list_templates, save_web_template, set_learned)
 from .bindings.web import lookup as web_lookup
-from . import ai_template
+from . import ai_providers, ai_template
 from .profiles import Exists, Profiles
 from .layout import button_for_press, needed_keys
 from .webhome import WebHome
@@ -469,17 +469,28 @@ class Bridge:
                             await ws.send(json.dumps({"t": "web_saved", "game": gi["id"], "template": tid}))
                     elif t == "ai_prompt":
                         await ws.send(json.dumps({"t": "ai_prompt", **ai_template.prompt_parts()}))
-                    elif t == "ai_key_status":
-                        await ws.send(json.dumps({"t": "ai_key", **ai_template.key_status(ROOT)}))
-                    elif t == "ai_key_set":
-                        ai_template.save_key(ROOT, msg.get("key"))
-                        await ws.send(json.dumps({"t": "ai_key", **ai_template.key_status(ROOT), "msg": "Gespeichert"}))
-                    elif t == "ai_key_delete":
-                        ai_template.delete_key(ROOT)
-                        await ws.send(json.dumps({"t": "ai_key", **ai_template.key_status(ROOT), "msg": "Entfernt"}))
-                    elif t == "ai_key_check":
-                        res = await asyncio.get_running_loop().run_in_executor(None, ai_template.check_key, ROOT)
-                        await ws.send(json.dumps({"t": "ai_key", **ai_template.key_status(ROOT), "check": res}))
+                    elif t in ("ai_key_status", "ai_key_set", "ai_key_delete", "ai_key_check", "ai_settings_set"):
+                        # KI-Anbieter (Anthropic/OpenAI) und Schlüssel; der Schlüssel geht nur Editor -> Datei
+                        if t == "ai_settings_set":
+                            ai_providers.save_settings(ROOT, msg.get("provider"), msg.get("openai_model"))
+                        st = ai_providers.settings(ROOT)
+                        prov = msg.get("provider") if msg.get("provider") in ai_providers.PROVIDERS else st["provider"]
+                        extra = {}
+                        if t == "ai_key_set":
+                            ai_providers.save_key(ROOT, prov, msg.get("key"))
+                            extra["msg"] = "Gespeichert"
+                        elif t == "ai_key_delete":
+                            ai_providers.delete_key(ROOT, prov)
+                            extra["msg"] = "Entfernt"
+                        elif t == "ai_key_check":
+                            fn = ai_template.check_key if prov == "anthropic" else ai_providers.check_openai
+                            extra["check"] = await asyncio.get_running_loop().run_in_executor(None, fn, ROOT)
+                        elif t == "ai_settings_set":
+                            extra["msg"] = "Einstellung gespeichert"
+                        await ws.send(json.dumps({"t": "ai_key", "provider": prov, "active": st["provider"],
+                                                  "openai_model": st["openai_model"],
+                                                  "active_set": ai_providers.key_status(ROOT, st["provider"])["set"],
+                                                  **ai_providers.key_status(ROOT, prov), **extra}))
                     elif t == "dash_sensors":
                         values, meta, sources = await self.stats.sample()
                         await ws.send(json.dumps({"t": "dash_sensors", "sensors": dashboard.sensor_list(values, meta),

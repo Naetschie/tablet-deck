@@ -252,6 +252,10 @@ def generate_template(root, game_name, actions=None, hint="", client=None, style
     """Semantische Vorlage per KI erzeugen und bereinigen; client ist für Tests austauschbar.
     style_prompt: änderbarer Teil des Prompts (None = Voreinstellung); der feste Teil gilt immer."""
     style = DEFAULT_STYLE_PROMPT if style_prompt is None else str(style_prompt)[:MAX_STYLE_PROMPT]
+    from . import ai_providers
+    if client is None and ai_providers.active(root) == "openai":
+        system = FIXED_PROMPT + ("\n\n" + style.strip() if style.strip() else "")
+        return clean(ai_providers.openai_json(root, system, _user_text(game_name, actions, hint), SCHEMA, "panel"))
     if client is None:
         key = _read_key(root)
         import anthropic

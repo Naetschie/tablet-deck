@@ -127,12 +127,31 @@ def verify(rows, fetch=None):
     return ok, [u for u in urls if u in pages], dropped
 
 
+OPENAI_SYSTEM = SYSTEM.replace(
+    "Zum Schluss genau einmal das Werkzeug report_controls aufrufen. Findest du nichts Verlässliches, rufe es mit\n"
+    "leerer Liste auf.",
+    'Antworte zum Schluss NUR mit einem JSON-Objekt: {"bindings": [{"area": "...", "action": "...", "key_text": "...", '
+    '"url": "..."}]}. Findest du nichts Verlässliches, mit {"bindings": []}.')
+
+
+def _ask_openai(root, game):
+    from . import ai_providers
+    data = ai_providers.openai_web_json(root, OPENAI_SYSTEM, f"Spiel: {game}\nFinde die PC-Standardtasten.")
+    rows = data.get("bindings") if isinstance(data, dict) else None
+    return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
+
+
 def lookup(root, game, client=None):
-    """KI-Suche + Gegenprüfung -> Ergebnis wie bindings.web.lookup (url, site, title, rows, others, template)."""
-    if client is None:
-        import anthropic
-        client = anthropic.Anthropic(api_key=_read_key(root), max_retries=1, timeout=180)
-    rows = _ask(client, game)
+    """KI-Suche + Gegenprüfung -> Ergebnis wie bindings.web.lookup (url, site, title, rows, others, template).
+    Anbieter laut ⚙ Einstellungen (Claude oder OpenAI); die Gegenprüfung ist für beide gleich."""
+    from . import ai_providers
+    if client is None and ai_providers.active(root) == "openai":
+        rows = _ask_openai(root, game)
+    else:
+        if client is None:
+            import anthropic
+            client = anthropic.Anthropic(api_key=_read_key(root), max_retries=1, timeout=180)
+        rows = _ask(client, game)
     ok, urls, dropped = verify(rows)
     if len(ok) < 3:
         raise ValueError(f"KI-Suche: nur {len(ok)} Taste(n) ließen sich auf den Seiten bestätigen "
@@ -140,7 +159,7 @@ def lookup(root, game, client=None):
     main = urls[0] if urls else ""
     host = urllib.parse.urlparse(main).hostname or ""
     tpl = web.to_template(game, ok, main, f"KI-Suche ({web.SITES.get(host, host)})", "")
-    tpl["source"]["note"] = (f"Seiten von Claude gefunden, {len(ok)} Tasten vom Seitenleser bestätigt, "
+    tpl["source"]["note"] = (f"Seiten von der KI gefunden, {len(ok)} Tasten vom Seitenleser bestätigt, "
                              f"{dropped} verworfen - Seiten nicht geprüft vertrauenswürdig, Liste bitte ansehen")
     if len(urls) > 1:
         tpl["source"]["more"] = urls[1:]

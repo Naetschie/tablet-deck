@@ -60,3 +60,5 @@ bindings_learned.json
 bindings_learned.tmp
 # aus dem Netz gelesene Vorlagen (lokal, Inhalte von Ratgeberseiten)
 templates/*/web-*.json
+# Wahl des KI-Anbieters (lokal)
+ai_settings.json

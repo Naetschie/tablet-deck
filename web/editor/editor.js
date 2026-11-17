@@ -277,14 +277,28 @@
 
   // ---------------------------------------------------------------- Einstellungen: KI-Schlüssel
   // Der Schlüssel geht nur zum Hub (Datei secrets/anthropic.key); zurück kommt nur „hinterlegt ja/nein“.
-  var aiKeySet = null;
+  var aiKeySet = null, aiProvTouched = false;
+  function aiProv() { return $("aiProv").value || "anthropic"; }
+  // Anbieter wechseln = als aktiv speichern; Schlüsselzustand des gewählten Anbieters zeigen
+  $("aiProv").onchange = function () {
+    aiProvTouched = true; aiKeyMsg("Wird geladen …");
+    send({ t: "ai_settings_set", provider: aiProv() });
+  };
+  $("aiModel").onchange = function () { send({ t: "ai_settings_set", provider: aiProv(), openai_model: $("aiModel").value.trim() }); };
   function aiKeyMsg(text, cls) { var e = $("aiKeyState"); e.textContent = text; e.className = "hint " + (cls || ""); }
   function aiKeyBusy(b) { ["aiKeySave", "aiKeyCheck", "aiKeyDel"].forEach(function (id) { $(id).disabled = b; }); if (!b) aiKeyButtons(); }
   function aiKeyButtons() { $("aiKeyCheck").disabled = !aiKeySet; $("aiKeyDel").disabled = !aiKeySet; }
   function aiKeyShow(m) {
     aiKeySet = !!m.set;
-    $("genAiNoKey").hidden = aiKeySet;
-    $("genAiRun").title = aiKeySet ? "" : "Erst unter ⚙ Einstellungen einen API-Schlüssel eintragen";
+    if (m.active) {
+      if (!$("setDlg").open || !aiProvTouched) $("aiProv").value = m.provider || m.active;
+      $("aiModel").value = m.openai_model || "";
+      $("aiModelLab").hidden = $("aiProv").value !== "openai";
+      $("aiKeyIn").placeholder = $("aiProv").value === "openai" ? "sk-…" : "sk-ant-…";
+    }
+    var activeSet = m.active_set !== undefined ? !!m.active_set : aiKeySet;
+    $("genAiNoKey").hidden = activeSet;
+    $("genAiRun").title = activeSet ? "" : "Erst unter ⚙ Einstellungen einen API-Schlüssel eintragen";
     aiKeyBusy(false);
     var base = aiKeySet ? "Schlüssel hinterlegt." : "Kein Schlüssel hinterlegt.";
     if (m.check) aiKeyMsg(base + " Prüfung: " + m.check.msg, m.check.ok ? "ok" : "err");
@@ -292,7 +306,7 @@
     else aiKeyMsg(base, aiKeySet ? "ok" : "");
   }
   function openSettings() {
-    $("aiKeyIn").value = ""; aiKeyMsg("Wird geladen …"); send({ t: "ai_key_status" });
+    $("aiKeyIn").value = ""; aiProvTouched = false; aiKeyMsg("Wird geladen …"); send({ t: "ai_key_status" });
     if (!$("setDlg").open) $("setDlg").showModal();
     $("aiKeyIn").focus();
   }
@@ -302,17 +316,19 @@
   $("setDlg").addEventListener("close", function () { $("aiKeyIn").value = ""; });
   $("aiKeySave").onclick = function () {
     var k = $("aiKeyIn").value.trim();
-    if (!/^sk-ant-[A-Za-z0-9_\-]{20,250}$/.test(k)) { aiKeyMsg("Das sieht nicht wie ein Anthropic-API-Schlüssel aus (beginnt mit sk-ant-).", "err"); return; }
+    var okFmt = aiProv() === "openai" ? /^sk-[A-Za-z0-9_\-]{20,300}$/.test(k) && !/^sk-ant-/.test(k) : /^sk-ant-[A-Za-z0-9_\-]{20,250}$/.test(k);
+    if (!okFmt) { aiKeyMsg(aiProv() === "openai" ? "Das sieht nicht wie ein OpenAI-Schlüssel aus (beginnt mit sk-)." :
+      "Das sieht nicht wie ein Anthropic-API-Schlüssel aus (beginnt mit sk-ant-).", "err"); return; }
     if (!ws || ws.readyState !== 1) { aiKeyMsg("Keine Verbindung zur Bridge.", "err"); return; }
     aiKeyBusy(true); aiKeyMsg("Speichere …");
-    send({ t: "ai_key_set", key: k });
+    send({ t: "ai_key_set", provider: aiProv(), key: k });
     $("aiKeyIn").value = "";
   };
   $("aiKeyIn").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); $("aiKeySave").click(); } });
-  $("aiKeyCheck").onclick = function () { aiKeyBusy(true); aiKeyMsg("Prüfe bei Anthropic …"); send({ t: "ai_key_check" }); };
+  $("aiKeyCheck").onclick = function () { aiKeyBusy(true); aiKeyMsg("Prüfe beim Anbieter …"); send({ t: "ai_key_check", provider: aiProv() }); };
   $("aiKeyDel").onclick = function () {
     if (!confirm("API-Schlüssel von diesem PC entfernen? „Mit KI erstellen“ geht danach erst wieder mit neuem Schlüssel.")) return;
-    aiKeyBusy(true); send({ t: "ai_key_delete" });
+    aiKeyBusy(true); send({ t: "ai_key_delete", provider: aiProv() });
   };
   // Prompt der KI: fester Teil nur zur Ansicht, änderbarer Teil wird in diesem Browser gemerkt
   var PROMPT_STORE = "td-ai-style-prompt", promptDefault = "";
@@ -380,7 +396,7 @@
   $("genWebAi").onclick = function () {
     if (!cur.game) return;
     $("genWebAi").disabled = true;   // kostenpflichtig: nicht doppelt
-    $("genWebOut").innerHTML = ""; $("genWebOut").appendChild(el("p", { cls: "hint", text: "Claude sucht und liest Seiten, danach Prüfung … (meist 1–3 Minuten)" }));
+    $("genWebOut").innerHTML = ""; $("genWebOut").appendChild(el("p", { cls: "hint", text: "KI sucht und liest Seiten, danach Prüfung … (meist 1–3 Minuten)" }));
     send({ t: "web_find", game: cur.game, ai: true });
   };
   $("genWebFind").onclick = function () {
