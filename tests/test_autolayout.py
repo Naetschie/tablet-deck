@@ -83,6 +83,30 @@ class AutoLayoutTest(unittest.TestCase):
         for p in lay["pages"]:
             self.check_page(p)
 
+    def test_two_shields_on_separate_pages(self):
+        z = {"front": {"label": "V", "action": "f"}, "back": {"label": "H", "action": "b"}}
+        spec = {"sections": [{"title": "S", "areas": [{"title": "A", "shield": z}, {"title": "B", "shield": z}]}]}
+        lay = build(spec)
+        self.assertEqual(len(lay["pages"]), 2)
+
+    def test_limits_and_types(self):
+        many = {"sections": [{"title": "S", "areas": [{"title": f"B{i}", "items": keys(2)} for i in range(13)]}]}
+        for bad in (many,
+                    {"sections": [{"title": "S", "areas": [{"title": "A", "items": keys(61)}]}]},
+                    {"sections": [{"title": "S", "areas": [{"title": "A", "items": None}]}]},
+                    {"sections": [{"title": "S", "areas": [{"title": "A", "items": ["x"]}]}]},
+                    {"sections": [{"title": "S", "areas": {"a": 1}}]},
+                    {"sections": [{"title": 5, "areas": []}]},
+                    {"sections": [{"title": "S", "areas": [{"title": "A", "shield": "vorn"}]}]},
+                    {"sections": [{"title": "S", "areas": [{"title": "A", "items": [
+                        {"pair": [{"label": "a", "action": "a"}, {"label": "b", "action": "b"}], "dirs": ["up"]}]}]}]}):
+            with self.assertRaises(ValueError) as cm:
+                build(bad)
+            self.assertNotIn("NoneType", str(cm.exception))
+        for style in ([], 5, None):
+            with self.assertRaises(ValueError):
+                build(cockpit(), style)
+
     def test_invalid(self):
         for bad in ({}, {"sections": []}, {"pages": []}, {"sections": [{"title": "S", "areas": [
                 {"title": "A", "items": [{"label": "x", "action": "a", "size": "riesig"}]}]}]},

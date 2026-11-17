@@ -24,6 +24,9 @@ log = logging.getLogger("generate")
 ID = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
 
 
+_LIST_CACHE = {}   # (Datei, Änderungszeit) -> Eintrag: semantische Vorlagen nicht bei jedem Auflisten anordnen
+
+
 def list_templates(root, game):
     """[{id, title, pages}] der Vorlagen eines Spiels (fehlerhafte Dateien werden übersprungen)."""
     d = Path(root) / "templates" / game
@@ -34,12 +37,18 @@ def list_templates(root, game):
         if not ID.fullmatch(f.stem):
             continue
         try:
+            ck = (str(f), f.stat().st_mtime_ns)
+            if ck in _LIST_CACHE:
+                out.append(_LIST_CACHE[ck])
+                continue
             t = json.loads(f.read_text(encoding="utf-8"))
             semantic = is_semantic(t)
             lay = auto_build(t) if semantic else t
             validate_layout(lay)
-            out.append({"id": f.stem, "title": t.get("title", f.stem), "semantic": semantic,
-                        "pages": [{"id": p["id"], "title": p["title"]} for p in lay["pages"]]})
+            entry = {"id": f.stem, "title": t.get("title", f.stem), "semantic": semantic,
+                     "pages": [{"id": p["id"], "title": p["title"]} for p in lay["pages"]]}
+            _LIST_CACHE[ck] = entry
+            out.append(entry)
         except (ValueError, OSError) as e:
             log.error("Vorlage %s/%s fehlerhaft: %s", game, f.stem, e)
     return out

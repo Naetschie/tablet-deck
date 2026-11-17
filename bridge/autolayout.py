@@ -18,6 +18,7 @@ Darstellung (style):
 """
 import itertools
 import re
+import time
 
 from .layout import validate_layout
 
@@ -27,6 +28,8 @@ INNER_WIDTHS = (4, 6, 8, 10, 12, 14, 22)   # Innenbreite eines Bereichs (gerade,
 SHIELD_W, SHIELD_H = 10, 7
 TASTE_FIELDS = ("label", "sc", "action", "key", "style", "mode", "hold", "look", "dir", "press_ms")
 MAX_COMBOS = 50000
+MAX_SECTIONS, MAX_AREAS, MAX_ITEMS = 12, 12, 60   # Obergrenzen (Vorlagen und KI-Ausgaben)
+TIME_BUDGET_S = 0.5   # Suche je Anordnung; danach gilt die beste bisher gefundene
 
 
 def _slug(text):
@@ -54,6 +57,35 @@ def _button(t, ids, prefix):
     return b
 
 
+def _check_spec(spec):
+    """Aufbau prüfen und Fehler mit Ort melden (statt Python-Interna); Obergrenzen gegen lange Rechenzeiten."""
+    secs = spec.get("sections")
+    if not isinstance(secs, list) or not secs or len(secs) > MAX_SECTIONS:
+        raise ValueError(f"Vorlage braucht 1-{MAX_SECTIONS} sections")
+    for si, s in enumerate(secs):
+        if not isinstance(s, dict) or not isinstance(s.get("title"), str) or not s["title"].strip():
+            raise ValueError(f"Section {si + 1}: title fehlt")
+        areas = s.get("areas")
+        if not isinstance(areas, list) or len(areas) > MAX_AREAS:
+            raise ValueError(f"{s['title']!r}: areas muss eine Liste mit höchstens {MAX_AREAS} Bereichen sein")
+        for a in areas:
+            if not isinstance(a, dict):
+                raise ValueError(f"{s['title']!r}: Bereich muss ein Objekt sein")
+            where = f"{s['title']!r} / {a.get('title')!r}"
+            items = a.get("items", [])
+            if not isinstance(items, list) or len(items) > MAX_ITEMS:
+                raise ValueError(f"{where}: items muss eine Liste mit höchstens {MAX_ITEMS} Einträgen sein")
+            for it in items:
+                if not isinstance(it, dict):
+                    raise ValueError(f"{where}: jeder Eintrag in items muss ein Objekt sein")
+                for tt in (it["pair"] if isinstance(it.get("pair"), list) else [it]):
+                    if not isinstance(tt, dict):
+                        raise ValueError(f"{where}: Taste im Paar muss ein Objekt sein")
+            sh = a.get("shield")
+            if sh is not None and not (isinstance(sh, dict) and sh and all(isinstance(v, dict) for v in sh.values())):
+                raise ValueError(f"{where}: shield muss Zonen mit Tasten enthalten")
+
+
 def _area_items(area):
     """Bereich -> Liste von Bausteinen (w, h, [Tasten mit Zusatz])."""
     out = []
@@ -62,6 +94,8 @@ def _area_items(area):
             if not (isinstance(it["pair"], list) and len(it["pair"]) == 2):
                 raise ValueError(f"{area.get('title')!r}: pair braucht genau zwei Tasten")
             dirs = it.get("dirs", ["down", "up"])
+            if not (isinstance(dirs, list) and len(dirs) == 2):
+                raise ValueError(f"{area.get('title')!r}: dirs braucht genau zwei Richtungen")
             out.append(("pair", [dict(t, look="arrow", dir=d) for t, d in zip(it["pair"], dirs)]))
         else:
             size = it.get("size", "m")
@@ -158,7 +192,7 @@ def _expand(rects):
     return [tuple(r) for r in rects], holes
 
 
-def _best_arrangement(areas):
+def _best_arrangement(areas, first=False):
     """Innenbreiten je Bereich so wählen, dass alles auf eine Seite passt und wenig frei bleibt; None = passt nicht."""
     options = []
     for a in areas:
@@ -172,11 +206,15 @@ def _best_arrangement(areas):
         if not opts:
             return None
         options.append(opts)
-    best, n = None, 0
+    # passt rechnerisch gar nicht (schon die kleinsten Bereiche zu groß): Suche sparen
+    if sum(min(box[0] * box[1] for _, box in opts) for opts in options) > COLS * ROWS:
+        return None
+    best, n, start = None, 0, time.monotonic()
     idx = list(range(len(areas)))
     for combo in itertools.product(*options):
         n += 1
-        if n > MAX_COMBOS:
+        # Zeitbudget immer: ohne Fund bis dahin gilt "passt nicht" (Bereich kommt auf die nächste Seite)
+        if n > MAX_COMBOS or time.monotonic() - start > TIME_BUDGET_S:
             break
         boxes = [box for _, box in combo]
         # Packreihenfolge: wie vorgegeben, sonst hohe/breite/große Bereiche zuerst (Skyline hängt davon ab)
@@ -196,6 +234,8 @@ def _best_arrangement(areas):
             if best is None or score < best[0]:
                 best = (score, combo, rects)
             break   # erste passende Reihenfolge genügt
+        if first and best:
+            return best   # nur die Frage „passt es?“ (Aufteilen auf Seiten)
     return best
 
 
@@ -270,7 +310,9 @@ def _split_areas(areas):
     """Bereiche auf Seiten verteilen: so viele wie passen, Rest auf die nächste Seite."""
     pages, cur = [], []
     for a in areas:
-        if cur and _best_arrangement(cur + [a]) is None:
+        # höchstens eine Schiffsansicht je Seite (Zonen sind je Seite eindeutig)
+        two_shields = a.get("shield") and any(c.get("shield") for c in cur)
+        if cur and (two_shields or _best_arrangement(cur + [a], first=True) is None):
             pages.append(cur)
             cur = []
         cur.append(a)
@@ -322,10 +364,11 @@ def layout_grid(spec):
 
 def build(spec, style="areas"):
     """Semantische Vorlage -> geprüftes Panel-Layout."""
-    if not isinstance(spec, dict) or not isinstance(spec.get("sections"), list) or not spec["sections"]:
-        raise ValueError("Vorlage braucht sections")
-    if style not in ("areas", "grid"):
+    if not isinstance(spec, dict):
+        raise ValueError("Vorlage muss ein Objekt sein")
+    if not isinstance(style, str) or style not in ("areas", "grid"):
         raise ValueError("Darstellung muss areas oder grid sein")
+    _check_spec(spec)
     try:
         pages = layout_areas(spec) if style == "areas" else layout_grid(spec)
     except (KeyError, TypeError, AttributeError) as e:
