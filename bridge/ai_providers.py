@@ -174,22 +174,41 @@ def _output_text(resp):
 
 def _json_from_text(text, want="bindings"):
     """Erstes JSON-Objekt im Freitext, das den Schlüssel want hat (auch mehrere Blöcke, Prosa mit Klammern)."""
+    def inner(o, depth=0):
+        """Objekt mit want auch in einer Hülle finden ({"answer": {"bindings": …}})."""
+        if depth > 6:
+            return None
+        if isinstance(o, dict):
+            if want in o:
+                return o
+            vals = o.values()
+        elif isinstance(o, list):
+            vals = o[:50]
+        else:
+            return None
+        for v in vals:
+            hit = inner(v, depth + 1)
+            if hit is not None:
+                return hit
+        return None
+
     dec, first = json.JSONDecoder(), None
-    text, pos, tries = text[:200_000], 0, 0          # begrenzt: kein quadratisches Hängen bei vielen „{“
-    while tries < 300:
+    text, pos, fails = text[:200_000], 0, 0          # begrenzt: kein quadratisches Hängen bei vielen „{“
+    while fails < 300:                               # nur Fehlversuche zählen
         i = text.find("{", pos)
         if i < 0:
             break
-        tries += 1
         try:
             obj, end = dec.raw_decode(text, i)
         except (ValueError, RecursionError):
+            fails += 1
             pos = i + 1
             continue
-        pos = end                                    # hinter dem Objekt weitersuchen, nicht hinein
+        pos = end                                    # hinter dem Objekt weitersuchen; Inneres über inner()
+        hit = inner(obj) if want else None
+        if hit is not None:
+            return hit
         if isinstance(obj, dict):
-            if want in obj:
-                return obj
             first = first or obj
     if first is not None and not want:
         return first

@@ -105,6 +105,9 @@ class ProviderTest(unittest.TestCase):
         self.assertEqual(ai_providers._json_from_text(prose)["bindings"][0]["a"], "{x}")
         with self.assertRaises(ValueError):
             ai_providers._json_from_text("kein JSON {hier}")
+        self.assertEqual(ai_providers._json_from_text('{"result": {"bindings": [1]}}'), {"bindings": [1]})  # Hülle
+        many = '{"a": 1} ' * 400 + '{"bindings": [2]}'
+        self.assertEqual(ai_providers._json_from_text(many), {"bindings": [2]})   # viele gültige Objekte davor
         import time
         t0 = time.monotonic()
         for bad in ("{" * 100000, "[" * 5000 + "{" + "[" * 5000):
