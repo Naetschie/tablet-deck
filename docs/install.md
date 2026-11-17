@@ -211,7 +211,7 @@ SHA-256 `69572e37…aa8c48`. Beim ersten Verbinden fragt Android einmal nach der
   ein). Unter „Prompt ansehen und anpassen“ steht der feste Teil (Regeln) und ein änderbarer Gestaltungsteil. Dafür im
   Editor oben rechts **⚙ Einstellungen** öffnen und einen eigenen Anthropic-API-Schlüssel eintragen
   (console.anthropic.com → API Keys; jede Erzeugung kostet etwas API-Guthaben). „Prüfen“ testet ihn kostenlos,
-  „Entfernen“ löscht ihn. Er liegt nur in `secrets/anthropic.key` (nicht im Git, nicht im Zip, nie im Log).
+  „Entfernen“ löscht ihn. Er liegt nur in `secrets/anthropic.key` bzw. `secrets/openai.key` (nicht im Git, nicht im Zip, nie im Log).
 
 ## Einstellungen (`config.json`)
 

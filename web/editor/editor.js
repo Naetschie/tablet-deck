@@ -289,10 +289,14 @@
   function aiKeyBusy(b) { ["aiKeySave", "aiKeyCheck", "aiKeyDel"].forEach(function (id) { $(id).disabled = b; }); if (!b) aiKeyButtons(); }
   function aiKeyButtons() { $("aiKeyCheck").disabled = !aiKeySet; $("aiKeyDel").disabled = !aiKeySet; }
   function aiKeyShow(m) {
+    // verspätete Antwort für einen anderen Anbieter (schneller Wechsel): nur den Hinweis im Dialog „Automatisch“ nutzen
+    var stale = aiProvTouched && m.provider && m.provider !== aiProv();
+    var activeSet0 = m.active_set !== undefined ? !!m.active_set : !!m.set;
+    if (stale) { $("genAiNoKey").hidden = activeSet0; return; }
     aiKeySet = !!m.set;
     if (m.active) {
       if (!$("setDlg").open || !aiProvTouched) $("aiProv").value = m.provider || m.active;
-      $("aiModel").value = m.openai_model || "";
+      if (document.activeElement !== $("aiModel")) $("aiModel").value = m.openai_model || "";
       $("aiModelLab").hidden = $("aiProv").value !== "openai";
       $("aiKeyIn").placeholder = $("aiProv").value === "openai" ? "sk-…" : "sk-ant-…";
     }

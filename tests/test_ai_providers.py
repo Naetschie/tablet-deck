@@ -87,6 +87,16 @@ class ProviderTest(unittest.TestCase):
         self.assertEqual(out["bindings"][0]["action"], "Jump")
         self.assertEqual(json.loads(calls[0].data)["tools"], [{"type": "web_search"}])
 
+    def test_json_from_text_robust(self):
+        two = 'A: ```json\n{"x": 1}\n``` und ```json\n{"bindings": []}\n```'
+        self.assertEqual(ai_providers._json_from_text(two), {"bindings": []})
+        prose = 'Ergebnis {"bindings": [{"a": "{x}"}]} siehe {Quelle}'
+        self.assertEqual(ai_providers._json_from_text(prose)["bindings"][0]["a"], "{x}")
+        with self.assertRaises(ValueError):
+            ai_providers._json_from_text("kein JSON {hier}")
+        (Path(self.root) / "ai_settings.json").write_text('{"provider": []}', encoding="utf-8")
+        self.assertEqual(ai_providers.settings(self.root)["provider"], "anthropic")   # kaputte Datei: Standard
+
     def test_features_route_to_openai(self):
         ai_providers.save_settings(self.root, "openai")
         spec = {"title": "T", "sections": [{"title": "S", "areas": [{"title": "A", "items": [

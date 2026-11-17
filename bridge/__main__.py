@@ -474,7 +474,11 @@ class Bridge:
                         if t == "ai_settings_set":
                             ai_providers.save_settings(ROOT, msg.get("provider"), msg.get("openai_model"))
                         st = ai_providers.settings(ROOT)
-                        prov = msg.get("provider") if msg.get("provider") in ai_providers.PROVIDERS else st["provider"]
+                        raw_prov = msg.get("provider")
+                        if t in ("ai_key_set", "ai_key_delete", "ai_key_check") and not (
+                                isinstance(raw_prov, str) and raw_prov in ai_providers.PROVIDERS):
+                            raise ValueError("Anbieter fehlt oder unbekannt")   # nie still beim falschen Anbieter
+                        prov = raw_prov if isinstance(raw_prov, str) and raw_prov in ai_providers.PROVIDERS else st["provider"]
                         extra = {}
                         if t == "ai_key_set":
                             ai_providers.save_key(ROOT, prov, msg.get("key"))

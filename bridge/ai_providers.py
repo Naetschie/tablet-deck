@@ -36,7 +36,7 @@ def settings(root):
     except (OSError, ValueError):
         return out
     if isinstance(data, dict):
-        if data.get("provider") in PROVIDERS:
+        if isinstance(data.get("provider"), str) and data["provider"] in PROVIDERS:
             out["provider"] = data["provider"]
         if isinstance(data.get("openai_model"), str) and MODEL_FORMAT.fullmatch(data["openai_model"]):
             out["openai_model"] = data["openai_model"]
@@ -137,7 +137,14 @@ def _openai(key, method, path, body=None, timeout=180, opener=None):
             raise ValueError("OpenAI-Limit erreicht oder kein Guthaben – später erneut versuchen") from None
         if e.code == 404:
             raise ValueError("OpenAI-Modell nicht gefunden – Modellname unter ⚙ Einstellungen prüfen") from None
-        raise ValueError(f"OpenAI-API-Fehler {e.code}") from None
+        detail = ""
+        try:   # nur Fehlercode/-art aus dem JSON, nie den Freitext (könnte Teile des Schlüssels spiegeln)
+            err = json.loads(e.read(65536).decode("utf-8")).get("error") or {}
+            detail = ", ".join(str(err[k])[:60] for k in ("code", "type", "param") if isinstance(err.get(k), str)
+                               and re.fullmatch(r"[\w.\-]{1,60}", err[k]))
+        except (ValueError, OSError, AttributeError):
+            pass
+        raise ValueError(f"OpenAI-API-Fehler {e.code}" + (f" ({detail})" if detail else "")) from None
     except (urllib.error.URLError, OSError):
         raise ValueError("OpenAI-API nicht erreichbar (Internet?)") from None
     except ValueError:
@@ -165,14 +172,21 @@ def _output_text(resp):
     return "".join(parts)
 
 
-def _json_from_text(text):
-    """JSON-Objekt aus Freitext (auch in ```json-Blöcken)."""
-    m = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.S)
-    raw = m.group(1) if m else text[text.find("{"):text.rfind("}") + 1]
-    try:
-        return json.loads(raw)
-    except ValueError:
-        raise ValueError("KI-Antwort ist kein gültiges JSON") from None
+def _json_from_text(text, want="bindings"):
+    """Erstes JSON-Objekt im Freitext, das den Schlüssel want hat (auch mehrere Blöcke, Prosa mit Klammern)."""
+    dec, first = json.JSONDecoder(), None
+    for m in re.finditer(r"\{", text):
+        try:
+            obj, _end = dec.raw_decode(text, m.start())
+        except ValueError:
+            continue
+        if isinstance(obj, dict):
+            if want in obj:
+                return obj
+            first = first or obj
+    if first is not None and not want:
+        return first
+    raise ValueError("KI-Antwort ist kein gültiges JSON")
 
 
 def openai_json(root, system, user, schema, name="antwort", opener=None):
