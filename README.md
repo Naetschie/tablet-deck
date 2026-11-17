@@ -53,8 +53,9 @@ zum nächsten Spielwechsel); `"game_panel": false` in config.json schaltet den K
 
 `profiles/<spiel>/<panel>.json`: ein Panel (Titel, Seiten, Tasten), live neu geladen. `key` =
 Tastenkombination (z. B. `"LALT+F"`), `mode: "hold-confirm"` löst erst nach `holdMs` Halten aus. Tasten
-ohne Belegung sind gestrichelt. Ein altes `layout.json` wird beim ersten Start als
-`profiles/star-citizen/main.json` übernommen.
+ohne Belegung sind gestrichelt. Ein altes `layout.json` (frühe Versionen) wird beim ersten Start als
+`profiles/star-citizen/main.json` übernommen; sonst ist für Star Citizen das mitgelieferte Panel **Cockpit**
+der Standard (siehe `docs/star-citizen.md`).
 
 `panels/<spiel>/<name>.json`: **mitgelieferte** Panels (im Git und im Zip, schreibgeschützt). Sie erscheinen
 im Editor und am Tablet mit Schloss neben den eigenen (`profiles/`), nichts wird verdeckt; intern heißen sie
