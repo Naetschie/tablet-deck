@@ -49,7 +49,7 @@ class CockpitTest(unittest.TestCase):
     def test_lists_instead_of_text_are_value_errors(self):
         # handgeschriebene Panels: Listen/Zahlen in Auswahlfeldern -> Fehlermeldung statt TypeError
         bad(self, free({"kind": ["frame"], "id": "f", "x": 0, "y": 0, "w": 2, "h": 2}))
-        bad(self, free(key(look=["switch"])))
+        bad(self, free(key(look=["big"])))
         bad(self, free(key(look="arrow", dir=["up"])))
         bad(self, free(key(mode=["tap"])))
         bad(self, free(key(style=1)))
@@ -95,18 +95,19 @@ class CockpitTest(unittest.TestCase):
         bad(self, {"pages": [{"id": "p", "title": "P", "buttons": [dict(t)]}]})
 
     def test_look(self):
-        for look, extra in (("switch", {}), ("big", {}), ("pill", {}), ("arrow", {"dir": "up2"}),
-                            ("switch", {"mode": "toggle"}), ("big", {"mode": "hold-confirm", "style": "danger"})):
+        for look, extra in (("big", {}), ("pill", {}), ("arrow", {"dir": "up2"}), ("pill", {"mode": "toggle"}),
+                            ("big", {"mode": "hold-confirm", "style": "danger"})):
             with self.subTest(look=look, extra=extra):
                 validate_layout(free(key(look=look, **extra)))
         for d in ("up", "down", "left", "right", "up2", "down2"):
             validate_layout(free(key(look="arrow", dir=d)))
         bad(self, free(key(look="rund")))
+        bad(self, free(key(look="switch")))                     # Kippschalter wieder entfernt (zeigten keinen Zustand)
         bad(self, free(key(look="arrow")))                       # dir fehlt
         bad(self, free(key(look="arrow", dir="oben")))
         bad(self, free(key(look="pill", dir="up")))              # dir nur mit arrow
         bad(self, free(key(dir="up")))
-        bad(self, free(key(look="switch", states=[{"label": "A"}, {"label": "B"}])))
+        bad(self, free(key(look="big", states=[{"label": "A"}, {"label": "B"}])))
         bad(self, free(key(look="big", slider={"up": "F1", "down": "F2", "steps": 5}, key=None)))
         bad(self, free(key(look="pill", key=None,
                            segment=[{"label": "A", "key": "F1"}, {"label": "B", "key": "F2"}])))
@@ -171,7 +172,7 @@ class CockpitTest(unittest.TestCase):
         buttons = validate_layout(layout)
         self.assertTrue(buttons)
         every = [b for p in layout["pages"] for b in p["buttons"]]
-        self.assertTrue({"switch", "big", "arrow", "pill"} <= {b.get("look") for b in every})
+        self.assertTrue({"big", "arrow", "pill"} <= {b.get("look") for b in every})
         self.assertTrue({"double", "hold-confirm"} <= {b.get("mode") for b in every})
         self.assertTrue({"frame", "text"} <= {b.get("kind") for b in every})
         self.assertTrue(any("segment" in b for b in every))

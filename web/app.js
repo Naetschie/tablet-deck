@@ -132,7 +132,7 @@
         send({ t: "down", id: id, panel: st.panel, state: ni });
       } else send({ t: "down", id: id, panel: st.panel });
       showLast(b);
-      if (b.mode === "toggle" && b.look !== "switch") setToggle(el, id, !el.classList.contains("on"));
+      if (b.mode === "toggle") setToggle(el, id, !el.classList.contains("on"));
     }
   }
 
@@ -280,13 +280,8 @@
     e.setAttribute("data-id", b.id);
     if (b.look === "arrow") {
       e.appendChild(icon(b.dir === "up2" || b.dir === "down2" ? "chev2" : "chev", "arrow", ARROW_ROT[b.dir] || 0));
-    } else if (b.look === "switch") {
-      var sw = h("span", "swtch");   // Kippschalter: zeigt nie An/Aus, leuchtet nur beim Drücken
-      sw.appendChild(h("span", "knob"));
-      e.appendChild(h("span", "lbl", b.label));
-      e.appendChild(sw);
     }
-    if (b.look !== "switch" && (b.label || b.look !== "arrow")) e.appendChild(h("span", "lbl", b.label));
+    if (b.label || b.look !== "arrow") e.appendChild(h("span", "lbl", b.label));
     if (b.states) {
       var row = h("span", "sub states");
       b.states.forEach(function (s) { row.appendChild(h("span", "st", s.label)); });
@@ -303,7 +298,7 @@
       e.appendChild(h("span", "again", "Nochmal tippen"));
     }
     if (guarded) e.appendChild(icon("lock", "lockic"));
-    if (b.mode === "toggle" && b.look !== "switch") {
+    if (b.mode === "toggle") {
       e.appendChild(h("span", "lamp"));
       var on = false;
       try { on = localStorage.getItem("toggle:" + b.id) === "1"; } catch (err) {}

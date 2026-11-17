@@ -19,7 +19,7 @@ Button-Felder:
       Das Tablet schickt {"seg": Index}; label der Taste ist die optionale Überschrift.
   mode double: gesicherte Taste - erst der zweite Tipp innerhalb von 400 ms löst aus (entscheidet das Tablet,
       der Hub sieht nur den Tastendruck). Wie hold-confirm gedacht für style danger (zeigt Schloss und Warnstreifen).
-  look: nur Optik, Verhalten unverändert: switch (Kippschalter, zeigt nie An/Aus), big (großer Hauptknopf),
+  look: nur Optik, Verhalten unverändert: big (großer Hauptknopf),
       arrow (Pfeilsymbol, dazu dir: up | down | left | right | up2 | down2), pill (schmale Leiste).
       Ohne look: normale Kachel. Nicht mit slider/states/segment kombinierbar.
 
@@ -55,7 +55,7 @@ STATE_COUNT = (2, 6)
 STATE_LABEL_MAX = 20
 SLIDER_STEPS = (2, 20)
 SEGMENT_COUNT = (2, 6)
-LOOKS = {"switch", "big", "arrow", "pill"}
+LOOKS = {"big", "arrow", "pill"}
 ARROW_DIRS = {"up", "down", "left", "right", "up2", "down2"}
 KINDS = {"frame", "text", "shield"}
 KIND_FIELDS = {"frame": {"kind", "id", "label", "x", "y", "w", "h"},
