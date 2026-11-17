@@ -402,7 +402,10 @@ class Bridge:
                             raise ValueError("Spiel fehlt oder ungültig")
                         loop = asyncio.get_running_loop()
                         if t == "bind_learn_start":
-                            self.learn_snaps[gi["id"]] = await loop.run_in_executor(None, learn_snapshot, gi)
+                            snap = await loop.run_in_executor(None, learn_snapshot, gi)
+                            while len(self.learn_snaps) >= 4:   # nie beendete Lernläufe begrenzen
+                                self.learn_snaps.pop(next(iter(self.learn_snaps)))
+                            self.learn_snaps[gi["id"]] = snap
                             await ws.send(json.dumps({"t": "bind_learn", "game": gi["id"], "step": "started",
                                                       "files": len(self.learn_snaps[gi["id"]])}))
                         elif t == "bind_learn_done":

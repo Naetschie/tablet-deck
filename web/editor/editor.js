@@ -369,6 +369,7 @@
     }
     $("genSource").textContent = "Tasten kommen aus deiner Belegung im Spiel, sonst aus der Vorlage (Rückfall).";
     genList.forEach(function (t) { sel.appendChild(el("option", { value: t.id, text: t.title })); });
+    sel.appendChild(el("option", { value: "", text: "– keine Vorlage: mit KI neu erstellen –" }));
     renderGenPages(); genStyleHint();
   }
   function renderGenPages() {
@@ -379,7 +380,11 @@
       box.appendChild(el("label", { cls: "check" }, [c, document.createTextNode(p.title)]));
     });
   }
-  $("genTpl").onchange = function () { renderGenPages(); genStyleHint(); $("genReport").innerHTML = ""; $("genTake").disabled = true; };
+  $("genTpl").onchange = function () {
+    var none = !$("genTpl").value;   // ganz neu: nur die KI
+    $("genRun").disabled = none; if (none) $("genAi").open = true;
+    renderGenPages(); genStyleHint(); $("genReport").innerHTML = ""; $("genTake").disabled = true;
+  };
   $("genAiRun").onclick = function () {
     if (!cur.game) return;
     if (!ws || ws.readyState !== 1) { $("genReport").textContent = "Keine Verbindung zum Hub – bitte erneut versuchen."; return; }

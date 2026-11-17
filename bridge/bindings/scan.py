@@ -121,7 +121,7 @@ def search(name, install_dir=None, appid=None, learned=None):
             kind, content = open_bytes(Path(learned).read_bytes()[:MAX_FILE])
             r = read_content(kind, content)
             if r and r.count:
-                cands.append((_rank(r, True, True, 1e18), r, Path(learned)))
+                cands.append((_rank(r, True, True, 1e18), r, Path(learned), True))
             elif kind in ("encrypted", "binary"):
                 return Found("unreadable", message=STATE_TEXT["unreadable"] + " (gelernte Datei)", file=str(learned))
         except OSError:
@@ -129,9 +129,12 @@ def search(name, install_dir=None, appid=None, learned=None):
     dirs, regs = locate.locations(name, install_dir, appid)
     for reg in regs:                          # 2. Registry (Unity PlayerPrefs)
         for text in _registry_texts(reg):
-            r = read_content("text", text)
+            try:
+                r = read_content("text", text)
+            except Exception:  # noqa: BLE001 - ein seltsamer Wert darf die Suche nicht abbrechen
+                continue
             if r and r.count:
-                cands.append((_rank(r, True, True, time.time()), r, "Registry"))
+                cands.append((_rank(r, True, True, time.time()), r, "Registry", True))
             elif r and r.only_changes:
                 only_changes += 1
     for d, user_dir in dirs:                  # 3. Dateien
@@ -144,11 +147,11 @@ def search(name, install_dir=None, appid=None, learned=None):
                     continue
                 strong = STRONG.search(f.name) is not None
                 kind, content = open_bytes(f.read_bytes())
-            except OSError:
+                r = read_content(kind, content)
+            except Exception:  # noqa: BLE001 - eine seltsame Datei darf die Suche nicht abbrechen
                 continue
-            r = read_content(kind, content)
             if r and r.count:
-                cands.append((_rank(r, user_dir, strong, st.st_mtime), r, f))
+                cands.append((_rank(r, user_dir, strong, st.st_mtime), r, f, user_dir))
             elif r and r.only_changes:
                 only_changes += 1
             elif kind in ("encrypted", "binary") and (user_dir or re.search(r"bind|key", f.name, re.I)):
@@ -156,14 +159,24 @@ def search(name, install_dir=None, appid=None, learned=None):
             elif strong and kind == "text" and user_dir and len(content.strip()) > 64:
                 unknown += 1      # fast leere Dateien (z. B. „Input.ini“ mit 2 Bytes) zählen nicht
     if cands:
-        _, r, f = max(cands, key=lambda c: c[0])
+        _, r, f, in_user = max(cands, key=lambda c: c[0])
+        bind = dict(r.bindings)
+        # Benutzerordner hat oft nur die geänderten Tasten (z. B. Input.ini), der Installationsordner den Standard:
+        # zusammenführen (Standard zuerst, eigene Änderungen gewinnen)
+        defaults = [c for c in cands if not c[3] and c[1].method == r.method and c[1].count > r.count]
+        if in_user and defaults:
+            base = dict(max(defaults, key=lambda c: c[1].count)[1].bindings)
+            base.update({a: v for a, v in bind.items() if v[0] or a not in base})
+            bind = base
+        count = sum(1 for v in bind.values() if v[0])
         state = "read" if r.method == "exact" else "recognized"
-        msg = f"{STATE_TEXT[state]} aus {_shown(f)} ({r.count} Tasten)"
+        msg = f"{STATE_TEXT[state]} aus {_shown(f)} ({count} Tasten" + (", mit Standardbelegung" if defaults and in_user
+                                                                          else "") + ")"
         if r.only_changes:
             msg += " – nur geänderte Tasten, die übrigen bitte im Editor eintragen"
         elif r.note and state == "recognized":
             msg += f" – {r.note}"
-        return Found(state, r.bindings, msg, str(f), r.method)
+        return Found(state, bind, msg, str(f), r.method)
     for state, n in (("only_changes", only_changes), ("unreadable", unreadable), ("unknown", unknown)):
         if n:
             return Found(state, message=STATE_TEXT[state] + (f" ({n} Datei(en))" if state != "only_changes" else ""))

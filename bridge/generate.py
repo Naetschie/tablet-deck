@@ -213,6 +213,9 @@ def library_entry(games_entry):
 
 
 LEARNED_FILE = "bindings_learned.json"   # im Lernmodus gefundene Steuerungsdateien {spiel-id: pfad} (lokal)
+_LEARN_LOCK = __import__("threading").Lock()
+_FALLBACK_CACHE = {}   # spiel-id -> (zeit, ergebnis): Suche nicht bei jedem Dialog/Entwurf neu
+FALLBACK_TTL = 30
 
 
 def learned_path(root, gid):
@@ -225,6 +228,12 @@ def learned_path(root, gid):
 
 
 def set_learned(root, gid, path):
+    with _LEARN_LOCK:
+        _FALLBACK_CACHE.pop(gid, None)
+        _set_learned(root, gid, path)
+
+
+def _set_learned(root, gid, path):
     f = Path(root) / LEARNED_FILE
     try:
         data = json.loads(f.read_text(encoding="utf-8"))
@@ -241,9 +250,16 @@ def set_learned(root, gid, path):
 
 
 def _fallback(root, games_entry):
+    import time as _t
+    gid = games_entry.get("id")
+    hit = _FALLBACK_CACHE.get(gid)
+    if hit and _t.monotonic() - hit[0] < FALLBACK_TTL:
+        return hit[1]
     lib = library_entry(games_entry)
-    name = lib.get("name") or games_entry.get("name") or games_entry.get("id")
-    return bindings.find_fallback(name, lib.get("dir"), lib.get("steam"), learned_path(root, games_entry.get("id")))
+    name = lib.get("name") or games_entry.get("name") or gid
+    res = bindings.find_fallback(name, lib.get("dir"), lib.get("steam"), learned_path(root, gid))
+    _FALLBACK_CACHE[gid] = (_t.monotonic(), res)
+    return res
 
 
 def _read_bindings(root, games_entry, with_state=False):
@@ -262,23 +278,25 @@ def _read_bindings(root, games_entry, with_state=False):
         return (result, result.source, "read") if with_state else (result, result.source)
     except (OSError, ValueError, Exception) as e:  # noqa: BLE001 - kaputte XML o. Ä.: mit Vorlage weiter
         log.warning("Belegung %s: %s", games_entry["id"], e)
-        return None, f"Belegung nicht lesbar ({e}) – nur Vorlagentasten"
+        msg = f"Belegung nicht lesbar ({type(e).__name__}) – nur Vorlagentasten"
+        return (None, msg, "unreadable") if with_state else (None, msg)
 
 
 def binding_status(root, games_entry):
     """Für den Editor vor dem Erzeugen: {ok, state, source, count, learned} - woher die Tasten kommen (oder warum
     keine). state: read | recognized | only_changes | unreadable | unknown | none (siehe bindings/scan.py)."""
-    got = _read_bindings(root, games_entry, with_state=True)
-    result, source, state = got if len(got) == 3 else (got[0], got[1], "read" if got[0] else "none")
+    result, source, state = _read_bindings(root, games_entry, with_state=True)
     n = sum(1 for b in result.bindings.values() if b.key) if result else 0
     return {"ok": bool(result and n), "state": state, "source": source, "count": n,
             "learned": bool(learned_path(root, games_entry.get("id"))), "adapter": bool(games_entry.get("bindings"))}
 
 
 def learn_snapshot(games_entry):
-    """Lernmodus Schritt 1: Zustand der Dateien des Spiels merken."""
+    """Lernmodus Schritt 1: Zustand der Dateien des Spiels merken (nur Spiele aus games.json oder der Bibliothek)."""
     from .bindings import scan
     lib = library_entry(games_entry)
+    if not lib and not games_entry.get("exe"):
+        raise ValueError("Spiel nicht in der Bibliothek gefunden")
     return scan.snapshot(lib.get("name") or games_entry.get("name") or games_entry.get("id"), lib.get("dir"),
                          lib.get("steam"))
 

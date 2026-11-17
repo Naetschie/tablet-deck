@@ -10,8 +10,11 @@ import os
 import re
 from pathlib import Path
 
-STOP = {"the", "game", "edition", "complete", "remastered", "remake", "definitive", "of", "and", "for", "ii",
-        "iii", "iv", "deluxe", "ultimate", "gold", "goty", "enhanced", "director's", "cut", "online"}
+STOP = {"the", "game", "games", "edition", "complete", "remastered", "remake", "definitive", "of", "and", "for",
+        "ii", "iii", "iv", "deluxe", "ultimate", "gold", "goty", "enhanced", "director's", "cut", "online",
+        # Hersteller-/Sammelwörter: ein Ordner „Microsoft“ oder „Studio“ gehört nicht zu einem Spiel dieses Namens
+        "microsoft", "studio", "studios", "interactive", "entertainment", "software", "project", "simulator",
+        "world", "total", "steam", "epic", "ubisoft", "electronic", "arts", "windows", "local", "common", "data"}
 
 
 def _home():
@@ -32,6 +35,11 @@ def documents():
     except Exception:  # noqa: BLE001 - kein Windows o. Ä.
         pass
     return home / "Documents"
+
+
+def local_low():
+    home = _home()
+    return Path(os.environ.get("LOCALAPPDATA", home / "AppData" / "Local")).parent / "LocalLow"
 
 
 def bases():
@@ -70,7 +78,8 @@ def name_matches(dirname, names):
         return False
     for n in names:
         sq = _squash(n)
-        if sq and (d == sq or (len(sq) >= 5 and (sq in d or d in sq) and min(len(d), len(sq)) >= 5)):
+        # gleich, Spielname im Ordnernamen, oder Ordnername deckt den größten Teil des Spielnamens ab
+        if sq and (d == sq or (len(sq) >= 5 and sq in d) or (len(d) >= 5 and d in sq and len(d) >= 0.6 * len(sq))):
             return True
         ts = tokens(n)
         if ts and (any(t == d for t in ts) or all(t in d for t in ts)):   # alle bedeutenden Wortteile
@@ -159,7 +168,7 @@ def locations(name, install_dir=None, appid=None):
                     continue
     if unity:
         company, product = unity
-        p = bases()[6] / company / product   # LocalLow
+        p = local_low() / company / product
         if p.is_dir() and p not in [d for d, _ in dirs]:
             dirs.append((p, True))
         regs.append(rf"Software\{company}\{product}")

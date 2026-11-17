@@ -81,7 +81,7 @@ def read_unreal_ini(text):
         if not key or f.get("Key", "").lower().startswith(("left mouse", "mouse", "gamepad")):
             out[act] = (None, False, f"nur Maus/Controller ({f.get('Key', '')})")
             continue
-        mods = [m for flag, m in (("bCtrl", "LCTRL"), ("bAlt", "LALT"), ("bShift", "LSHIFT"))
+        mods = [m for flag, m in (("bCtrl", "LCTRL"), ("bShift", "LSHIFT"), ("bAlt", "LALT"))
                 if f.get(flag, "False").lower() == "true"]
         out[act] = ("+".join(mods + [key]), False, "")
     return Read(out, "exact") if out else None
@@ -185,13 +185,31 @@ def read_unity_json(text):
 
 # ---------------------------------------------------------------- allgemeiner Leser
 ACTION_FIELDS = ("action", "actionname", "name", "id", "command", "cmd", "function", "func", "concept", "binding")
-KEY_FIELDS = ("key", "keys", "keyboard", "btn", "button", "input", "path", "primary", "keycode", "shortcut",
-              "hotkey", "bind", "value", "code")
+# Feldnamen, die sicher eine Taste meinen (nicht „value“, „code“, „input“: dort stehen meist andere Werte)
+KEY_FIELDS = ("key", "keys", "keyboard", "btn", "button", "primary", "keycode", "shortcut", "hotkey", "bind",
+              "path", "secondary")
+MIN_SHARE = 0.7   # allgemeiner Leser: so viel der Einträge müssen Tasten sein (sonst ist es eine Einstellungsdatei)
+
+
+def _unambiguous(value):
+    """Wert ist eindeutig eine Taste, auch ohne Feldnamen: Kombination, F-Taste, Ziffernblock, Zusatztaste,
+    DirectInput-/Unity-Schreibweise. Einzelbuchstaben und Wörter wie „Left“, „Add“, „Back“ sind es nicht."""
+    v = str(value).strip()
+    k = kn.text_key(v)
+    if not k:
+        return None
+    if "+" in v or "<" in v or v.startswith(("DIK_", "/")) or re.fullmatch(r"k[A-Z0-9]\w*", v):
+        return k
+    if re.fullmatch(r"F([1-9]|1[0-2])", k) or k.startswith("NUMPAD") or k in kn.MODS or k in ("SPACE", "ESC",
+                                                                                               "ENTER", "TAB"):
+        return k if len(v) > 1 else None
+    return None
 MOD_FIELDS = ("modifier", "modifiers", "mod", "mods")
 KEY_TAGS = ("key", "btn", "button", "binding", "input", "shortcut", "hotkey", "keyboard")
 
 
 def _key_with_mods(value, mods):
+    # nur aus Feldern, die ausdrücklich eine Taste meinen (KEY_FIELDS/KEY_TAGS) - dort sind Ziffern echte Tasten
     k = kn.text_key(value)
     if not k:
         return None
@@ -242,11 +260,11 @@ def _generic_json(text):
                             out.setdefault(act, (k, False, ""))
                             break
             else:
-                # {"Jump": "Space", …} - Aktionsname als Schlüssel
+                # {"Jump": "Ctrl+J", …} - Aktionsname als Schlüssel: nur eindeutige Tasten
                 for k, v in o.items():
                     if isinstance(v, str) and len(str(k)) > 2 and not str(k).lower() in KEY_FIELDS:
-                        kk = kn.text_key(v)
-                        if kk and not v.strip().isdigit():
+                        kk = _unambiguous(v)
+                        if kk:
                             out.setdefault(str(k), (kk, False, ""))
             for v in o.values():
                 walk(v, depth + 1)
@@ -261,29 +279,43 @@ _INI = re.compile(r"^\s*([A-Za-z][\w .\-/]{1,60}?)\s*[=:]\s*\"?([^\";#]{1,40}?)\
 
 
 def _generic_ini(text):
-    out = {}
+    """Zeilen „Aktion = Taste“. Mehrdeutige Werte (A, Left, Add) nur, wenn die Datei überwiegend aus Tasten besteht."""
+    out, plain, entries = {}, {}, 0
     for line in text.splitlines():
         m = _INI.match(line)
         if not m:
             continue
+        entries += 1
         act, val = m.group(1).strip(), m.group(2).strip()
         if val.isdigit() or act.lower() in KEY_FIELDS:
             continue   # Zahlen sind in INIs meist Werte, keine Tasten
-        k = kn.text_key(val)
-        if k and not k.isdigit():   # „Workers=1“ ist ein Wert, keine Taste
+        k = _unambiguous(val)
+        if k:
             out.setdefault(act, (k, False, ""))
+            continue
+        k = kn.text_key(val)
+        if k and not k.isdigit():
+            plain.setdefault(act, (k, False, ""))
+    # mehrdeutige Werte nur, wenn die Datei überwiegend Tasten enthält und mindestens zwei eindeutige
+    if entries and len(out) >= 2 and (len(out) + len(plain)) / entries >= MIN_SHARE:
+        for a, v in plain.items():
+            out.setdefault(a, v)
     return out
 
 
 def read_generic(text):
     """Unbekanntes Format: Paare aus Aktionsname + bekanntem Tastennamen. Ergebnis immer „bitte prüfen“."""
     s = text.lstrip()
+    out = None
     try:
         if s.startswith("<"):
             out = _generic_xml(text)
         elif s.startswith(("{", "[")):
-            out = _generic_json(text)
-        else:
+            try:
+                out = _generic_json(text)
+            except ValueError:
+                out = None   # „[Abschnitt]“ einer INI ist kein JSON
+        if out is None:
             out = _generic_ini(text)
     except (ET.ParseError, ValueError, RecursionError):
         return None

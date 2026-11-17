@@ -6,7 +6,6 @@ open_bytes(data) -> (art, inhalt):
   ("encrypted", None)  hohe Entropie ohne bekanntes Packformat - praktisch sicher verschlüsselt
   ("binary", bytes)    binär, aber nicht verschlüsselt (unbekanntes Format)
 """
-import gzip
 import math
 import zlib
 from collections import Counter
@@ -45,7 +44,7 @@ def _text(data):
 def _unpack(data):
     try:
         if data[:2] == b"\x1f\x8b":
-            out = gzip.decompress(data)
+            out = zlib.decompressobj(31).decompress(data, MAX_UNPACKED)   # gzip, begrenzt (keine Bombe)
         elif data[:1] == b"\x78" and data[1:2] in (b"\x01", b"\x5e", b"\x9c", b"\xda"):
             d = zlib.decompressobj()
             out = d.decompress(data, MAX_UNPACKED)

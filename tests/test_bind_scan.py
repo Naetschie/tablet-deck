@@ -113,6 +113,27 @@ class ReadersTest(unittest.TestCase):
         self.assertIsNone(read_content("text", ini))                     # Zahlen sind keine Tasten, zu wenig Paare
 
 
+class ReviewTest(unittest.TestCase):
+    def test_no_false_positives(self):
+        ini = "Align=Left\nDock=Right\nMode=Add\nChannel=A\nDir=Back\nNext=Next\nVolume=5\nQuality=High\n"
+        self.assertIsNone(read_content("text", ini))
+        vals = json.dumps([{"name": n, "value": v} for n, v in (("Volume", "5"), ("Music", "3"), ("Fx", "4"),
+                                                                 ("A", "2"), ("B", "1"))])
+        self.assertIsNone(read_content("text", vals))
+        self.assertIsNone(read_content("text", json.dumps({"Alignment": "Left", "Anchor": "Right", "Theme": "Tab",
+                                                            "Grade": "B", "Mode": "Add"})))
+        keys = "[Keys]\nJump=Space\nUse=E\nMap=M\nInventory=I\nCrouch=C\nSprint=LeftShift\n"
+        self.assertEqual(read_content("text", keys).count, 6)   # „[Keys]“ ist kein JSON
+
+    def test_gzip_bomb_limited(self):
+        kind, content = open_bytes(gzip.compress(bytes(50_000_000)))
+        self.assertLessEqual(len(content or b""), 8 * 1024 * 1024)
+
+    def test_local_low_and_stop_words(self):
+        self.assertEqual(locate.local_low().name, "LocalLow")
+        self.assertFalse(locate.name_matches("Microsoft", ["Microsoft Flight Simulator"]))
+
+
 class LocateTest(unittest.TestCase):
     def test_name_matching(self):
         self.assertTrue(locate.name_matches("Zomboid", ["Project Zomboid"]))
@@ -159,6 +180,23 @@ class SearchTest(unittest.TestCase):
                 res, msg, state = bindings.find_fallback("Testspiel")
                 self.assertTrue(res.bindings["UAToggleNVG"].hold)
                 self.assertTrue(res.free)
+
+    def test_defaults_merged_and_bad_file_skipped(self):
+        with tempfile.TemporaryDirectory() as d:
+            home, local, env = self.env(d)
+            inst = Path(d) / "steam" / "Mischspiel"
+            (inst / "Config").mkdir(parents=True)
+            (inst / "Config" / "Input.ini").write_text(UE, encoding="utf-8")      # Standard (Installationsordner)
+            user = local / "Mischspiel" / "Saved" / "Config"
+            user.mkdir(parents=True)
+            (user / "Input.ini").write_text(
+                'ActionMappings=(ActionName="Jump",bShift=False,bCtrl=False,bAlt=False,bCmd=False,Key=J)\n',
+                encoding="utf-8")                                                 # nur eine Änderung
+            (user / "keys_broken.xml").write_text("<preset><input", encoding="utf-8")   # kaputt
+            with mock.patch.dict(os.environ, env), mock.patch.object(locate, "documents", lambda: home / "Documents"):
+                fd = scan.search("Mischspiel", str(inst))
+            self.assertEqual((fd.bindings["Jump"][0], fd.bindings["QuickSave"][0]), ("J", "LCTRL+F5"))
+            self.assertIn("Standardbelegung", fd.message)
 
     def test_learn_mode(self):
         with tempfile.TemporaryDirectory() as d:
