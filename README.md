@@ -4,6 +4,10 @@ Lenovo Tab M10 HD (TB-X505F) als USB-Erweiterung für den Windows-PC: Bedienpane
 Touchpad, Medien und Lautstärke, Zweitbildschirm (spacedesk).
 Tablet-Einrichtung: [docs/tablet-setup.md](docs/tablet-setup.md).
 
+**Bedienung mit Bildern: [docs/guide.md](docs/guide.md)**
+
+![Spiel-Panel am Tablet (Star Citizen)](docs/bilder/tablet-panel-flug.png)
+
 ```
 Tablet: LineageOS-GSI + Magisk ── Launcher-App "Tablet Deck" (Startbildschirm)
           │  WebViews: Panel /, Touchpad + Medien /touchpad/  ·  Steuerseite /ctl.html
