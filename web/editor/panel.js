@@ -190,6 +190,8 @@
   function addPayload(pl, drop) {
     var p = page();
     if (!layout || !p) return;
+    var blk = pl.kind === "block" ? PL.BLOCKS.filter(function (x) { return x.kind === pl.block; })[0] : null;
+    if (blk && blk.free && !isFree(p)) { api.status(blk.label + " gibt es nur auf freien Seiten (Raster).", "err"); return; }
     var b = pl.kind === "block" ? PL.newBlock(pl.block, layout, p) : PL.buttonFromAction(pl.entry, layout, p);
     var opts = { kind: pl.kind === "block" ? pl.block : PL.kindOf(b) };
     if (drop) { opts.at = drop.at; opts.index = drop.index; opts.zone = drop.zone; if (typeof drop.group === "string") opts.group = drop.group; }
@@ -230,9 +232,12 @@
       s.appendChild(span("fill")); s.appendChild(span("lbl", b.label)); s.appendChild(span("val", "0 / " + b.slider.steps));
       return s;
     }
-    var e = div("key btn " + (b.style || "") + " " + (extra || "") + (b.wide ? " wide" : "") + (mapped ? "" : " nomap") + (dups.byId[b.id] ? " dup" : ""));
+    var guarded = b.style === "danger" && (b.mode === "hold-confirm" || b.mode === "double");
+    var e = div("key btn " + (b.style || "") + " " + (extra || "") + (b.wide ? " wide" : "") + (mapped ? "" : " nomap") +
+      (dups.byId[b.id] ? " dup" : "") + (b.look ? " look-" + b.look : "") + (guarded ? " guarded" : ""));
     e.setAttribute("data-id", b.id);
     if (dups.byId[b.id]) e.title = "Gleiche Taste wie: " + dupText(b, page());
+    if (b.look === "arrow") e.appendChild(span("arrow", ARROWS[b.dir] || "▲"));
     e.appendChild(span("lbl", b.label));
     if (b.states) {
       var row = span("sub states");
@@ -243,6 +248,7 @@
     else if (b.macro) e.appendChild(span("sub", PL.artOf(b) === "media" ? "Medien" : "Makro"));
     else if (b.open) e.appendChild(span("sub", "öffnen"));
     if (b.mode === "hold-confirm") { e.appendChild(span("hint", "HALTEN")); e.appendChild(span("bar")); }
+    if (b.mode === "double") e.appendChild(span("hint", "2× TIPPEN"));
     if (b.mode === "toggle") e.appendChild(span("lamp"));
     if (PL.hasPlaceholder(b)) e.title = "Platzhalter – echten Wert eintragen";
     return e;
@@ -272,6 +278,33 @@
     return root;
   }
 
+  var ARROWS = { up: "▲", down: "▼", left: "◀", right: "▶", up2: "⏶⏶", down2: "⏷⏷" };
+  var SHIP_PATH = "M300,85 L318,140 L322,175 L395,215 L398,240 L325,232 L320,262 L345,290 L345,302 " +
+    "L300,296 L255,302 L255,290 L280,262 L275,232 L202,240 L205,215 L278,175 L282,140 Z";
+
+  // Schiffsansicht eines freien Seite (kind shield): Zonen-Tasten der Seite als Dreiecke, Reset auf dem Schiff
+  function makeShieldEl(sh, p) {
+    var e = div("fshield"), byZone = {};
+    e.setAttribute("data-id", sh.id);
+    p.buttons.forEach(function (b) { if (b.zone && !PL.isPlaced(b)) byZone[b.zone] = b; });
+    var s = svg("svg", { viewBox: "0 0 600 400", preserveAspectRatio: "xMidYMid meet" });
+    var zones = { front: ["0,0 600,0 300,200", 300, 34], back: ["0,400 600,400 300,200", 300, 368],
+      left: ["0,0 0,400 300,200", 64, 200], right: ["600,0 600,400 300,200", 536, 200] };
+    Object.keys(zones).forEach(function (z) {
+      var b = byZone[z], poly = svg("polygon", { points: zones[z][0], "class": "zone" + (b ? "" : " empty") });
+      if (b) poly.setAttribute("data-id", b.id);
+      s.appendChild(poly);
+      if (b) { var t = svg("text", { x: zones[z][1], y: zones[z][2], "class": "zlabel" }); t.textContent = b.label; s.appendChild(t); }
+    });
+    var ship = svg("path", { "class": "ship" + (byZone.reset ? " hit" : ""), d: SHIP_PATH,
+      transform: "translate(300 200) scale(1.3) translate(-300 -193)" });
+    if (byZone.reset) ship.setAttribute("data-id", byZone.reset.id);
+    s.appendChild(ship);
+    if (byZone.reset) { var rl = svg("text", { x: 300, y: 224, "class": "zlabel slabel" }); rl.textContent = byZone.reset.label; s.appendChild(rl); }
+    e.appendChild(s);
+    return e;
+  }
+
   var freeEl = null;
   function renderFree(p) {
     var c = p.cols || 12, r = p.rows || 8;
@@ -282,11 +315,30 @@
     for (var i = 0; i < c * r; i++) cells.appendChild(div("cell"));
     root.appendChild(cells);
     var over = PL.overlapSet(p);
-    p.buttons.forEach(function (b) {
-      var e = makeBtn(b, over[b.id] ? "overlap" : "");
+    function place(e, b) {
       e.style.gridColumn = (b.x + 1) + " / span " + b.w;
       e.style.gridRow = (b.y + 1) + " / span " + b.h;
       root.appendChild(e);
+    }
+    // Reihenfolge wie am Tablet: Rahmen hinten, dann Schiff und Text, dann Tasten
+    p.buttons.forEach(function (b) {
+      if (b.kind !== "frame") return;
+      var f = div("frame");
+      f.setAttribute("data-id", b.id);
+      if (b.label) f.appendChild(span("ftitle", b.label));
+      place(f, b);
+    });
+    p.buttons.forEach(function (b) {
+      if (b.kind === "shield") place(makeShieldEl(b, p), b);
+      else if (b.kind === "text") {
+        var t = div("ftext s-" + (b.size || "m") + " a-" + (b.align || "left") + (over[b.id] ? " overlap" : ""));
+        t.setAttribute("data-id", b.id);
+        t.appendChild(span(null, b.label));
+        place(t, b);
+      }
+    });
+    p.buttons.forEach(function (b) {
+      if (!b.kind && PL.isPlaced(b)) place(makeBtn(b, over[b.id] ? "overlap" : ""), b);
     });
     freeEl = root;
     return root;
@@ -401,7 +453,8 @@
       var el = findEl(id);
       if (el) ov.appendChild(box("ov-frame", relRect(el.getBoundingClientRect(), base)));
     });
-    if (sel.length === 1 && isFree(p)) {
+    var only = sel.length === 1 ? btnById(sel[0]) : null;
+    if (only && isFree(p) && PL.isPlaced(only)) {
       var el1 = findEl(sel[0]);
       if (el1) {
         var r = relRect(el1.getBoundingClientRect(), base), hs = 11 / scale;
@@ -441,7 +494,7 @@
     var p = page(), over = PL.overlapSet(p);
     p.buttons.forEach(function (b) {
       var el = findEl(b.id);
-      if (el) { setPos(el, b); el.classList.toggle("overlap", !!over[b.id]); }
+      if (el && PL.isPlaced(b)) { setPos(el, b); el.classList.toggle("overlap", !!over[b.id]); }
     });
     renderOverlay();
   }
@@ -470,7 +523,14 @@
       }
       if (sel.indexOf(id) < 0) setSel([id], id); else primary = id;
       refreshSel();
-      if (p.type !== "shield") drag = { mode: "move", cx: e.clientX, cy: e.clientY, ids: sel.slice(), start: isFree(p) ? ci(e) : null, items: null, moved: false };
+      var b1 = btnById(id);
+      var movable = p.type !== "shield" && !(isFree(p) && b1 && !PL.isPlaced(b1));   // Zonen der Schiffsansicht: nur wählen
+      var ids = sel.filter(function (i) { var x = btnById(i); return !isFree(p) || (x && PL.isPlaced(x)); });
+      if (isFree(p)) sel.forEach(function (i) {   // Rahmen verschieben: was ganz darin liegt, wandert mit
+        var x = btnById(i);
+        if (x && x.kind === "frame") PL.insideFrame(p, x).forEach(function (j) { if (ids.indexOf(j) < 0) ids.push(j); });
+      });
+      if (movable) drag = { mode: "move", cx: e.clientX, cy: e.clientY, ids: ids, start: isFree(p) ? ci(e) : null, items: null, moved: false };
     } else if (isFree(p) && freeEl && freeEl.contains(e.target)) {
       drag = { mode: "marquee", cx: e.clientX, cy: e.clientY, extra: extra, base: extra ? sel.slice() : [], moved: false };
     } else {
@@ -484,7 +544,7 @@
   // Automatische Seite wird beim Ziehen zur freien Seite (Positionen aus der Anordnung), ein Verlaufsschritt
   function gridToFreeForDrag() {
     var p = page();
-    if (!PL.setPageType(p, "free")) { alert("Zu viele Tasten für ein Raster (höchstens 12 × 12) – Seite teilen oder Tasten entfernen."); return false; }
+    if (!PL.setPageType(p, "free")) { alert("Zu viele Tasten für ein Raster (höchstens 24 × 16) – Seite teilen oder Tasten entfernen."); return false; }
     renderPage(); renderProps(); renderToolbar();   // kein eigener Verlaufsschritt: onUp committet (touch() kommt aus onMove)
     toast("Diese Seite ist jetzt frei (Raster) – die Positionen bleiben wie zuvor.", true);
     return true;
@@ -708,6 +768,9 @@
     var p = page();
     if (!p || !sel.length) return;
     var gone = {}; sel.forEach(function (i) { gone[i] = true; });
+    // Schiffsansicht weg: ihre Zonen-Tasten auch (ohne Schiff keine gültige Lage)
+    if (p.buttons.some(function (b) { return gone[b.id] && b.kind === "shield"; }))
+      p.buttons.forEach(function (b) { if (b.zone && !PL.isPlaced(b)) gone[b.id] = true; });
     p.buttons = p.buttons.filter(function (b) { return !gone[b.id]; });
     setSel([]); commit();
   }
@@ -854,6 +917,7 @@
     if (sel.length > 1) { renderMultiProps(box, p); return; }
     var b = sel.length === 1 ? btnById(sel[0]) : null;
     if (!b) { box.appendChild(h("p", { cls: "dim", text: "Taste in der Vorschau wählen (mehrere: Umschalt/Strg-Klick oder Rahmen) oder links einen Baustein einfügen." })); return; }
+    if (b.kind) { renderDecorProps(box, p, b); return; }
     var idBad = h("span", { cls: "hint", text: "" });
     var idIn = input(b.id, function (v) {
       v = v.trim();
@@ -872,11 +936,25 @@
       "Optional. scripts/sc_bindings.py --write trägt dann die Taste aus der Spielbelegung ein."));
     if (p.type === "shield") {
       box.appendChild(field("Zone", select(b.zone, PL.ZONES.map(function (z) { return [z, ZONE_LABELS[z]]; }), function (v) { b.zone = v; refresh(); })));
+    } else if (isFree(p) && !PL.isPlaced(b)) {
+      box.appendChild(h("p", { cls: "hint", text: "Zone der Schiffsansicht: " + (ZONE_LABELS[b.zone] || b.zone) +
+        ". Lage und Größe bestimmt das Schiff-Element." }));
     } else {
       box.appendChild(field("Gruppe (Überschrift)", input(b.group, function (v) { if (v) b.group = v; else delete b.group; refresh(); })));
     }
     box.appendChild(field("Farbe", select(b.style || "", STYLE_OPTIONS, function (v) { if (v) b.style = v; else delete b.style; refresh(); })));
-    if (isFree(p)) {
+    if (!b.slider && !b.states && !b.segment) {
+      box.appendChild(field("Aussehen", select(b.look || "", LOOK_OPTIONS, function (v) {
+        if (v) b.look = v; else delete b.look;
+        if (v === "arrow" && !b.dir) b.dir = "up";
+        if (v !== "arrow") delete b.dir;
+        refresh(); renderProps();
+      })));
+      if (b.look === "arrow") box.appendChild(field("Pfeil", select(b.dir || "up", DIR_OPTIONS, function (v) { b.dir = v; refresh(); })));
+    }
+    if (b.press_ms) box.appendChild(h("p", { cls: "hint", text: "Das Spiel wertet erst einen langen Druck: der Hub hält die Taste " +
+      b.press_ms + " ms (ein Tipp genügt)." }));
+    if (isFree(p) && PL.isPlaced(b)) {
       var cols = p.cols || 12, rows = p.rows || 8;
       var num = function (key, max) {
         var inp = input(b[key], function (v) {
@@ -910,9 +988,45 @@
       h("button", { cls: "ghost", text: "Duplizieren", onclick: duplicateSel }),
       h("button", { cls: "del", text: "Löschen", onclick: removeSel })]));
   }
+  var LOOK_OPTIONS = [["", "Normale Kachel"], ["big", "Großer Hauptknopf"], ["arrow", "Pfeil"], ["pill", "Schmale Leiste"]];
+  var DIR_OPTIONS = [["up", "▲ oben"], ["down", "▼ unten"], ["left", "◀ links"], ["right", "▶ rechts"], ["up2", "▲▲ maximal"], ["down2", "▼▼ minimal"]];
+
+  // Rahmen, Beschriftung, Schiffsansicht: nur Text/Ausrichtung und Lage
+  function renderDecorProps(box, p, b) {
+    var names = { frame: "Bereich (Rahmen)", text: "Beschriftung", shield: "Schiffsansicht" };
+    box.appendChild(h("p", { cls: "hint", text: names[b.kind] + " – ohne Funktion am PC." +
+      (b.kind === "frame" ? " Verschieben nimmt alles mit, was ganz im Rahmen liegt." : "") +
+      (b.kind === "shield" ? " Die Zonen (Vorn, Hinten, Links, Rechts, Reset) sind Tasten in der Liste." : "") }));
+    if (b.kind !== "shield") box.appendChild(field(b.kind === "frame" ? "Titel" : "Text", input(b.label, function (v) {
+      if (b.kind === "frame" && !v) delete b.label; else b.label = v; refresh(); })));
+    if (b.kind === "text") {
+      box.appendChild(h("div", { cls: "row" }, [
+        field("Ausrichtung", select(b.align || "left", [["left", "links"], ["center", "Mitte"], ["right", "rechts"]], function (v) { b.align = v; refresh(); })),
+        field("Größe", select(b.size || "m", [["s", "klein"], ["m", "mittel"], ["l", "groß"]], function (v) { b.size = v; refresh(); }))]));
+    }
+    var cols = p.cols || 12, rows = p.rows || 8;
+    var num = function (key, max) {
+      var inp = input(b[key], function (v) {
+        var n = parseInt(v, 10); if (isNaN(n)) return;
+        b[key] = n;
+        b.w = Math.max(1, Math.min(b.w, cols)); b.h = Math.max(1, Math.min(b.h, rows));
+        b.x = Math.max(0, Math.min(b.x, cols - b.w)); b.y = Math.max(0, Math.min(b.y, rows - b.h));
+        if (String(b[key]) !== inp.value) inp.value = b[key];
+        syncFree(); touch();
+      }, { type: "number", min: 0, max: max });
+      propsInputs[key] = inp;
+      return inp;
+    };
+    box.appendChild(h("div", { cls: "row" }, [field("X", num("x", cols - 1)), field("Y", num("y", rows - 1)),
+      field("Breite", num("w", cols)), field("Höhe", num("h", rows))]));
+    box.appendChild(h("div", { cls: "row" }, [
+      h("button", { cls: "ghost", text: "Duplizieren", onclick: duplicateSel }),
+      h("button", { cls: "del", text: "Löschen", onclick: removeSel })]));
+  }
+
   var ZONE_LABELS = { front: "Vorn", back: "Hinten", left: "Links", right: "Rechts", top: "Oben (Seite)", bottom: "Unten (Seite)", reset: "Reset (Seite)" };
   var MODE_OPTIONS = [["tap", "Drücken (gedrückt halten = Taste gehalten)"], ["hold-confirm", "Erst nach Halten auslösen (gefährlich)"],
-    ["toggle", "Schalter (merkt An/Aus)"]];
+    ["double", "Erst beim zweiten Tipp auslösen (gefährlich)"], ["toggle", "Schalter (merkt An/Aus)"]];
   var STYLE_OPTIONS = [["", "Normal"], ["accent", "Blau"], ["danger", "Orange (Gefahr)"]];
 
   var MEDIA_LABELS = { playpause: "Wiedergabe / Pause", next: "Nächster Titel", prev: "Voriger Titel", stop: "Stopp",
@@ -929,10 +1043,11 @@
       refresh(); renderProps();
     }), def ? def.hint : ""));
     if (CONFIRM_ARTS[art]) {
-      var cf = h("input", { type: "checkbox" }); cf.checked = b.mode === "hold-confirm";
-      cf.onchange = function () { if (cf.checked) b.mode = "hold-confirm"; else delete b.mode; refresh(); };
-      box.appendChild(field("", h("label", { cls: "check" }, [cf, document.createTextNode("Erst nach längerem Halten auslösen (gefährlich)")]),
-        "Schutz gegen versehentliches Tippen: der Finger muss die Haltezeit des Panels liegen bleiben."));
+      var cur0 = b.mode === "hold-confirm" || b.mode === "double" ? b.mode : "";
+      box.appendChild(field("Sicherung", select(cur0, [["", "Keine – Tipp löst aus"], ["hold-confirm", "Erst nach längerem Halten"],
+        ["double", "Erst beim zweiten Tipp"]], function (v) { if (v) b.mode = v; else delete b.mode; refresh(); }),
+        "Schutz gegen versehentliches Tippen (gefährliche Aktionen, z. B. Selbstzerstörung). Mit Farbe Orange zeigt das " +
+        "Tablet Warnstreifen und Schloss."));
     }
     if (kind === "media") {
       var cur = b.macro[0].media, opts = (mediaNames.length ? mediaNames : Object.keys(MEDIA_LABELS));

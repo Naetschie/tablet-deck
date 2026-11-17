@@ -8,7 +8,7 @@
   if (typeof module === "object" && module.exports) module.exports = factory(require("./core.js"));
   else root.PanelLib = factory(root.EditorCore);
 })(typeof self !== "undefined" ? self : this, function (Core) {
-  var MAX_COLS = 16, MAX_ROWS = 12, DEF_COLS = 12, DEF_ROWS = 8;
+  var MAX_COLS = 24, MAX_ROWS = 16, DEF_COLS = 12, DEF_ROWS = 8;   // wie bridge/layout.py (GRID_COLS/ROWS)
   var ZONES = ["front", "back", "left", "right", "top", "bottom", "reset"];
   // Platzhaltertasten der Bausteine (gültig nach layout.py, im Spiel kaum belegt) - der Nutzer trägt die echte ein
   var PLACEHOLDER = { states: "SCROLLLOCK", up: "PGUP", down: "PGDN", open: "https://example.org/" };
@@ -18,7 +18,9 @@
     { kind: "states", label: "Mehrfach-Schalter", hint: "Jeder Tipp schaltet weiter (2–6 Zustände)", w: 2, h: 1 },
     { kind: "slider", label: "Regler", hint: "Ziehen sendet mehr / weniger", w: 4, h: 1 },
     { kind: "page", label: "Seiten-Link", hint: "Wechselt am Tablet die Seite", w: 2, h: 1 },
-    { kind: "macro", label: "Makro-Taste", hint: "Mehrere Schritte nacheinander", w: 2, h: 1 }
+    { kind: "macro", label: "Makro-Taste", hint: "Mehrere Schritte nacheinander", w: 2, h: 1 },
+    { kind: "frame", label: "Bereich (Rahmen)", hint: "Rahmen mit Titel hinter Tasten (nur freie Seiten)", w: 8, h: 6, free: true },
+    { kind: "text", label: "Beschriftung", hint: "Text ohne Funktion (nur freie Seiten)", w: 4, h: 1, free: true }
   ];
 
   function copy(o) { return JSON.parse(JSON.stringify(o)); }
@@ -52,6 +54,8 @@
   function newBlock(kind, layout, page) {
     var id = uniqueId((page ? page.id : "seite") + "_" + (kind === "key" ? "taste" : kind), allIds(layout));
     var b = { id: id, label: "NEU", mode: "tap" };
+    if (kind === "frame") return { kind: "frame", id: id, label: "BEREICH" };
+    if (kind === "text") return { kind: "text", id: id, label: "Text", align: "left", size: "m" };
     if (kind === "states") { b.label = "SCHALTER"; b.key = PLACEHOLDER.states; b.states = [{ label: "AUS" }, { label: "AN" }]; }
     else if (kind === "slider") { b.label = "REGLER"; b.slider = { up: PLACEHOLDER.up, down: PLACEHOLDER.down, steps: 10 }; }
     else if (kind === "page") {
@@ -110,11 +114,22 @@
 
   // ---------------------------------------------------------------- Zellen
   function hits(a, x, y, w, h) { return x < a.x + a.w && a.x < x + w && y < a.y + a.h && a.y < y + h; }
+  // Hat eine Lage im Raster (Zonen der Schiffsansicht nicht)
+  function isPlaced(b) { return typeof b.x === "number" && typeof b.y === "number"; }
+  // Belegt Zellen (Rahmen liegen hinter den Tasten und zählen nicht)
+  function isSolid(b) { return isPlaced(b) && b.kind !== "frame"; }
+  function isDecor(b) { return !!b.kind; }
+  // Elemente, die ganz in einem Rahmen liegen (wandern mit, wenn der Rahmen verschoben wird)
+  function insideFrame(page, f) {
+    return page.buttons.filter(function (b) {
+      return b.id !== f.id && isPlaced(b) && b.x >= f.x && b.y >= f.y && b.x + b.w <= f.x + f.w && b.y + b.h <= f.y + f.h;
+    }).map(function (b) { return b.id; });
+  }
 
   function overlapSet(page) {
-    var s = Object.create(null);
-    page.buttons.forEach(function (a, i) {
-      page.buttons.forEach(function (b, j) { if (i < j && hits(a, b.x, b.y, b.w, b.h)) { s[a.id] = true; s[b.id] = true; } });
+    var s = Object.create(null), solid = page.buttons.filter(isSolid);
+    solid.forEach(function (a, i) {
+      solid.forEach(function (b, j) { if (i < j && hits(a, b.x, b.y, b.w, b.h)) { s[a.id] = true; s[b.id] = true; } });
     });
     return s;
   }
@@ -123,7 +138,7 @@
   function freeSpot(page, w, h, ignore) {
     var c = cols(page), r = rows(page);
     for (var y = 0; y + h <= r; y++) for (var x = 0; x + w <= c; x++) {
-      if (!page.buttons.some(function (b) { return b.id !== ignore && hits(b, x, y, w, h); })) return { x: x, y: y };
+      if (!page.buttons.some(function (b) { return b.id !== ignore && isSolid(b) && hits(b, x, y, w, h); })) return { x: x, y: y };
     }
     return null;
   }
@@ -134,7 +149,7 @@
     for (var y = 0; y + h <= r; y++) for (var x = 0; x + w <= c; x++) {
       var d = (x - tx) * (x - tx) + (y - ty) * (y - ty);
       if (d >= bd) continue;
-      if (!page.buttons.some(function (b) { return b.id !== ignore && hits(b, x, y, w, h); })) { best = { x: x, y: y }; bd = d; }
+      if (!page.buttons.some(function (b) { return b.id !== ignore && isSolid(b) && hits(b, x, y, w, h); })) { best = { x: x, y: y }; bd = d; }
     }
     return best;
   }
@@ -240,7 +255,9 @@
       return true;
     }
     if (v !== "free" && p.type === "free") {
-      p.buttons.forEach(function (b) { delete b.x; delete b.y; delete b.w; delete b.h; });
+      // Rahmen, Beschriftung, Schiffsansicht gibt es nur auf freien Seiten; Zonen nur auf Schild-Seiten
+      p.buttons = p.buttons.filter(function (b) { return !isDecor(b); });
+      p.buttons.forEach(function (b) { delete b.x; delete b.y; delete b.w; delete b.h; if (v !== "shield") delete b.zone; });
       delete p.cols; delete p.rows;
     }
     p.type = v;
@@ -261,7 +278,7 @@
 
   // ---------------------------------------------------------------- Kern-Anbindung (Zellen)
   function toItems(page) {
-    return page.buttons.map(function (b) { return { id: b.id, x: b.x, y: b.y, w: b.w, h: b.h }; });
+    return page.buttons.filter(isPlaced).map(function (b) { return { id: b.id, x: b.x, y: b.y, w: b.w, h: b.h }; });
   }
   function applyItems(page, items) {
     var m = Object.create(null);
@@ -323,7 +340,9 @@
   function duplicate(layout, page, ids) {
     var taken = allIds(layout), made = [], sel = Object.create(null);
     ids.forEach(function (i) { sel[i] = true; });
-    page.buttons.filter(function (b) { return sel[b.id]; }).forEach(function (b) {
+    // Schiffsansicht und ihre Zonen gibt es je Seite nur einmal
+    page.buttons.filter(function (b) { return sel[b.id] && b.kind !== "shield" && !(b.zone && page.type === "free" && !isPlaced(b)); })
+      .forEach(function (b) {
       var c = copy(b);
       c.id = uniqueId(b.id, taken); taken[c.id] = true;
       if (page.type === "free") placeFree(page, c, { x: Math.min(b.x + 1, cols(page) - 1), y: Math.min(b.y + 1, rows(page) - 1) });
@@ -630,8 +649,10 @@
   function kindOf(b) {
     return b.slider ? "slider" : b.states ? "states" : b.macro ? "macro" : b.open !== undefined ? "open" : b.page !== undefined ? "page" : "key";
   }
-  function isMapped(b) { return !!(b.key || b.macro || b.open || b.page || b.slider || b.states); }
+  function isMapped(b) { return isDecor(b) || !!(b.key || b.macro || b.open || b.page || b.slider || b.states); }
   function metaText(b) {
+    if (b.kind) return { frame: "Bereich", text: "Beschriftung", shield: "Schiffsansicht" }[b.kind] || b.kind;
+    if (b.zone && b.x === undefined) b = Object.assign({}, b, { group: "Schild " + b.zone });
     var m = b.macro ? "Makro (" + b.macro.length + ")" : b.open ? "öffnet " + b.open : b.page ? "→ Seite" :
       b.slider ? "Regler (" + b.slider.steps + " Stufen)" :
       b.states ? "Mehrfach: " + b.states.map(function (x) { return x.label; }).join("/") : (b.key || "");
@@ -680,7 +701,7 @@
   }
 
   return {
-    BLOCKS: BLOCKS, ZONES: ZONES, PLACEHOLDER: PLACEHOLDER, MAX_ROWS: MAX_ROWS,
+    BLOCKS: BLOCKS, ZONES: ZONES, isPlaced: isPlaced, isSolid: isSolid, isDecor: isDecor, insideFrame: insideFrame, PLACEHOLDER: PLACEHOLDER, MAX_ROWS: MAX_ROWS,
     allIds: allIds, uniqueId: uniqueId, uniquePageId: uniquePageId,
     blockSize: blockSize, newBlock: newBlock, hasPlaceholder: hasPlaceholder, buttonFromAction: buttonFromAction,
     actionName: actionName, presentSet: presentSet, isPresent: isPresent, filterActions: filterActions,

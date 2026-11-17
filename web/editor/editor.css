@@ -236,3 +236,30 @@ input.bad { border-color: var(--bad) !important; } .hint.warn { color: var(--bad
 .madd { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 button.recording { border-color: var(--danger); color: var(--danger); }
 .mview button { padding: 5px 10px; }
+/* Cockpit-Bausteine in der Vorschau (wie web/style.css am Tablet) */
+.tv .free .frame { position: relative; z-index: 0; min-height: 0; overflow: hidden; cursor: grab;
+  border: 1px solid var(--line); border-radius: var(--r-lg); background: linear-gradient(180deg, var(--s1), rgba(22, 26, 31, .5)); }
+.tv .free .ftitle { position: absolute; top: 7px; left: 12px; right: 12px; padding-left: 10px; overflow: hidden; white-space: nowrap;
+  text-overflow: ellipsis; font: 700 var(--fs-xs)/1.5 var(--fh); color: var(--dim); text-transform: uppercase; letter-spacing: .14em; }
+.tv .free .ftitle::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 2px; background: var(--ac); }
+.tv .free .ftext { z-index: 1; min-height: 0; display: flex; align-items: center; overflow: hidden; color: var(--tx); cursor: grab; }
+.tv .free .ftext.a-center { justify-content: center; text-align: center; } .tv .free .ftext.a-right { justify-content: flex-end; text-align: right; }
+.tv .free .ftext.s-s { font: 500 var(--fs-sm)/1.25 var(--fb); color: var(--dim); } .tv .free .ftext.s-m { font: 600 var(--fs-md)/1.25 var(--fb); }
+.tv .free .ftext.s-l { font: 700 var(--fs-xl)/1.15 var(--fh); }
+.tv .free .ftext.overlap { outline: 1px solid var(--bad); }
+.tv .free .key, .tv .free .btn-slider { z-index: 1; }
+.tv .fshield { z-index: 1; min-width: 0; min-height: 0; display: flex; padding: 2px 6px 6px; cursor: grab; }
+.tv .fshield svg { flex: 1; min-width: 0; min-height: 0; width: 100%; height: 100%; }
+.tv .fshield .zone { stroke: var(--s1); stroke-width: 8; }
+.tv .fshield .zlabel { font-size: 38px; }
+.tv .fshield .zlabel.slabel { font-size: 24px; fill: var(--tx); }
+.tv .fshield .ship.hit { pointer-events: auto; cursor: pointer; }
+.tv .free .btn { font-size: var(--fs-sm); padding: 2px 6px; gap: 2px; }
+.tv .btn .arrow { color: var(--ac); font-size: 16px; line-height: 1; }
+.tv .btn.look-arrow .lbl, .tv .btn.look-pill { font: 700 var(--fs-xs)/1.2 var(--fh); letter-spacing: .08em; text-transform: uppercase; }
+.tv .btn.look-pill { flex-direction: row; border-radius: var(--r-pill); color: var(--dim); }
+.tv .btn.look-big { border-width: 2px; font: 700 var(--fs-lg)/1.1 var(--fh); text-transform: uppercase; }
+.tv .btn.look-big:not(.accent):not(.danger) { border-color: var(--ac); background: var(--acSoft); }
+.tv .btn.guarded { padding-left: 14px; }
+.tv .btn.guarded::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 7px;
+  background: repeating-linear-gradient(135deg, var(--warn) 0 5px, #1B1105 5px 10px); }

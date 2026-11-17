@@ -25,6 +25,7 @@ const lay = (...pages) => ({ title: "T", pages });
 test("Bausteine sind gültige Tasten, auf jeder Seitenart", needPy, () => {
   for (const type of ["grid", "free", "shield"]) {
     for (const blk of L.BLOCKS) {
+      if (blk.free && type !== "free") continue;   // Rahmen/Beschriftung nur auf freien Seiten
       const l = lay({ id: "s", title: "S", type, buttons: [] }, { id: "t", title: "T", buttons: [] });
       if (type === "free") Object.assign(l.pages[0], { cols: 12, rows: 8 });
       const b = L.newBlock(blk.kind, l, l.pages[0]);
@@ -122,13 +123,13 @@ test("Einfügen: Regler ist 4 breit, passt sich schmalem Raster an", () => {
   assert.equal(b.w, 3);
 });
 
-test("Einfügen in volle Seite: Zeilen wachsen bis 12, dann Überlappung gemeldet", () => {
+test("Einfügen in volle Seite: Zeilen wachsen bis 16, dann Überlappung gemeldet", () => {
   const p = free([B("a", 0, 0, 6, 3)]);
   const b = { id: "n", label: "N" };
   assert.deepEqual(L.addButton(p, b, { kind: "key" }), { overlap: false });
   assert.equal(p.rows, 4);
   assert.equal(b.y, 3);
-  const full = free([B("a", 0, 0, 6, 12)], { rows: 12 });
+  const full = free([B("a", 0, 0, 6, 16)], { rows: 16 });
   const c = { id: "m", label: "M" };
   assert.deepEqual(L.addButton(full, c, { kind: "key" }), { overlap: true });
 });
@@ -174,12 +175,27 @@ test("grid -> free: Positionen aus der Anordnung, Tasten bleiben, gültig", need
 
 test("grid -> free mit zu vielen Tasten: abgelehnt, Seite bleibt", () => {
   const buttons = [];
-  for (let i = 0; i < 150; i++) buttons.push({ id: "b" + i, label: "B", wide: true, group: "G" + i });
+  for (let i = 0; i < 400; i++) buttons.push({ id: "b" + i, label: "B", wide: true, group: "G" + i });
   const p = { id: "g", title: "G", type: "grid", buttons };
   assert.equal(L.toFree(p), null);
   assert.equal(L.setPageType(p, "free"), false);
   assert.equal(p.type, "grid");
   assert.equal(p.buttons[0].x, undefined);
+});
+
+test("Rahmen sind Hintergrund, Zonen ohne Lage zählen nicht", () => {
+  const p = free([{ kind: "frame", id: "f", label: "R", x: 0, y: 0, w: 6, h: 4 }, B("a", 1, 1, 2, 1),
+    { kind: "shield", id: "s", x: 6, y: 0, w: 4, h: 3 }, { id: "z", label: "V", zone: "front" }], { cols: 12, rows: 8 });
+  assert.deepEqual(Object.keys(L.overlapSet(p)), []);                          // Taste auf Rahmen: keine Überlappung
+  assert.deepEqual(L.insideFrame(p, p.buttons[0]), ["a"]);
+  assert.deepEqual(L.toItems(p).map((i) => i.id), ["f", "a", "s"]);   // Zone hat keine Lage
+  const b = { id: "n", label: "N" };
+  L.addButton(p, b, { kind: "key" });
+  assert.ok(!(b.x < 10 && b.y < 3 && b.x + b.w > 6));            // nicht auf das Schiff
+  assert.deepEqual(L.duplicate({ pages: [p] }, p, ["s", "z"]), []);   // Schiff/Zonen nie doppelt
+  L.setPageType(p, "grid");
+  assert.deepEqual(p.buttons.map((x) => x.id), ["a", "z", "n"]);   // Rahmen/Schiff entfallen
+  assert.equal(p.buttons[1].zone, undefined);
 });
 
 test("free -> grid entfernt die Lage; -> Schild vergibt Zonen", () => {
