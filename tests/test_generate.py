@@ -71,6 +71,26 @@ class GenerateTest(unittest.TestCase):
                            "a_mouse": Binding(None, False, "nur Maus/Achse (mouse1)")},
                           ["RCTRL+NUMPAD1", "RCTRL+NUMPAD2"], "test")
 
+    def test_filter_spec_sections_and_device(self):
+        from bridge.generate import filter_spec
+        spec = {"sections": [
+            {"title": "A", "areas": [{"title": "X", "items": [
+                {"label": "J", "action": "on_js"}, {"label": "K", "action": "kb"},
+                {"pair": [{"label": "P", "action": "on_js"}, {"label": "P", "action": "kb2"}]},
+                {"pair": [{"label": "Q", "action": "on_js"}, {"label": "Q", "action": "on_js2"}]}]},
+                {"title": "Nur Joystick", "items": [{"label": "J2", "action": "on_js2"}]},
+                {"title": "Schilde", "shield": {"front": {"label": "V", "action": "on_js"}}}]},
+            {"title": "B", "areas": [{"title": "Y", "items": [{"label": "Z", "action": "z"}]}]}]}
+        out, dropped = filter_spec(spec, ["A"], frozenset({"on_js", "on_js2"}))
+        self.assertEqual([s["title"] for s in out["sections"]], ["A"])
+        areas = out["sections"][0]["areas"]
+        self.assertEqual([a["title"] for a in areas], ["X", "Schilde"])          # leerer Bereich fällt weg, Schiff bleibt
+        self.assertEqual(len(areas[0]["items"]), 2)                               # K und das gemischte Paar
+        self.assertEqual(sorted(d["label"] for d in dropped), ["J", "J2", "Q", "Q"])
+        self.assertEqual(len(spec["sections"][0]["areas"][0]["items"]), 4)       # Eingabe unverändert
+        with self.assertRaises(ValueError):
+            filter_spec(spec, ["gibtsnicht"])
+
     def test_semantic_template_press_ms_and_no_decor_rows(self):
         from bridge.autolayout import build
         spec = {"sections": [{"title": "S", "areas": [

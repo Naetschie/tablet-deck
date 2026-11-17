@@ -45,8 +45,10 @@ def list_templates(root, game):
             semantic = is_semantic(t)
             lay = auto_build(t) if semantic else t
             validate_layout(lay)
-            entry = {"id": f.stem, "title": t.get("title", f.stem), "semantic": semantic,
-                     "pages": [{"id": p["id"], "title": p["title"]} for p in lay["pages"]]}
+            # semantisch: Auswahl nach Bereichen (die Seiten entstehen erst je nach Darstellung)
+            pages = ([{"id": s["title"], "title": s["title"]} for s in t["sections"]] if semantic
+                     else [{"id": p["id"], "title": p["title"]} for p in lay["pages"]])
+            entry = {"id": f.stem, "title": t.get("title", f.stem), "semantic": semantic, "pages": pages}
             _LIST_CACHE[ck] = entry
             out.append(entry)
         except (ValueError, OSError) as e:
@@ -54,20 +56,55 @@ def list_templates(root, game):
     return out
 
 
-def load_template(root, game, tid, style="areas"):
-    """Vorlage als Panel-Layout; semantische Vorlagen ordnet das Auto-Layout im gewählten Stil an."""
+def read_template(root, game, tid):
+    """Vorlage roh (Panel-Format oder semantisch)."""
     if not (ID.fullmatch(game or "") and ID.fullmatch(tid or "")):
         raise ValueError("ungültige Vorlage")
-    if style not in STYLES:
-        raise ValueError("Darstellung muss areas oder grid sein")
     f = Path(root) / "templates" / game / f"{tid}.json"
     if not f.is_file():
         raise ValueError("Vorlage nicht gefunden")
-    t = json.loads(f.read_text(encoding="utf-8"))
+    return json.loads(f.read_text(encoding="utf-8"))
+
+
+def load_template(root, game, tid, style="areas"):
+    """Vorlage als Panel-Layout; semantische Vorlagen ordnet das Auto-Layout im gewählten Stil an."""
+    if not isinstance(style, str) or style not in STYLES:
+        raise ValueError("Darstellung muss areas oder grid sein")
+    t = read_template(root, game, tid)
     if is_semantic(t):
         return auto_build(t, style)
     validate_layout(t)
     return t
+
+
+def _act(t):
+    return t.get("sc") or t.get("action") if isinstance(t, dict) else None
+
+
+def filter_spec(spec, sections=None, skip=frozenset()):
+    """Semantische Vorlage einschränken: nur die genannten Bereiche (Section-Titel), ohne Aktionen in skip
+    (schon auf Joystick/Gamepad). Ein Pfeilpaar fällt nur weg, wenn beide Aktionen dort liegen; die
+    Schiffsansicht bleibt immer. Rückgabe (Vorlage, weggelassen [{page, label, action}])."""
+    out, dropped = copy.deepcopy(spec), []
+    if sections is not None:
+        want = set(sections)
+        out["sections"] = [s for s in out["sections"] if s.get("title") in want]
+    for s in out["sections"]:
+        for a in s.get("areas", []):
+            keep = []
+            for it in a.get("items", []):
+                acts = [_act(x) for x in it["pair"]] if isinstance(it.get("pair"), list) else [_act(it)]
+                if skip and acts and all(x in skip for x in acts):
+                    for x, lab in zip(acts, it["pair"] if "pair" in it else [it]):
+                        dropped.append({"page": s["title"], "label": lab.get("label", ""), "action": x})
+                    continue
+                keep.append(it)
+            a["items"] = keep
+        s["areas"] = [a for a in s.get("areas", []) if a.get("items") or a.get("shield")]
+    out["sections"] = [s for s in out["sections"] if s["areas"]]
+    if not out["sections"]:
+        raise ValueError("nichts übrig – keine Seite gewählt oder alles liegt schon auf dem Eingabegerät")
+    return out, dropped
 
 
 def generate(template, result=None, pages=None):
@@ -115,9 +152,13 @@ def generate(template, result=None, pages=None):
 MAX_AI_ACTIONS = 600
 
 
-def ai_draft(root, games_entry, hint=""):
+def ai_draft(root, games_entry, hint="", style_prompt=None, style="areas", skip_device=False):
     """KI-Vorlage (Claude-API) + eigene Belegung -> (layout, bericht, quelle). Mit Belegungsquelle bekommt die KI
-    nur Aktionen, die eine Tastaturbelegung haben (begrenzt); danach setzt generate() die echten Tasten ein."""
+    nur Aktionen, die eine Tastaturbelegung haben (begrenzt; mit skip_device ohne die auf Joystick/Gamepad);
+    sie liefert eine semantische Vorlage, das Auto-Layout ordnet an (style), generate() setzt die echten Tasten
+    ein. Tasten erfindet die KI nie - ohne Belegungsquelle bleiben sie leer."""
+    if not isinstance(style, str) or style not in STYLES:
+        raise ValueError("Darstellung muss areas oder grid sein")
     try:
         import anthropic
     except ImportError:
@@ -128,11 +169,14 @@ def ai_draft(root, games_entry, hint=""):
     if cfg:
         try:
             result = bindings.read(cfg, root)
-            actions = [{"action": a, "key": b.key} for a, b in sorted(result.bindings.items()) if b.key][:MAX_AI_ACTIONS]
-        except Exception as e:  # noqa: BLE001 - ohne Belegung weiter (KI nimmt dann die Standardbelegung)
+            skip = result.on_device if skip_device else frozenset()
+            actions = [{"action": a, "key": b.key} for a, b in sorted(result.bindings.items())
+                       if b.key and a not in skip][:MAX_AI_ACTIONS]
+        except Exception as e:  # noqa: BLE001 - ohne Belegung weiter (Tasten bleiben dann leer)
             log.warning("Belegung %s für KI nicht lesbar: %s", games_entry["id"], e)
     try:
-        template = generate_template(root, games_entry.get("name", games_entry["id"]), actions=actions, hint=hint)
+        spec = generate_template(root, games_entry.get("name", games_entry["id"]), actions=actions, hint=hint,
+                                 style_prompt=style_prompt)
     except anthropic.AuthenticationError:
         raise ValueError("API-Schlüssel ungültig – im Editor unter ⚙ Einstellungen prüfen") from None
     except anthropic.RateLimitError:
@@ -145,8 +189,8 @@ def ai_draft(root, games_entry, hint=""):
         raise ValueError(f"Claude-API-Fehler ({type(e).__name__})") from None
     except (KeyError, AttributeError, IndexError) as e:
         raise ValueError(f"KI-Antwort unbrauchbar ({type(e).__name__})") from None
-    layout, report = generate(template, result)
-    source = "KI-Vorlage (Claude)" + (" + " + result.source if result else ", Tasten nach Standardbelegung – bitte prüfen")
+    layout, report = generate(auto_build(spec, style), result)
+    source = "KI-Vorlage (Claude)" + (" + " + result.source if result else " – ohne Belegung: Tasten selbst eintragen")
     return layout, report, source
 
 
@@ -163,11 +207,25 @@ def _read_bindings(root, games_entry):
         return None, f"Belegung nicht lesbar ({e}) – nur Vorlagentasten"
 
 
-def draft(root, games_entry, tid, pages=None, style="areas"):
-    """Vorlage + Belegung des Spiels (games.json-Eintrag) -> (layout, bericht, quelle)."""
-    template = load_template(root, games_entry["id"], tid, style)
+def draft(root, games_entry, tid, pages=None, style="areas", skip_device=False):
+    """Vorlage + Belegung des Spiels (games.json-Eintrag) -> (layout, bericht, quelle). Semantische Vorlagen:
+    pages = Section-Titel, style = Darstellung, skip_device = Aktionen weglassen, die schon auf Joystick/HOTAS
+    oder Gamepad liegen (stehen dann mit Quelle "weggelassen" im Bericht)."""
+    if not isinstance(style, str) or style not in STYLES:
+        raise ValueError("Darstellung muss areas oder grid sein")
+    raw = read_template(root, games_entry["id"], tid)
     result, source = _read_bindings(root, games_entry)
-    layout, report = generate(template, result, pages)
+    if is_semantic(raw):
+        skip = result.on_device if (skip_device and result) else frozenset()
+        spec, dropped = filter_spec(raw, pages, skip)
+        layout, report = generate(auto_build(spec, style), result)
+        report += [dict(d, id="", key="", page_id="", source="weggelassen",
+                        note="liegt schon auf Joystick/Gamepad") for d in dropped]
+        if skip_device:
+            source += f" · {len(dropped)} Aktion(en) weggelassen (Joystick/Gamepad)"
+        return layout, report, source
+    validate_layout(raw)
+    layout, report = generate(raw, result, pages)
     return layout, report, source
 
 

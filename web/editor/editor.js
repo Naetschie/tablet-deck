@@ -73,6 +73,8 @@
         if (isDirty()) changed(); else status("Gespeichert – Tablet aktualisiert sich", "ok");
       } else if (m.t === "ai_key") {
         aiKeyShow(m);
+      } else if (m.t === "ai_prompt") {
+        genPromptShow(m);
       } else if (m.t === "error" && /^ai_key_/.test(m.req || "")) {
         aiKeyBusy(false); aiKeyMsg("Fehler: " + m.msg, "err");
       } else if (m.t === "error" && (m.req === "generate" || m.req === "templates" || m.req === "ai")) {
@@ -244,6 +246,7 @@
     $("genSource").textContent = "Vorlagen werden geladen …";
     send({ t: "templates", game: cur.game });
     send({ t: "ai_key_status" });
+    send({ t: "ai_prompt" });
     $("genDlg").showModal();
   };
   $("genClose").onclick = function () { $("genDlg").close(); };
@@ -287,6 +290,31 @@
     if (!confirm("API-Schlüssel von diesem PC entfernen? „Mit KI erstellen“ geht danach erst wieder mit neuem Schlüssel.")) return;
     aiKeyBusy(true); send({ t: "ai_key_delete" });
   };
+  // Prompt der KI: fester Teil nur zur Ansicht, änderbarer Teil wird in diesem Browser gemerkt
+  var PROMPT_STORE = "td-ai-style-prompt", promptDefault = "";
+  function storeGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function storeSet(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { /* egal */ } }
+  function genPromptShow(m) {
+    promptDefault = m.style || "";
+    $("genPromptFixed").textContent = m.fixed || "";
+    $("genPromptStyle").maxLength = m.max_style || 4000;
+    var own = storeGet(PROMPT_STORE);
+    $("genPromptStyle").value = own !== null ? own : promptDefault;
+  }
+  $("genPromptStyle").addEventListener("input", function () {
+    var v = $("genPromptStyle").value;
+    storeSet(PROMPT_STORE, v === promptDefault ? null : v);
+  });
+  $("genPromptReset").onclick = function () { $("genPromptStyle").value = promptDefault; storeSet(PROMPT_STORE, null); };
+  function genOptions() { return { style: $("genStyle").value, skip_device: $("genSkipDev").checked }; }
+  function genStyleHint() {
+    var t = genList.filter(function (x) { return x.id === $("genTpl").value; })[0];
+    $("genStyleHint").textContent = t && !t.semantic ? "Diese Vorlage hat feste Seiten – die Darstellung gilt nur für " +
+      "neue Vorlagen und „Mit KI erstellen“." : "";
+  }
+  $("genStyle").onchange = function () { $("genReport").innerHTML = ""; $("genTake").disabled = true; };
+  $("genSkipDev").onchange = $("genStyle").onchange;
+
   function genTemplates(m) {
     genList = m.templates;
     var sel = $("genTpl"); sel.innerHTML = "";
@@ -299,7 +327,7 @@
     $("genSource").textContent = m.bindings ? "Tasten kommen aus deiner Belegung im Spiel, sonst aus der Vorlage."
       : "Keine Belegungsquelle für dieses Spiel – Tasten kommen aus der Vorlage (Standardbelegung des Spiels).";
     genList.forEach(function (t) { sel.appendChild(el("option", { value: t.id, text: t.title })); });
-    renderGenPages();
+    renderGenPages(); genStyleHint();
   }
   function renderGenPages() {
     var box = $("genPages"); box.innerHTML = "";
@@ -309,12 +337,14 @@
       box.appendChild(el("label", { cls: "check" }, [c, document.createTextNode(p.title)]));
     });
   }
-  $("genTpl").onchange = function () { renderGenPages(); $("genReport").innerHTML = ""; $("genTake").disabled = true; };
+  $("genTpl").onchange = function () { renderGenPages(); genStyleHint(); $("genReport").innerHTML = ""; $("genTake").disabled = true; };
   $("genAiRun").onclick = function () {
     if (!cur.game) return;
     if (!ws || ws.readyState !== 1) { $("genReport").textContent = "Keine Verbindung zum Hub – bitte erneut versuchen."; return; }
     $("genAiRun").disabled = true;   // kostenpflichtig: nicht doppelt auslösen
-    send({ t: "ai", game: cur.game, hint: $("genHint").value });
+    var o = genOptions();
+    send({ t: "ai", game: cur.game, hint: $("genHint").value, prompt: $("genPromptStyle").value || null,
+      style: o.style, skip_device: o.skip_device });
     $("genReport").textContent = "KI erstellt die Vorlage … (dauert meist unter einer Minute)";
     $("genTake").disabled = true;
   };
@@ -323,7 +353,8 @@
     var pages = Array.prototype.filter.call($("genPages").querySelectorAll("input"), function (c) { return c.checked; })
       .map(function (c) { return c.value; });
     if (!pages.length) { $("genReport").textContent = "Mindestens eine Seite wählen."; return; }
-    send({ t: "generate", game: cur.game, template: tid, pages: pages });
+    var o = genOptions();
+    send({ t: "generate", game: cur.game, template: tid, pages: pages, style: o.style, skip_device: o.skip_device });
     $("genReport").textContent = "Erzeuge …";
   };
   function genDraft(m) {
@@ -333,14 +364,18 @@
     genLast = { layout: lay, template: m.template };
     var ok = rows.filter(function (r) { return r.source === "Belegung"; }).length;
     var miss = rows.filter(function (r) { return r.source === "fehlt"; }).length;
+    var gone = rows.filter(function (r) { return r.source === "weggelassen"; }).length;
+    rows = rows.filter(function (r) { return r.source !== "weggelassen"; }).concat(
+      rows.filter(function (r) { return r.source === "weggelassen"; }));   // Weggelassenes ans Ende
     var box = $("genReport"); box.innerHTML = "";
-    box.appendChild(el("p", { cls: "gen-sum", text: "Quelle: " + m.source + " · " + rows.length + " Tasten: " + ok +
-      " aus deiner Belegung, " + (rows.length - ok - miss) + " aus der Vorlage, " + miss + " ohne Taste" }));
+    box.appendChild(el("p", { cls: "gen-sum", text: "Quelle: " + m.source + " · " + (rows.length - gone) + " Tasten: " + ok +
+      " aus deiner Belegung, " + (rows.length - ok - miss - gone) + " aus der Vorlage, " + miss + " ohne Taste" +
+      (gone ? ", " + gone + " weggelassen (Joystick/Gamepad)" : "") }));
     var tb = el("tbody");
     rows.forEach(function (r) {
       var note = r.note || "";
       if (r.source === "fehlt" && r.suggest) note += (note ? " – " : "") + "Vorschlag: im Spiel auf " + r.suggest + " legen";
-      tb.appendChild(el("tr", { cls: r.source === "fehlt" ? "fehlt" : "" }, [
+      tb.appendChild(el("tr", { cls: r.source === "fehlt" ? "fehlt" : r.source === "weggelassen" ? "weg" : "" }, [
         el("td", { text: r.page }), el("td", { text: r.label }), el("td", { cls: "k", text: r.key || "–" }),
         el("td", { text: r.source }), el("td", { text: note })]));
     });

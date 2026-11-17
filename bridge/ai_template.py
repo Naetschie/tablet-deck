@@ -1,6 +1,7 @@
 """KI-Vorlage: für ein Spiel ohne handgemachte Vorlage erzeugt Claude eine Panel-Vorlage.
 
-Ergebnis im Layout-Format (title, holdMs, pages, buttons), geprüft mit layout.validate_layout.
+Ergebnis ist eine semantische Vorlage (title, sections -> areas -> items, siehe autolayout.py); Anordnung und
+Tasten setzt das Programm (Auto-Layout, Belegung des Spielers) - die KI erfindet keine Tasten.
 Der API-Schlüssel liegt in secrets/anthropic.key (nie loggen, nie in Meldungen).
 """
 import json
@@ -9,8 +10,6 @@ import os
 import re
 from pathlib import Path
 
-from . import keys
-from .layout import validate_layout
 
 log = logging.getLogger("ai_template")
 
@@ -19,55 +18,74 @@ BETAS = ["server-side-fallback-2026-07-01"]
 KEY_FILE = Path("secrets") / "anthropic.key"
 MAX_HINT = 2000
 
-SYSTEM_PROMPT = """Du entwirfst ein Tasten-Panel für ein Touch-Tablet, das neben dem Spiel liegt.
-Jede Taste löst eine Tastenkombination im Spiel aus.
-Regeln:
-- Beschriftung (label) GROSS geschrieben, kurz (höchstens 22 Zeichen), deutsch.
-- Sinnvolle Seiten (höchstens 4) und Gruppen (group); höchstens 24 Tasten je Seite.
-- Gefährliche oder nicht rückgängig zu machende Aktionen (Schnellladen, Selbstzerstörung, Auflösen):
-  mode "hold-confirm" und style "danger".
-- Umschalter (Licht, Fahrwerk): mode "toggle". Sonst mode "tap".
-- Wichtige Aktionen: style "accent". Sonst style "" (leer).
+# Fester Teil des Prompts („muss so sein“): Format und Ehrlichkeit. Der Nutzer sieht ihn, kann ihn aber nicht ändern.
+FIXED_PROMPT = """Du entwirfst ein Tasten-Panel für ein Touch-Tablet, das neben dem Spiel liegt.
+Jede Taste löst eine Spielaktion aus; die Tastenkombination setzt das Programm später aus der Belegung des
+Spielers ein. Du gibst nur die Gliederung aus, keine Koordinaten - die Anordnung macht das Programm.
+Feste Regeln:
+- Gliederung: sections (Seiten, höchstens 4) -> areas (Bereiche mit Überschrift, höchstens 8 je Seite) ->
+  items (Tasten, höchstens 16 je Bereich).
+- Gibt es eine Liste vorgegebener Aktionen, nutze NUR diese Aktionen, Namen exakt übernehmen. Erfinde keine
+  Aktionen und gib nie Tasten aus. Ohne Liste: action ist eine kurze Beschreibung der Spielfunktion.
+- Gefährliche oder nicht rückgängig zu machende Aktionen (Selbstzerstörung, Schnellladen, Auflösen, Verkaufen):
+  style "danger" und guard "hold" oder "double".
 - Keine Maus- und Achsenaktionen.
-- Tasten im Format wie "LALT+F", "NUMPAD8", "F5", "CTRL+S".
-- Gibt es eine Liste vorgegebener Aktionen, nutze NUR diese Aktionen und Tasten (Taste unverändert übernehmen,
-  Aktion ohne Taste: key null).
-- Ohne Liste: Standardbelegung des Spiels nach bestem Wissen; bei unsicherer Taste key null, lieber null als raten.
-- hold true nur für Tasten, die gehalten werden sollen, sonst false."""
+- kind "pair": zwei gegensätzliche Aktionen (weniger/mehr, zurück/weiter) in action und action2 - erst die
+  „weniger/zurück“-Aktion.
+- Beschriftung (label) deutsch, kurz (höchstens 22 Zeichen); Überschriften höchstens 20 Zeichen."""
 
-_STR_OR_NULL = {"type": ["string", "null"]}
+# Änderbarer Teil (Voreinstellung): Gestaltung. Der Nutzer kann ihn im Editor anpassen.
+DEFAULT_STYLE_PROMPT = """Gestaltung:
+- Seiten nach Spielphasen oder Tätigkeiten (z. B. Kampf, Reisen, Bauen, Menüs), Bereiche nach Thema.
+- Was man im Spiel ständig braucht, kommt auf die erste Seite; Seltenes auf spätere Seiten.
+- size: "m" normal; "l" breit für wichtige Tasten; "xl" groß für die eine Hauptaktion einer Seite (höchstens
+  eine je Seite); "pill" schmale Leiste für Nebensächliches.
+- Gegensätze (mehr/weniger, vor/zurück) als kind "pair".
+- Wichtige Aktionen style "accent", sonst "".
+- Lieber weniger, dafür sinnvolle Tasten: keine Bewegungstasten (WASD), nichts, was man ohnehin blind auf der
+  Tastatur drückt."""
+MAX_STYLE_PROMPT = 4000
+
+_ITEM = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["kind", "label", "action", "action2", "size", "style", "guard"],
+    "properties": {
+        "kind": {"type": "string", "enum": ["key", "pair"]},
+        "label": {"type": "string"},
+        "action": {"type": "string"},
+        "action2": {"type": ["string", "null"], "description": "Nur bei kind pair: die zweite Aktion."},
+        "size": {"type": "string", "enum": ["m", "l", "xl", "pill"]},
+        "style": {"type": "string", "enum": ["", "accent", "danger"]},
+        "guard": {"type": "string", "enum": ["none", "hold", "double"]},
+    },
+}
 SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["title", "pages"],
+    "required": ["title", "sections"],
     "properties": {
         "title": {"type": "string"},
-        "pages": {
+        "sections": {
             "type": "array",
             "description": "Höchstens 4 Seiten.",
             "items": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["id", "title", "buttons"],
+                "required": ["title", "areas"],
                 "properties": {
-                    "id": {"type": "string"},
                     "title": {"type": "string"},
-                    "buttons": {
+                    "areas": {
                         "type": "array",
-                        "description": "Höchstens 24 Tasten je Seite.",
+                        "description": "Höchstens 8 Bereiche je Seite.",
                         "items": {
                             "type": "object",
                             "additionalProperties": False,
-                            "required": ["id", "label", "action", "key", "mode", "style", "group", "hold"],
+                            "required": ["title", "items"],
                             "properties": {
-                                "id": {"type": "string"},
-                                "label": {"type": "string"},
-                                "action": {"type": "string"},
-                                "key": _STR_OR_NULL,
-                                "mode": {"type": "string", "enum": ["tap", "hold-confirm", "toggle"]},
-                                "style": {"type": "string", "enum": ["", "accent", "danger"]},
-                                "group": _STR_OR_NULL,
-                                "hold": {"type": "boolean"},
+                                "title": {"type": "string"},
+                                "items": {"type": "array", "description": "Höchstens 16 Tasten je Bereich.",
+                                          "items": _ITEM},
                             },
                         },
                     },
@@ -78,7 +96,7 @@ SCHEMA = {
 }
 
 
-MAX_PAGES, MAX_BUTTONS = 6, 30   # Obergrenzen, falls die KI mehr liefert als verlangt
+MAX_SECTIONS, MAX_AREAS, MAX_ITEMS = 4, 8, 16   # Obergrenzen, falls die KI mehr liefert als verlangt
 
 
 def _read_key(root):
@@ -156,84 +174,82 @@ def check_key(root, client=None):
     return {"ok": True, "msg": "Schlüssel gültig"}
 
 
-def _slug(text, fallback):
-    s = re.sub(r"[^a-z0-9]+", "_", str(text or "").lower()).strip("_")
-    return s[:40] or fallback
+def _text(v, n):
+    return v.strip()[:n] if isinstance(v, str) else ""
 
 
-def _unique(base, used):
-    cand, n = base, 2
-    while cand in used:
-        cand = f"{base}_{n}"
-        n += 1
-    used.add(cand)
-    return cand
-
-
-def clean(layout):
-    """KI-Antwort bereinigen und prüfen; wirft ValueError bei unbrauchbarem Ergebnis."""
-    if not isinstance(layout, dict) or not isinstance(layout.get("pages"), list):
+def clean(data):
+    """KI-Antwort -> semantische Vorlage (siehe autolayout.py); wirft ValueError bei unbrauchbarem Ergebnis.
+    Tasten (key) werden nie übernommen - die setzt der Generator aus der Belegung ein."""
+    if not isinstance(data, dict) or not isinstance(data.get("sections"), list):
         raise ValueError("KI-Antwort ohne Seiten")
-    title = layout.get("title")
-    hold = layout.get("holdMs")
-    out = {"title": (title.strip() if isinstance(title, str) else "")[:40] or "KI-Vorlage",
-           "holdMs": min(5000, max(200, hold)) if type(hold) is int else 1000,
-           "pages": []}
-    page_ids, button_ids = set(), set()
-    for pi, page in enumerate(layout["pages"][:MAX_PAGES], 1):
-        if not isinstance(page, dict) or not isinstance(page.get("buttons"), list):
+    out = {"title": _text(data.get("title"), 40) or "KI-Vorlage", "holdMs": 1000, "sections": []}
+    seen = set()
+    for si, s in enumerate(data["sections"][:MAX_SECTIONS], 1):
+        if not isinstance(s, dict) or not isinstance(s.get("areas"), list):
             continue
-        buttons = []
-        for bi, b in enumerate(page["buttons"][:MAX_BUTTONS], 1):
-            if not isinstance(b, dict):
+        title = _text(s.get("title"), 20) or f"Seite {si}"
+        while title in seen:                 # Seitengruppen brauchen eindeutige Titel
+            title = (title[:17] + f" {si}")[:20]
+        areas = []
+        for a in s["areas"][:MAX_AREAS]:
+            if not isinstance(a, dict) or not isinstance(a.get("items"), list):
                 continue
-            raw = b.get("label") if isinstance(b.get("label"), str) and b.get("label").strip() else b.get("action")
-            label = (raw.strip() if isinstance(raw, str) else "")[:40] or f"TASTE {bi}"
-            nb = {"id": _unique(_slug(b.get("id") or label, f"taste_{bi}"), button_ids),
-                  "label": label,
-                  "mode": b.get("mode") if b.get("mode") in ("tap", "hold-confirm", "toggle") else "tap"}
-            if isinstance(b.get("action"), str) and b["action"]:
-                nb["action"] = b["action"]
-            key = b.get("key")
-            if isinstance(key, str) and key.strip():
-                key = key.strip().upper().replace(" ", "")
-                try:
-                    keys.parse_combo(key)
-                    nb["key"] = key
-                except KeyError:
-                    log.info("Ungültige Taste der KI entfernt (%s)", nb["id"])
-            if b.get("style") in ("accent", "danger"):
-                nb["style"] = b["style"]
-            if isinstance(b.get("group"), str) and b["group"].strip():
-                nb["group"] = b["group"].strip()
-            if b.get("hold") is True:
-                nb["hold"] = True
-            buttons.append(nb)
-        if not buttons:
-            continue
-        ptitle = str(page.get("title") or "").strip() or f"Seite {pi}"
-        out["pages"].append({"id": _unique(_slug(page.get("id") or ptitle, f"seite_{pi}"), page_ids),
-                             "title": ptitle[:40], "type": "grid", "buttons": buttons})
-    validate_layout(out)
+            items = []
+            for it in a["items"][:MAX_ITEMS]:
+                if not isinstance(it, dict):
+                    continue
+                label = _text(it.get("label"), 40) or _text(it.get("action"), 40)
+                act = _text(it.get("action"), 120)
+                if not label or not act:
+                    continue
+                t = {"label": label, "action": act}
+                if it.get("style") in ("accent", "danger"):
+                    t["style"] = it["style"]
+                if it.get("guard") in ("hold", "double"):
+                    t["mode"] = "hold-confirm" if it["guard"] == "hold" else "double"
+                act2 = _text(it.get("action2"), 120)
+                if it.get("kind") == "pair" and act2:
+                    items.append({"pair": [t, dict(t, action=act2)]})
+                else:
+                    if it.get("size") in ("l", "xl", "pill"):
+                        t["size"] = it["size"]
+                    items.append(t)
+            if items:
+                areas.append({"title": _text(a.get("title"), 40), "items": items})
+        if areas:
+            seen.add(title)
+            out["sections"].append({"title": title, "areas": areas})
+    if not out["sections"]:
+        raise ValueError("KI-Antwort ohne Tasten")
     return out
+
+
+def prompt_parts():
+    """Für den Editor: fester Teil (nur Anzeige) und Voreinstellung des änderbaren Teils."""
+    return {"fixed": FIXED_PROMPT, "style": DEFAULT_STYLE_PROMPT, "max_style": MAX_STYLE_PROMPT}
 
 
 def _user_text(game_name, actions, hint):
     lines = [f"Spiel: {game_name}"]
     if actions:
-        lines.append("Vorgegebene Aktionen (nur diese und ihre Tasten verwenden):")
+        lines.append("Vorgegebene Aktionen (nur diese verwenden; in Klammern die Taste des Spielers, nur zur "
+                     "Orientierung):")
         for a in actions:
-            lines.append(f"- {a.get('action')}: {a.get('key') or '(keine Taste)'}")
+            lines.append(f"- {a.get('action')}" + (f" ({a['key']})" if a.get("key") else ""))
     else:
-        lines.append("Keine Belegung vorgegeben: Standardbelegung nach bestem Wissen, unsichere Tasten null.")
+        lines.append("Keine Aktionsliste vorhanden: action ist eine kurze Beschreibung der Spielfunktion. "
+                     "Tasten trägt der Spieler später selbst ein.")
     hint = (hint or "").strip()[:MAX_HINT]
     if hint:
         lines.append("Hinweis des Nutzers:\n" + hint)
     return "\n".join(lines)
 
 
-def generate_template(root, game_name, actions=None, hint="", client=None):
-    """Vorlage per KI erzeugen und bereinigen; client ist für Tests austauschbar."""
+def generate_template(root, game_name, actions=None, hint="", client=None, style_prompt=None):
+    """Semantische Vorlage per KI erzeugen und bereinigen; client ist für Tests austauschbar.
+    style_prompt: änderbarer Teil des Prompts (None = Voreinstellung); der feste Teil gilt immer."""
+    style = DEFAULT_STYLE_PROMPT if style_prompt is None else str(style_prompt)[:MAX_STYLE_PROMPT]
     if client is None:
         key = _read_key(root)
         import anthropic
@@ -241,7 +257,7 @@ def generate_template(root, game_name, actions=None, hint="", client=None):
     resp = client.beta.messages.create(
         model=MODEL, max_tokens=16000, betas=BETAS, fallbacks="default",
         output_config={"effort": "medium", "format": {"type": "json_schema", "schema": SCHEMA}},
-        system=SYSTEM_PROMPT,
+        system=FIXED_PROMPT + ("\n\n" + style.strip() if style.strip() else ""),
         messages=[{"role": "user", "content": _user_text(game_name, actions, hint)}])
     if resp.stop_reason == "refusal":
         raise ValueError("KI hat abgelehnt")

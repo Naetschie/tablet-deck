@@ -8,7 +8,8 @@ from collections import namedtuple
 
 # min_ms: Spiel wertet den Druck erst nach dieser Haltezeit (z. B. Star Citizen "delayed_press"); 0 = sofort
 Binding = namedtuple("Binding", "key hold note min_ms", defaults=(0,))
-Result = namedtuple("Result", "bindings free source")
+# on_device: Aktionen, die schon auf Joystick/HOTAS oder Gamepad des Spielers liegen (für den optionalen Filter)
+Result = namedtuple("Result", "bindings free source on_device", defaults=(frozenset(),))
 
 
 def _cryengine(cfg, root):

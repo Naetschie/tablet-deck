@@ -172,12 +172,31 @@
     <label>Vorlage <select id="genTpl"></select></label>
   </div>
   <div id="genPages" class="checks"></div>
+  <div class="row">
+    <label>Darstellung <select id="genStyle">
+      <option value="areas">Bereiche im Raster (wie das Cockpit)</option>
+      <option value="grid">Kacheln (einfach, nach Gruppen)</option>
+    </select></label>
+  </div>
+  <p class="hint" id="genStyleHint"></p>
+  <label class="check"><input type="checkbox" id="genSkipDev"> Was schon auf Joystick/HOTAS oder Gamepad liegt,
+    weglassen</label>
+  <p class="hint">Nur sinnvoll mit Eingabegerät (Flugsimulation, Controller). Die Schiffsansicht bleibt immer; weggelassene
+    Aktionen stehen im Bericht und lassen sich später aus der Palette dazunehmen.</p>
   <details id="genAi">
     <summary>Keine passende Vorlage? Mit KI erstellen (Claude, kostet API-Guthaben)</summary>
     <p class="hint warn" id="genAiNoKey" hidden>Noch kein API-Schlüssel hinterlegt.
       <button id="genAiSet" class="ghost small">⚙ Schlüssel eintragen</button></p>
     <label>Was soll aufs Panel? (optional, z. B. Spielweise, wichtige Menüs, Link zur Steuerungsseite)
       <textarea id="genHint" maxlength="2000" placeholder="z. B. Fokus auf Inventar, Heilung und Karte"></textarea></label>
+    <details id="genPrompt">
+      <summary>Prompt ansehen und anpassen</summary>
+      <p class="hint">Fester Teil – muss so sein (nur echte Aktionen, nie Tasten erfinden, Gefährliches sichern, Format):</p>
+      <pre id="genPromptFixed" class="prompt-fixed"></pre>
+      <label>Änderbarer Teil – Gestaltung (Gliederung, Größen, Stil):
+        <textarea id="genPromptStyle" maxlength="4000"></textarea></label>
+      <div class="row end"><button id="genPromptReset" class="ghost small">Voreinstellung</button></div>
+    </details>
     <div class="row end"><button id="genAiRun" class="ghost">Mit KI erzeugen</button></div>
   </details>
   <div id="genReport"></div>

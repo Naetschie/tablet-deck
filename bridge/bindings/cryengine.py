@@ -114,6 +114,40 @@ def effective_bindings(default_path, user_path):
     return eff
 
 
+def device_actions(default_path, user_path):
+    """Aktionen, die auf einem Joystick/HOTAS oder Gamepad des Spielers liegen: eigene Belegung (js*/gp*-Rebind)
+    oder Standardbelegung des Geräts, sofern nicht gelöscht ("js1_ "). Ein Gerät zählt, wenn actionmaps.xml es
+    unter <devices> nennt oder Rebinds dafür hat (die Liste <options> nennt oft ein Gamepad, das es gar nicht
+    gibt). Ohne actionmaps.xml leer (unbekannt)."""
+    if not user_path or not Path(user_path).exists():
+        return frozenset()
+    root = ET.parse(user_path).getroot()
+    kinds = {d.tag for devs in root.iter("devices") for d in devs}
+    for rb in root.iter("rebind"):
+        inp = rb.get("input", "")
+        if inp.startswith("js"):
+            kinds.add("joystick")
+        elif inp.startswith("gp"):
+            kinds.add("gamepad")
+    prefixes = tuple(p for k, p in (("joystick", "js"), ("gamepad", "gp")) if k in kinds)
+    if not prefixes:
+        return frozenset()
+    on, cleared = set(), set()
+    for a in root.iter("action"):
+        for rb in a.iter("rebind"):
+            inp = rb.get("input", "")
+            if inp.startswith(prefixes):
+                if inp.split("_", 1)[1].strip():
+                    on.add(a.get("name"))
+                else:
+                    cleared.add((a.get("name"), inp[:2]))
+    for a in ET.parse(default_path).getroot().iter("action"):
+        for attr, pre in (("joystick", "js"), ("gamepad", "gp")):
+            if pre in prefixes and (a.get(attr) or "").strip() and (a.get("name"), pre) not in cleared:
+                on.add(a.get("name"))
+    return frozenset(on)
+
+
 ACTIONMAPS = Path("LIVE/user/client/0/Profiles/default/actionmaps.xml")
 
 
@@ -183,4 +217,8 @@ def read(cfg, root):
         else:
             out[act] = Binding(key, mode in HOLD_MODES, "", min_press_ms(mode, own_t, thresholds))
     src = f"{default.name}" + (f" + {Path(user).name}" if user and Path(user).exists() else "")
-    return Result(out, [k for k in FREE_POOL if k not in used], src)
+    try:
+        on_device = device_actions(default, user)
+    except (ET.ParseError, OSError):
+        on_device = frozenset()
+    return Result(out, [k for k in FREE_POOL if k not in used], src, on_device)

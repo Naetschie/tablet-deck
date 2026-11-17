@@ -63,12 +63,17 @@ dialog h3 { font-size: 13px; color: var(--tx); margin: 10px 0 4px; }
 dialog h2 { font-size: 16px; text-transform: none; color: var(--tx); margin-bottom: 6px; }
 dialog .row { margin: 12px 0; } dialog .row.end { justify-content: flex-end; } dialog .row.end > * { flex: none; }
 .checks { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0; }
+#genPrompt { margin: 8px 0; } #genPrompt summary { cursor: pointer; color: var(--dim); }
+.prompt-fixed { white-space: pre-wrap; max-height: 160px; overflow: auto; margin: 4px 0 8px; padding: 8px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; color: var(--dim); font: 12px/1.4 var(--fm); }
+#genPromptStyle { width: 100%; min-height: 140px; font: 12px/1.4 var(--fm); }
 .gen-sum { margin: 10px 0 6px; color: var(--dim); }
 table.rep { width: 100%; border-collapse: collapse; font-size: 13px; }
 table.rep th { text-align: left; color: var(--dim); font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--line); }
 table.rep td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
 table.rep td.k { font-family: var(--fm); white-space: nowrap; }
 table.rep tr.fehlt td { color: var(--warn); }
+table.rep tr.weg td { color: var(--dim); text-decoration: line-through; }
 .err-box { color: var(--bad); font-size: 13px; white-space: pre-wrap; }
 /* Reiter Dashboards */
 #dName { font-weight: 600; margin-right: 8px; }

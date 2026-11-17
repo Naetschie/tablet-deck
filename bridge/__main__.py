@@ -338,8 +338,9 @@ class Bridge:
                             raise ValueError("pages muss eine Liste sein")
                         # Dateien lesen (actionmaps.xml) nicht im Event-Loop
                         style = msg.get("style", "areas")   # Darstellung semantischer Vorlagen: areas | grid
+                        skip_dev = msg.get("skip_device") is True   # optional: was auf Joystick/Gamepad liegt, weglassen
                         layout, report, source = await asyncio.get_running_loop().run_in_executor(
-                            None, draft, ROOT, gi, msg.get("template"), pages, style)
+                            None, draft, ROOT, gi, msg.get("template"), pages, style, skip_dev)
                         log.info("Editor: Entwurf %s/%s erzeugt (%s)", gi["id"], msg.get("template"), source)
                         await ws.send(json.dumps({"t": "draft", "game": gi["id"], "template": msg.get("template"),
                                                   "layout": layout, "report": report, "source": source}))
@@ -352,14 +353,18 @@ class Bridge:
                         if self.ai_busy:
                             raise ValueError("KI erstellt gerade schon eine Vorlage")
                         hint = msg.get("hint") if isinstance(msg.get("hint"), str) else ""
+                        # änderbarer Teil des Prompts (None = Voreinstellung); der feste Teil gilt immer
+                        sprompt = msg.get("prompt") if isinstance(msg.get("prompt"), str) else None
+                        style = msg.get("style", "areas")
+                        skip_dev = msg.get("skip_device") is True
                         log.info("Editor: KI-Vorlage für %s angefragt", gi["id"])
                         # kostenpflichtig: nie zwei Anfragen gleichzeitig. Die Sperre endet erst, wenn der
                         # Aufruf im Hintergrund-Thread wirklich fertig ist - auch wenn der Editor vorher geht.
                         # Freigabe im Thread selbst: der asyncio-Future wird beim Abbruch des Handlers sofort
                         # storniert, der Aufruf läuft aber weiter.
-                        def run_ai(gi=gi, hint=hint[:2000]):
+                        def run_ai(gi=gi, hint=hint[:2000], sprompt=sprompt, style=style, skip_dev=skip_dev):
                             try:
-                                return ai_draft(ROOT, gi, hint)
+                                return ai_draft(ROOT, gi, hint, sprompt, style, skip_dev)
                             finally:
                                 self.ai_busy = False
                         self.ai_busy = True
@@ -377,6 +382,8 @@ class Bridge:
                             raise ValueError(f"KI-Vorlage fehlgeschlagen ({type(e).__name__})") from None
                         await ws.send(json.dumps({"t": "draft", "game": gi["id"], "template": "ki",
                                                   "layout": layout, "report": report, "source": source}))
+                    elif t == "ai_prompt":
+                        await ws.send(json.dumps({"t": "ai_prompt", **ai_template.prompt_parts()}))
                     elif t == "ai_key_status":
                         await ws.send(json.dumps({"t": "ai_key", **ai_template.key_status(ROOT)}))
                     elif t == "ai_key_set":

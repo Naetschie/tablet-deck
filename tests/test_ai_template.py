@@ -9,19 +9,22 @@ from pathlib import Path
 from types import SimpleNamespace as NS
 
 from bridge import ai_template
+from bridge.autolayout import build, is_semantic
 from bridge.layout import validate_layout
 
 
-def btn(id, label, key="F5", **kw):
-    b = {"id": id, "label": label, "action": "a_" + id, "key": key, "mode": "tap",
-         "style": "", "group": None, "hold": False}
-    b.update(kw)
-    return b
+def item(label, action, kind="key", action2=None, size="m", style="", guard="none"):
+    return {"kind": kind, "label": label, "action": action, "action2": action2, "size": size, "style": style,
+            "guard": guard}
 
 
-def reply(pages, stop="end_turn"):
-    text = json.dumps({"title": "Testspiel", "pages": pages})
+def reply(sections, stop="end_turn"):
+    text = json.dumps({"title": "Testspiel", "sections": sections})
     return NS(stop_reason=stop, content=[NS(type="text", text=text)])
+
+
+def sec(title, *areas):
+    return {"title": title, "areas": [{"title": a[0], "items": list(a[1:])} for a in areas]}
 
 
 class FakeClient:
@@ -36,35 +39,29 @@ class FakeClient:
 
 
 class AiTemplateTest(unittest.TestCase):
-    def test_gueltige_antwort(self):
-        pages = [{"id": "main", "title": "Haupt", "buttons": [
-            btn("licht", "LICHT", "L", mode="toggle", group="Schiff"),
-            btn("laden", "SCHNELLLADEN", "F9", mode="hold-confirm", style="danger")]}]
-        out = ai_template.generate_template(".", "Testspiel", client=FakeClient(reply(pages)))
-        validate_layout(out)
-        self.assertEqual(out["holdMs"], 1000)
-        b = out["pages"][0]["buttons"]
-        self.assertEqual(out["pages"][0]["type"], "grid")
-        self.assertNotIn("style", b[0])
-        self.assertEqual(b[0]["group"], "Schiff")
-        self.assertNotIn("hold", b[0])
-        self.assertEqual(b[1]["style"], "danger")
+    def test_gueltige_antwort_wird_semantische_vorlage(self):
+        s = [sec("Kampf", ("Waffen", item("Laden", "a_reload", size="l", style="accent"),
+                                     item("Schild", "a_less", kind="pair", action2="a_more"),
+                                     item("Zerstören", "a_boom", style="danger", guard="hold")))]
+        out = ai_template.generate_template(".", "Testspiel", client=FakeClient(reply(s)))
+        self.assertTrue(is_semantic(out))
+        its = out["sections"][0]["areas"][0]["items"]
+        self.assertEqual(its[0], {"label": "Laden", "action": "a_reload", "style": "accent", "size": "l"})
+        self.assertEqual([x["action"] for x in its[1]["pair"]], ["a_less", "a_more"])
+        self.assertEqual((its[2]["style"], its[2]["mode"]), ("danger", "hold-confirm"))
+        for st in ("areas", "grid"):
+            validate_layout(build(out, st))
 
-    def test_ungueltige_taste_entfernt(self):
-        pages = [{"id": "p", "title": "P", "buttons": [btn("x", "X", "GIBTSNICHT+Q"), btn("y", "Y", None)]}]
-        out = ai_template.generate_template(".", "S", client=FakeClient(reply(pages)))
-        for b in out["pages"][0]["buttons"]:
-            self.assertNotIn("key", b)
-
-    def test_doppelte_ids(self):
-        pages = [{"id": "p", "title": "A", "buttons": [btn("x", "A"), btn("x", "B")]},
-                 {"id": "p", "title": "B", "buttons": [btn("x", "C")]},
-                 {"id": "leer", "title": "Leer", "buttons": []}]
-        out = ai_template.generate_template(".", "S", client=FakeClient(reply(pages)))
-        self.assertEqual(len(out["pages"]), 2)
-        ids = [b["id"] for p in out["pages"] for b in p["buttons"]]
-        self.assertEqual(len(set(ids)), 3)
-        self.assertEqual(len({p["id"] for p in out["pages"]}), 2)
+    def test_nie_tasten_und_leeres_verworfen(self):
+        bad = dict(item("X", "a_x"), key="F5")   # selbst wenn die KI eine Taste mitschickt
+        s = [sec("A", ("B", bad, item("", ""), "kaputt")), sec("A", ("C", item("Y", "a_y"))), sec("Leer", ("D",))]
+        out = ai_template.generate_template(".", "S", client=FakeClient(reply(s)))
+        self.assertNotIn("key", json.dumps(out))
+        titles = [x["title"] for x in out["sections"]]
+        self.assertEqual(len(titles), 2)
+        self.assertEqual(len(set(titles)), 2)              # doppelte Seitentitel eindeutig gemacht
+        with self.assertRaises(ValueError):
+            ai_template.generate_template(".", "S", client=FakeClient(reply([sec("L", ("x",))])))
 
     def test_refusal_und_max_tokens(self):
         with self.assertRaisesRegex(ValueError, "abgelehnt"):
@@ -83,14 +80,13 @@ class AiTemplateTest(unittest.TestCase):
                 ai_template.generate_template(d, "S")
 
     def test_actions_im_user_text_und_parameter(self):
-        pages = [{"id": "p", "title": "P", "buttons": [btn("x", "X")]}]
-        c = FakeClient(reply(pages))
-        ai_template.generate_template(".", "Stalker 2", hint="h" * 5000, client=c,
+        c = FakeClient(reply([sec("P", ("B", item("X", "v_lights")))]))
+        ai_template.generate_template(".", "Stalker 2", hint="h" * 5000, client=c, style_prompt="Nur große Tasten.",
                                       actions=[{"action": "v_lights", "key": "LALT+L"},
                                                {"action": "v_boost", "key": None}])
         kw = c.calls[0]
         text = kw["messages"][0]["content"]
-        self.assertIn("v_lights: LALT+L", text)
+        self.assertIn("v_lights (LALT+L)", text)
         self.assertIn("v_boost", text)
         self.assertIn("Stalker 2", text)
         self.assertLess(len(text), 2400)
@@ -101,6 +97,13 @@ class AiTemplateTest(unittest.TestCase):
         self.assertEqual(kw["output_config"]["effort"], "medium")
         self.assertNotIn("thinking", kw)
         self.assertNotIn("temperature", kw)
+        self.assertTrue(kw["system"].startswith(ai_template.FIXED_PROMPT))      # fester Teil immer
+        self.assertIn("Nur große Tasten.", kw["system"])
+        self.assertNotIn(ai_template.DEFAULT_STYLE_PROMPT, kw["system"])     # änderbarer Teil ersetzt
+        c2 = FakeClient(reply([sec("P", ("B", item("X", "v_lights")))]))
+        ai_template.generate_template(".", "S", client=c2)
+        self.assertIn(ai_template.DEFAULT_STYLE_PROMPT, c2.calls[0]["system"])
+        self.assertNotIn("bestem Wissen", c2.calls[0]["messages"][0]["content"])
 
 
 class KeyTest(unittest.TestCase):

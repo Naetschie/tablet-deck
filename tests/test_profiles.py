@@ -298,6 +298,29 @@ class BundledTest(unittest.TestCase):
         out2, _ = bindings.apply_sc(sc_lay(), bindings.Result({"v_a": bindings.Binding("N", False, "")}, [], ""))
         self.assertNotIn("press_ms", out2["pages"][0]["buttons"][0])
 
+    def test_cryengine_device_actions(self):
+        import tempfile
+        from bridge.bindings import cryengine
+        xml = """<profile><actionmap name="m">
+          <action name="js_default" keyboard="f1" joystick="js1_button1"/>
+          <action name="js_cleared" keyboard="f2" joystick="js1_button2"/>
+          <action name="js_own" keyboard="f3" joystick=" "/>
+          <action name="gp_default" keyboard="f4" gamepad="shoulderl"/>
+          <action name="kb_only" keyboard="f5"/>
+        </actionmap></profile>"""
+        user = """<ActionMaps><ActionProfiles><options type="gamepad" instance="1"/>
+          <actionmap name="m">
+          <action name="js_cleared"><rebind input="js1_ "/></action>
+          <action name="js_own"><rebind input="js2_button7"/></action></actionmap></ActionProfiles></ActionMaps>"""
+        with tempfile.TemporaryDirectory() as d:
+            dp, up = Path(d) / "d.xml", Path(d) / "u.xml"
+            dp.write_text(xml, encoding="utf-8")
+            up.write_text(user, encoding="utf-8")
+            on = cryengine.device_actions(dp, up)
+            self.assertEqual(on, {"js_default", "js_own"})     # gelöscht zählt nicht; Gamepad ohne Rebinds auch nicht
+            self.assertEqual(cryengine.device_actions(dp, ""), frozenset())   # ohne actionmaps.xml: unbekannt
+            self.assertEqual(cryengine.read({"default": str(dp), "user": str(up)}, d).on_device, on)
+
     def test_cryengine_press_threshold(self):
         import tempfile
         from bridge.bindings import cryengine
