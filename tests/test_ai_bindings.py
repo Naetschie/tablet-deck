@@ -48,6 +48,19 @@ class VerifyTest(unittest.TestCase):
         self.assertEqual((urls, dropped), ([URL], 4))
         self.assertEqual(sorted(fetched), sorted([URL, "https://other.example.com/x"]))   # jede Seite nur einmal
 
+    def test_no_partial_keys_or_cross_matches(self):
+        page = """<ul><li>Copy: Ctrl + C</li><li>Use: E</li><li>Jump: Space Bar</li></ul>
+        <p>Use the jump key because it helps. Press E to use and Space to jump.</p>"""
+        rows = [row("Copy", "Ctrl"),             # Teil einer Kombination
+                row("Use", "Space"),             # Kreuzzuordnung
+                row("Jump", "Space"),            # gleiche Taste, andere Schreibweise -> bestätigt
+                row("Use", "E")]
+        ok, _, dropped = ai_bindings.verify(rows, fetch=lambda u: page)
+        self.assertEqual([(a, k) for _, a, k, _h in ok], [("Jump", "SPACE"), ("Use", "E")])
+        self.assertEqual(dropped, 2)
+        q = [row("Use", "E", url=URL + "?x=1"), row("Jump", "Space", url=URL + "#a")]
+        self.assertEqual(ai_bindings.verify(q, fetch=lambda u: page)[0], [])   # Links mit Query/Fragment nicht
+
     def test_lookup_with_pause_and_template(self):
         paused = NS(stop_reason="pause_turn", content=[NS(type="server_tool_use", name="web_search")])
         c = FakeClient([paused, report([row("Reload", "R"), row("Sprint", "Left Shift"), row("Quick Save", "F5")])])

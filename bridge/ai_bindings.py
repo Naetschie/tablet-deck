@@ -6,13 +6,15 @@ Kostet API-Guthaben des Nutzers (eigener Schlüssel, secrets/anthropic.key).
 """
 import logging
 import re
+import time
 import urllib.parse
 
 from .ai_template import BETAS, MODEL, _read_key
 from .bindings import web
 
 log = logging.getLogger("ai_bindings")
-MAX_ROUNDS = 6          # pause_turn-Fortsetzungen der serverseitigen Suche
+MAX_ROUNDS = 3          # pause_turn-Fortsetzungen der serverseitigen Suche (je Runde neue Such-/Abrufkontingente)
+TOTAL_S = 240           # Gesamtfrist der KI-Suche
 MAX_ROWS = 150
 MAX_PAGES = 4
 
@@ -63,7 +65,10 @@ def _ask(client, game):
              {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 6},
              REPORT_TOOL]
     messages = [{"role": "user", "content": f"Spiel: {game}\nFinde die PC-Standardtasten."}]
+    deadline = time.monotonic() + TOTAL_S
     for _ in range(MAX_ROUNDS):
+        if time.monotonic() > deadline:
+            break
         resp = client.beta.messages.create(
             model=MODEL, max_tokens=16000, betas=BETAS, fallbacks="default",
             output_config={"effort": "medium"}, system=SYSTEM, tools=tools, messages=messages)
@@ -84,55 +89,49 @@ def _norm(s):
     return re.sub(r"\s+", " ", str(s).lower().replace(" ", " ")).strip()
 
 
-def _page_blocks(page):
-    """Blöcke einer Seite (Tabellenzeile, Listenpunkt, Absatz) als normalisierter Text, über den linearen Leser."""
-    p = web._Blocks(scoped=False)
-    p.feed(page[:web.MAX_PAGE])
-    p.close()
-    p._flush()
-    return [_norm(" | ".join(c) if tag == "tr" else c) for tag, c in p.out if c]
-
-
-def _confirmed(blocks, action, key_text):
-    """Aktion und Tastentext stehen im selben Block, die Taste als eigenes Wort (nicht nur ein „n“ irgendwo)."""
-    a, k = _norm(action), _norm(key_text)
-    pat = re.compile(r"(?<![\w])" + re.escape(k) + r"(?![\w])")
-    return any(a in b and pat.search(b.replace(a, " ", 1)) for b in blocks)
+def _page_pairs(page):
+    """Was der strukturelle Seitenleser (derselbe wie bei „Suchen“) auf der Seite findet: {aktion: (bereich, taste,
+    halten)} - jede Zeile einzeln (Tabellenzeile, Listenpunkt), Taste über das Tastenwörterbuch."""
+    return {_norm(a): (area, k, h) for area, a, k, h in web.parse_page(page)}
 
 
 def verify(rows, fetch=None):
-    """Gemeldete Zeilen gegen die Seiten prüfen -> (geprüfte [(bereich, aktion, taste, halten)], urls, verworfen)."""
+    """Gemeldete Zeilen gegen die Seiten prüfen -> (geprüfte [(bereich, aktion, taste, halten)], urls, verworfen).
+    Eine Zeile gilt nur, wenn der Seitenleser auf derselben Seite genau diese Aktion mit genau dieser Taste findet:
+    keine Teilwörter („Ctrl“ aus „Ctrl + C“), keine Kreuzzuordnung mehrerer Aktionen in einem Absatz."""
     urls = []
     for r in rows:
         u = str(r.get("url", "")).strip()
-        if u and u not in urls and urllib.parse.urlparse(u).scheme in ("http", "https"):
+        pu = urllib.parse.urlparse(u)
+        # nur einfache Seitenadressen (Links mit Query/Fragment könnten von einer Seite untergeschoben sein)
+        if u and u not in urls and pu.scheme in ("http", "https") and not pu.query and not pu.fragment:
             urls.append(u)
     fetch = fetch or web.fetch
-    texts = {}
+    pages = {}
     for u in urls[:MAX_PAGES]:
         try:
-            texts[u] = _page_blocks(fetch(u))
+            pages[u] = _page_pairs(fetch(u))
         except (ValueError, OSError) as e:
             log.info("Seite nicht prüfbar (%s): %s", urllib.parse.urlparse(u).hostname, type(e).__name__)
     ok, dropped, seen = [], 0, set()
     for r in rows[:MAX_ROWS]:
         u, action, key_text = str(r.get("url", "")), str(r.get("action", "")).strip(), str(r.get("key_text", ""))
-        text = texts.get(u)
-        key, hold = web.page_key(key_text)
-        if (not text or not key or not action or len(action) > 60 or not _confirmed(text, action, key_text)
-                or action.lower() in seen):
+        found = pages.get(u, {}).get(_norm(action))
+        key, _hold = web.page_key(key_text)
+        if not found or not key or found[1] != key or action.lower() in seen:
             dropped += 1
             continue
         seen.add(action.lower())
-        ok.append((str(r.get("area", ""))[:40], action, key, hold))
-    return ok, [u for u in urls if u in texts], dropped
+        area = found[0] or str(r.get("area", ""))
+        ok.append((area[:40], action, found[1], found[2]))   # Taste und Halten wie auf der Seite gelesen
+    return ok, [u for u in urls if u in pages], dropped
 
 
 def lookup(root, game, client=None):
     """KI-Suche + Gegenprüfung -> Ergebnis wie bindings.web.lookup (url, site, title, rows, others, template)."""
     if client is None:
         import anthropic
-        client = anthropic.Anthropic(api_key=_read_key(root), max_retries=2, timeout=300)
+        client = anthropic.Anthropic(api_key=_read_key(root), max_retries=1, timeout=180)
     rows = _ask(client, game)
     ok, urls, dropped = verify(rows)
     if len(ok) < 3:
@@ -141,8 +140,8 @@ def lookup(root, game, client=None):
     main = urls[0] if urls else ""
     host = urllib.parse.urlparse(main).hostname or ""
     tpl = web.to_template(game, ok, main, f"KI-Suche ({web.SITES.get(host, host)})", "")
-    tpl["source"]["note"] = (f"von Claude gefunden, {len(ok)} Tasten gegen {len(urls)} Seite(n) geprüft, "
-                             f"{dropped} verworfen")
+    tpl["source"]["note"] = (f"Seiten von Claude gefunden, {len(ok)} Tasten vom Seitenleser bestätigt, "
+                             f"{dropped} verworfen - Seiten nicht geprüft vertrauenswürdig, Liste bitte ansehen")
     if len(urls) > 1:
         tpl["source"]["more"] = urls[1:]
     return {"url": main, "site": tpl["source"]["site"], "title": f"{len(ok)} bestätigt, {dropped} verworfen",
