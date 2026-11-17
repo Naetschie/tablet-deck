@@ -289,6 +289,40 @@ class BundledTest(unittest.TestCase):
         self.assertEqual((out["pages"][0]["buttons"][0]["key"], out["pages"][0]["buttons"][0]["hold"]), ("X", True))
         self.assertEqual(out["pages"][0]["buttons"][2]["key"], "F3")
 
+    def test_apply_sc_sets_press_ms(self):
+        # lange Drücke (delayed_press): Mindest-Haltezeit wandert als press_ms an die Taste
+        from bridge import bindings
+        res = bindings.Result({"v_a": bindings.Binding("N", False, "", 350)}, [], "")
+        out, n = bindings.apply_sc(sc_lay(), res)
+        self.assertEqual(out["pages"][0]["buttons"][0]["press_ms"], 350)
+        out2, _ = bindings.apply_sc(sc_lay(), bindings.Result({"v_a": bindings.Binding("N", False, "")}, [], ""))
+        self.assertNotIn("press_ms", out2["pages"][0]["buttons"][0])
+
+    def test_cryengine_press_threshold(self):
+        import tempfile
+        from bridge.bindings import cryengine
+        xml = """<profile><ActivationModes>
+          <ActivationMode name="press" pressTriggerThreshold="-1"/>
+          <ActivationMode name="delayed_press" pressTriggerThreshold="0.25"/>
+          <ActivationMode name="delayed_press_long" pressTriggerThreshold="1.5"/>
+        </ActivationModes><actionmap name="m">
+          <action name="a_tap" activationMode="press" keyboard="f1"/>
+          <action name="a_long" activationMode="delayed_press_long" keyboard="f2"/>
+          <action name="a_own" activationMode="press" pressTriggerThreshold="0.5" keyboard="f3"/>
+          <action name="a_user" activationMode="press" keyboard="f4"/>
+        </actionmap></profile>"""
+        user = """<ActionMaps><actionmap name="m"><action name="a_user">
+          <rebind input="kb1_f5" activationMode="delayed_press"/></action></actionmap></ActionMaps>"""
+        with tempfile.TemporaryDirectory() as d:
+            dp, up = Path(d) / "d.xml", Path(d) / "u.xml"
+            dp.write_text(xml, encoding="utf-8")
+            up.write_text(user, encoding="utf-8")
+            b = cryengine.read({"default": str(dp), "user": str(up)}, d).bindings
+        self.assertEqual(b["a_tap"].min_ms, 0)
+        self.assertEqual(b["a_long"].min_ms, 1600)            # 1,5 s + 100 ms Reserve
+        self.assertEqual(b["a_own"].min_ms, 600)              # eigene Schwelle der Aktion
+        self.assertEqual((b["a_user"].key, b["a_user"].min_ms), ("F5", 350))   # Modus aus actionmaps.xml
+
 
 if __name__ == "__main__":
     unittest.main()

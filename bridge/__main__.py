@@ -116,6 +116,7 @@ class Bridge:
         self.game = None       # laufendes Spiel (games.py)
         self.ai_busy = False   # KI-Vorlage läuft (Editor)
         self.pulse_q, self.pulse_tasks = {}, {}   # Impuls-Warteschlangen pro Taste (siehe _enqueue_pulse)
+        self.hold_since, self.late_release = {}, {}   # press_ms bei Halte-Tasten: Druckbeginn, verzögertes Loslassen
         self.web = WebHome(ROOT)   # Startseite der Web-Kachel: Lesezeichen, gesendet, Verlauf
         self.usb_serials = set()   # per USB eingerichtete Tablets (adb_watch), für das Ausschalten beim Herunterfahren
         self.out = make_output(cfg)
@@ -940,6 +941,26 @@ class Bridge:
                 return
             self._enqueue_pulse(btn, target, owner)
             return
+        min_s = btn.get("press_ms", 0) / 1000
+        if down:
+            late = self.late_release.pop(target, None)
+            if late:
+                late.cancel()   # noch verzögert gehalten: erneuter Druck verlängert einfach
+            self.hold_since[target] = time.monotonic()
+        elif min_s:
+            # Spiel wertet erst lange Drücke: frühestens nach press_ms loslassen
+            rest = min_s - (time.monotonic() - self.hold_since.get(target, 0))
+            if rest > 0:
+                self.late_release[target] = asyncio.get_running_loop().call_later(
+                    rest, self._late_release, btn, target)
+                return
+        self._press_release(btn, down, target)
+
+    def _late_release(self, btn, target):
+        self.late_release.pop(target, None)
+        self._press_release(btn, False, target)
+
+    def _press_release(self, btn, down, target):
         try:
             (self.out.press if down else self.out.release)(btn)
             log.info("%-4s %-22s -> %s", "DOWN" if down else "UP", btn["id"], target)
@@ -971,7 +992,8 @@ class Bridge:
                     log.error("Ausgabefehler %s: %s", btn["id"], e)
                     continue
                 try:
-                    await asyncio.sleep(PULSE_S)
+                    # press_ms: Spiel wertet erst lange Drücke (z. B. delayed_press) - so lange halten
+                    await asyncio.sleep(max(PULSE_S, btn.get("press_ms", 0) / 1000))
                 finally:   # auch beim Abbruch nie eine Taste gedrückt lassen
                     try:
                         self.out.release(btn)

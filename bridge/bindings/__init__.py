@@ -6,7 +6,8 @@ Tastaturbelegung (note sagt warum).
 """
 from collections import namedtuple
 
-Binding = namedtuple("Binding", "key hold note")
+# min_ms: Spiel wertet den Druck erst nach dieser Haltezeit (z. B. Star Citizen "delayed_press"); 0 = sofort
+Binding = namedtuple("Binding", "key hold note min_ms", defaults=(0,))
 Result = namedtuple("Result", "bindings free source")
 
 
@@ -44,6 +45,9 @@ def apply_sc(layout, result):
                 n += 1
             if bd.hold and not b.get("hold"):
                 b["hold"] = True
+                n += 1
+            if bd.min_ms and b.get("press_ms") != bd.min_ms:
+                b["press_ms"] = bd.min_ms   # Taste mindestens so lange halten, sonst löst das Spiel nicht aus
                 n += 1
     return out, n
 

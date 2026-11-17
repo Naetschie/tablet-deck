@@ -32,6 +32,11 @@ def bad(testcase, layout):
 
 
 class CockpitTest(unittest.TestCase):
+    def test_press_ms(self):
+        validate_layout(free(key(press_ms=350)))
+        for v in (0, 49, 3001, "350", 1.5, True):
+            bad(self, free(key(press_ms=v)))
+
     def test_shield_element(self):
         sh = {"kind": "shield", "id": "sh", "x": 0, "y": 0, "w": 6, "h": 4}
         z = lambda zid, zone, **kw: dict({"id": zid, "label": zid, "key": "F1", "zone": zone}, **kw)

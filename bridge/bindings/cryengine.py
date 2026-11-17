@@ -23,6 +23,8 @@ MODIFIERS = ["LCTRL", "RCTRL", "LSHIFT", "RSHIFT", "LALT", "RALT"]
 # smart_toggle: Tippen schaltet um (Impuls), Halten wirkt nur solange - deshalb NICHT als hold
 HOLD_MODES = {"hold", "delayed_hold", "hold_toggle", "hold_no_retrigger"}
 MULTI_MODES = {"double_tap", "double_tap_nonblocking"}
+PRESS_MARGIN_MS = 100   # Reserve auf die Mindest-Haltezeit des Spiels (Bildrate, Eingabeabfrage)
+PRESS_MAX_MS = 3000
 # Vorschläge für Aktionen ohne Tastaturbelegung (rechte Strg + Ziffernblock/F-Tasten: im Spiel kaum belegt).
 # 2. Stufe nur F-Tasten: Shift + Ziffernblock lässt Windows (NumLock) Shift kurz loslassen
 _POOL_KEYS = ["NUMPAD1", "NUMPAD2", "NUMPAD3", "NUMPAD4", "NUMPAD5", "NUMPAD6", "NUMPAD7", "NUMPAD8",
@@ -64,21 +66,50 @@ def key_to_sc(key):
     return "+".join(out)
 
 
+def activation_thresholds(default_path):
+    """{activationMode: pressTriggerThreshold in s} aus <ActivationModes> des Standardprofils (nur Werte > 0)."""
+    out = {}
+    for m in ET.parse(default_path).getroot().iter("ActivationMode"):
+        try:
+            t = float(m.get("pressTriggerThreshold", "-1"))
+        except ValueError:
+            continue
+        if t > 0 and m.get("name"):
+            out[m.get("name")] = t
+    return out
+
+
+def min_press_ms(mode, own_threshold, thresholds):
+    """Mindest-Haltezeit in ms (0 = keine): eigener pressTriggerThreshold der Aktion vor dem der Aktivierungsart."""
+    t = None
+    try:
+        t = float(own_threshold) if own_threshold not in (None, "") else None
+    except ValueError:
+        t = None
+    if t is None:
+        t = thresholds.get(mode, -1)
+    if t <= 0:
+        return 0
+    return min(PRESS_MAX_MS, int(round(t * 1000)) + PRESS_MARGIN_MS)
+
+
 def effective_bindings(default_path, user_path):
-    """{aktion: (tastatur-belegung in SC-Notation oder '', activationMode, multiTap)}"""
+    """{aktion: (tastatur-belegung in SC-Notation oder '', activationMode, multiTap, pressTriggerThreshold|None)}"""
     eff = {}
     for a in ET.parse(default_path).getroot().iter("action"):
         eff[a.get("name")] = ((a.get("keyboard") or "").strip(), a.get("activationMode", ""),
-                              a.get("multiTap", "1"))
+                              a.get("multiTap", "1"), a.get("pressTriggerThreshold"))
     if user_path and Path(user_path).exists():
         for a in ET.parse(user_path).getroot().iter("action"):
             for rb in a.iter("rebind"):
                 inp = rb.get("input", "")
                 if inp.startswith("kb1_"):
-                    old = eff.get(a.get("name"), ("", "", "1"))
-                    # "kb1_ " = bewusst entfernt; Rebind kann Modus/Mehrfachtipp überschreiben
-                    eff[a.get("name")] = (inp[4:].strip(), rb.get("activationMode", old[1]),
-                                          rb.get("multiTap", old[2]))
+                    old = eff.get(a.get("name"), ("", "", "1", None))
+                    # "kb1_ " = bewusst entfernt; Rebind kann Modus/Mehrfachtipp/Schwelle überschreiben
+                    mode = rb.get("activationMode", old[1])
+                    eff[a.get("name")] = (inp[4:].strip(), mode, rb.get("multiTap", old[2]),
+                                          rb.get("pressTriggerThreshold",
+                                                 old[3] if mode == old[1] else None))
     return eff
 
 
@@ -136,8 +167,9 @@ def read(cfg, root):
         raise FileNotFoundError(f"Standardprofil fehlt: {default} (StarBreaker: p4k extract + cryxml convert)")
     user = cfg["user"] if "user" in cfg else find_user_actionmaps()   # "" = bewusst keine eigene Belegung
     eff = effective_bindings(default, user)
+    thresholds = activation_thresholds(default)
     out, used = {}, set()
-    for act, (sc, mode, multi) in eff.items():
+    for act, (sc, mode, multi, own_t) in eff.items():
         key = sc_to_key(sc) if sc else None
         if key:
             used.add(key)
@@ -148,6 +180,6 @@ def read(cfg, root):
         elif multi not in ("", "1") or mode in MULTI_MODES:
             out[act] = Binding(None, False, f"{key} nur per Doppeltipp")
         else:
-            out[act] = Binding(key, mode in HOLD_MODES, "")
+            out[act] = Binding(key, mode in HOLD_MODES, "", min_press_ms(mode, own_t, thresholds))
     src = f"{default.name}" + (f" + {Path(user).name}" if user and Path(user).exists() else "")
     return Result(out, [k for k in FREE_POOL if k not in used], src)

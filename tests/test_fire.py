@@ -28,6 +28,7 @@ def make_bridge():
     b = Bridge.__new__(Bridge)   # ohne __init__ (keine Dateien/Ausgabe nötig)
     b.out, b.macros = FakeOut(), {}
     b.pulse_q, b.pulse_tasks = {}, {}
+    b.hold_since, b.late_release = {}, {}
     return b
 
 
@@ -66,6 +67,33 @@ class FireTest(unittest.TestCase):
             br.fire(btn, False)
             return br.out.events
         self.assertEqual(asyncio.run(run()), [("press", "h"), ("release", "h")])
+
+    def test_press_ms_lengthens_pulse(self):
+        # Spiel wertet erst lange Drücke (delayed_press): Impuls dauert press_ms statt 80 ms
+        async def run():
+            br = make_bridge()
+            br.fire({"id": "l", "key": "N", "press_ms": 300}, True)
+            await asyncio.sleep(0.2)
+            mid = list(br.out.events)
+            await asyncio.sleep(0.2)
+            return mid, br.out.events
+        mid, end = asyncio.run(run())
+        self.assertEqual(mid, [("press", "l")])
+        self.assertEqual(end, [("press", "l"), ("release", "l")])
+
+    def test_press_ms_delays_early_release_of_hold(self):
+        async def run():
+            br = make_bridge()
+            btn = {"id": "h", "key": "M", "hold": True, "press_ms": 300}
+            br.fire(btn, True)
+            br.fire(btn, False)                     # Finger sofort weg
+            await asyncio.sleep(0.15)
+            mid = list(br.out.events)
+            await asyncio.sleep(0.25)
+            return mid, br.out.events
+        mid, end = asyncio.run(run())
+        self.assertEqual(mid, [("press", "h")])     # noch gehalten
+        self.assertEqual(end, [("press", "h"), ("release", "h")])
 
     def test_unmapped_does_nothing(self):
         async def run():

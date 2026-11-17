@@ -126,7 +126,7 @@ def main():
             if act not in eff:
                 print(f"{b['id']:22} {act:48} !! Aktion gibt es im Spiel nicht")
                 continue
-            sc, mode, multi = eff[act]
+            sc, mode, multi = eff[act][:3]
             key = sc_to_key(sc) if sc else None
             if key and (multi not in ("", "1") or mode in MULTI_MODES):
                 print(f"{b['id']:22} {act:48} !! {key} nur per Doppeltipp - nicht abbildbar, bitte anders binden")
@@ -147,7 +147,7 @@ def main():
 
     # Doppelbelegungen: dieselbe Kombination für mehrere Spielaktionen (Panel-Taste löst ggf. beides aus)
     by_key = {}
-    for act, (sc, _mode, _multi) in eff.items():
+    for act, (sc, _mode, _multi, _t) in eff.items():
         k = sc_to_key(sc) if sc else None
         if k:
             by_key.setdefault(k, set()).add(act)

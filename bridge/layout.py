@@ -3,6 +3,8 @@
 Button-Felder:
   id, label (Pflicht) · key ("LALT+F") · mode: tap | hold-confirm | toggle · style: accent | danger
   hold: true = Taste so lange halten wie der Finger (sonst kurzer Impuls, passend zu "tap"-Aktionen)
+  press_ms: Mindest-Haltezeit 50-3000 ms (Spiel wertet erst lange Drücke, z. B. Star Citizen "delayed_press"):
+      Impuls dauert so lange, bei hold lässt der Hub frühestens danach los. Setzt bei sc-Tasten der Hub selbst.
   sc: Name der Star-Citizen-Aktion (scripts/sc_bindings.py leitet daraus key ab)
   group · wide · zone (Schild-Seite) · macro: Liste von Schritten (statt key):
       {"key": "LALT+1"}  {"text": "o7"}  {"wait": 200}  {"media": "playpause"}
@@ -51,6 +53,7 @@ PAGE_TYPES = {"grid", "shield", "free"}
 GRID_COLS, GRID_ROWS = (2, 24), (2, 16)   # erlaubte Rastergrößen freier Seiten
 ZONES = {"front", "back", "left", "right", "top", "bottom", "reset"}
 MAX_MACRO = 50
+PRESS_MS = (50, 3000)   # Mindest-Haltezeit einer Taste
 STATE_COUNT = (2, 6)
 STATE_LABEL_MAX = 20
 SLIDER_STEPS = (2, 20)
@@ -303,6 +306,8 @@ def validate_layout(layout):
                 _err(f"{where}: mode muss {sorted(MODES)} sein")
             if "hold" in b and not isinstance(b["hold"], bool):
                 _err(f"{where}: hold muss true/false sein")
+            if "press_ms" in b and not (type(b["press_ms"]) is int and PRESS_MS[0] <= b["press_ms"] <= PRESS_MS[1]):
+                _err(f"{where}: press_ms muss {PRESS_MS[0]}-{PRESS_MS[1]} sein")
             if not _one_of(b.get("style", ""), STYLES):
                 _err(f"{where}: style muss accent/danger oder leer sein")
             if "key" in b and b["key"] not in (None, ""):
