@@ -103,7 +103,7 @@ main.fill { overflow: hidden; }
   border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--inset);
   background: linear-gradient(180deg, var(--s1), rgba(22, 26, 31, .5)); }
 .ftitle { position: absolute; top: 7px; left: 12px; right: 12px; padding-left: 10px; overflow: hidden;
-  white-space: nowrap; text-overflow: ellipsis; font: 700 var(--fs-xs)/1.2 var(--fh); color: var(--dim);
+  white-space: nowrap; text-overflow: ellipsis; font: 700 var(--fs-xs)/1.5 var(--fh); color: var(--dim);
   text-transform: uppercase; letter-spacing: .14em; }
 .ftitle::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 2px;
   background: var(--ac); }
@@ -165,6 +165,35 @@ main.fill { overflow: hidden; }
 .btn.armed .again { display: flex; }
 .btn.armed { border-color: var(--warn); }
 
+/* Schiffsansicht als Element einer freien Seite (kind shield); Reset liegt auf dem Schiff */
+.fshield { z-index: 1; min-width: 0; min-height: 0; display: flex; }
+.fshield svg { flex: 1; min-width: 0; min-height: 0; width: 100%; height: 100%; touch-action: none; }
+.fshield .zone { stroke: var(--s1); stroke-width: 8; }
+.ship.hit { pointer-events: auto; cursor: pointer; }
+.ship.hit.down { fill: var(--ac); }
+.compact .zlabel { font-size: 38px; }
+.compact .zlabel.slabel { font-size: 24px; fill: var(--tx); }
+.ship.hit.down + .slabel { fill: var(--acTx); }
+.ship.nomap { fill-opacity: .5; }
+
+/* Pille: eine Zeile, notfalls mit … */
+.key.look-pill .lbl { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; line-height: 1.5; }
+.key.look-pill .sub { flex: none; white-space: nowrap; }
+
+/* Dichte Raster: automatische Stufen (app.js fitKeys), wenn der Inhalt nicht passt */
+.free .key.fit1 { gap: 1px; padding: 2px 4px; }
+.free .key.fit1 .arrow { width: 20px; height: 20px; }
+.free .key.fit1.look-switch { justify-content: center; gap: 3px; }
+.free .key.fit1 .swtch { width: 40px; height: 20px; }
+.free .key.fit1 .knob { top: 2px; left: 10px; width: 14px; height: 14px; }
+.free .key.fit1.look-switch.down .knob { transform: translateX(8px); }
+.free .key.fit1 .lockic { top: 3px; left: 12px; width: 13px; height: 13px; }
+.free .key.fit2 .sub, .free .segp.fit2 .sub { display: none; }
+.free .key.fit3, .free .key.fit3 .lbl, .free .segp.fit3 { font-size: var(--fs-xs); line-height: 1.25; }
+.free .key.look-pill.fit3 .lbl { line-height: 1.5; }
+.free .key.fit3 .arrow { width: 16px; height: 16px; }
+.free .key.look-big.fit3 { font-size: var(--fs-md); }
+
 /* Auswahlleiste: Teile nebeneinander, jeder sendet seine Taste */
 .seg { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 4px;
   touch-action: none; }
@@ -173,7 +202,7 @@ main.fill { overflow: hidden; }
 .segrow { flex: 1; min-height: 44px; display: flex; overflow: hidden; background: var(--s2);
   border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--inset); }
 .segp { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2px; padding: 0 4px; border-left: 1px solid var(--line); text-align: center; overflow-wrap: anywhere;
+  gap: 2px; padding: 0 4px; border-left: 1px solid var(--line); text-align: center; overflow-wrap: break-word;
   font: 600 var(--fs-md)/1.2 var(--fb); transition: background var(--dur); }
 .segp:first-child { border-left: 0; }
 .segp .sub { font: 500 10px/1 var(--fm); color: var(--dim); }

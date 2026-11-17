@@ -369,7 +369,19 @@
     var root = h("div", "shield");
     var byZone = {};
     p.buttons.forEach(function (b) { byZone[b.zone] = b; });
-    var W = 600, H = 400, cx = 300, cy = 200;
+    root.appendChild(shipSvg(byZone, false));
+
+    var side = h("div", "side");
+    ["top", "reset", "bottom"].forEach(function (z) {
+      if (byZone[z]) side.appendChild(makeBtn(byZone[z], z === "reset" ? "reset" : ""));
+    });
+    root.appendChild(side);
+    return root;
+  }
+
+  // Schiff von oben mit vier Schildzonen; resetOnShip: Zone reset ist das Schiff selbst (shield-Element)
+  function shipSvg(byZone, resetOnShip) {
+    var W = 600, H = 400;
     var s = svg("svg", { viewBox: "0 0 " + W + " " + H, preserveAspectRatio: "xMidYMid meet" });
     var zones = {
       front: { pts: "0,0 600,0 300,200", lx: 300, ly: 45 },
@@ -377,6 +389,9 @@
       left:  { pts: "0,0 0,400 300,200", lx: 70, ly: 200 },
       right: { pts: "600,0 600,400 300,200", lx: 530, ly: 200 }
     };
+    if (resetOnShip) {   // größeres Schiff: Beschriftungen weiter nach außen
+      zones.front.ly = 34; zones.back.ly = 368; zones.left.lx = 64; zones.right.lx = 536;
+    }
     Object.keys(zones).forEach(function (z) {
       var b = byZone[z]; if (!b) return;
       var poly = svg("polygon", { points: zones[z].pts, "class": "zone", "data-id": b.id });
@@ -386,17 +401,22 @@
       s.appendChild(t);
     });
     // Schiff von oben (Spitze nach vorn)
-    s.appendChild(svg("path", { "class": "ship", d:
+    var ship = svg("path", { "class": "ship", d:
       "M300,85 L318,140 L322,175 L395,215 L398,240 L325,232 L320,262 L345,290 L345,302 " +
-      "L300,296 L255,302 L255,290 L280,262 L275,232 L202,240 L205,215 L278,175 L282,140 Z" }));
-    root.appendChild(s);
-
-    var side = h("div", "side");
-    ["top", "reset", "bottom"].forEach(function (z) {
-      if (byZone[z]) side.appendChild(makeBtn(byZone[z], z === "reset" ? "reset" : ""));
-    });
-    root.appendChild(side);
-    return root;
+      "L300,296 L255,302 L255,290 L280,262 L275,232 L202,240 L205,215 L278,175 L282,140 Z" });
+    s.appendChild(ship);
+    if (resetOnShip) {   // im Element: Schiff größer, Beschriftungen kräftiger (Fläche ist viel kleiner)
+      s.classList.add("compact");
+      ship.setAttribute("transform", "translate(300 200) scale(1.3) translate(-300 -193)");
+    }
+    if (resetOnShip && byZone.reset) {
+      ship.setAttribute("class", "ship hit");
+      ship.setAttribute("data-id", byZone.reset.id);
+      var rl = svg("text", { x: 300, y: 224, "class": "zlabel slabel" });
+      rl.textContent = byZone.reset.label;
+      s.appendChild(rl);
+    }
+    return s;
   }
 
   function renderGrid(p) {
@@ -442,15 +462,46 @@
       }
     });
     p.buttons.forEach(function (b) {
+      if (b.kind === "shield") {
+        var byZone = {};
+        p.buttons.forEach(function (z) { if (z.zone && !z.kind) byZone[z.zone] = z; });
+        var sh = h("div", "fshield");
+        sh.appendChild(shipSvg(byZone, true));
+        place(sh, b);
+      }
+    });
+    p.buttons.forEach(function (b) {
       if (b.kind === "text") {
         var t = h("div", "ftext s-" + (b.size || "m") + " a-" + (b.align || "left"));
         t.appendChild(h("span", null, b.label));
         place(t, b);
       }
     });
-    p.buttons.forEach(function (b) { if (!b.kind) place(makeBtn(b), b); });
+    p.buttons.forEach(function (b) { if (!b.kind && !b.zone) place(makeBtn(b), b); });
     return root;
   }
+
+  // Dichte Raster: passt der Inhalt nicht in die Taste, stufenweise kompakter (fit1 enger, fit2 ohne
+  // Tastenname, fit3 kleinere Schrift) - sonst wären Beschriftungen und Schalter abgeschnitten
+  function overflows(e) {
+    var r = e.getBoundingClientRect(), top = Infinity, bottom = -Infinity, wide = false;
+    Array.prototype.forEach.call(e.children, function (c) {
+      var cs = getComputedStyle(c);
+      if (cs.display === "none" || cs.position === "absolute") return;
+      var q = c.getBoundingClientRect();
+      top = Math.min(top, q.top); bottom = Math.max(bottom, q.bottom);
+      if (c.scrollWidth > c.clientWidth + 1 || q.left < r.left - 1 || q.right > r.right + 1) wide = true;
+    });
+    return wide || top < r.top + 1 || bottom > r.bottom - 1 || e.scrollWidth > e.clientWidth + 1;
+  }
+  function fitKeys() {
+    Array.prototype.forEach.call(pageEl.querySelectorAll(".free .key, .free .segp"), function (e) {
+      e.classList.remove("fit1", "fit2", "fit3");
+      for (var i = 1; i <= 3 && overflows(e); i++) e.classList.add("fit" + i);
+    });
+  }
+  var fitTimer = 0;
+  window.addEventListener("resize", function () { clearTimeout(fitTimer); fitTimer = setTimeout(fitKeys, 100); });
 
   function showPage(id) {
     cancelAll();
@@ -474,6 +525,10 @@
     pageEl.innerHTML = "";
     pageEl.classList.toggle("fill", p.type === "free" || p.type === "shield");
     pageEl.appendChild(p.type === "shield" ? renderShield(p) : p.type === "free" ? renderFree(p) : renderGrid(p));
+    if (p.type === "free") {
+      fitKeys();
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitKeys);   // Schrift nachgeladen
+    }
     markUnmapped();
   }
 

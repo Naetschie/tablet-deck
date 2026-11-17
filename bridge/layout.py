@@ -33,6 +33,9 @@ nicht als Tasten, der Hub kennt sie nicht):
   {"kind": "frame", "id", "label" (Titel, optional, bis 40 Zeichen), "x", "y", "w", "h"} - Bereich mit Rahmen und
       Titel oben; liegt hinter den Tasten.
   {"kind": "text", "id", "label" (1-120 Zeichen), "x", "y", "w", "h", "align": left|center|right, "size": s|m|l}
+  {"kind": "shield", "id", "x", "y", "w", "h"} - Schiff von oben mit Schildzonen (höchstens eins je Seite). Die
+      Zonen sind normale Tasten der Seite mit zone front|back|left|right|reset und ohne x/y/w/h; reset liegt
+      auf dem Schiff. Ohne look/slider/states/segment.
 """
 import re
 import json
@@ -54,10 +57,12 @@ SLIDER_STEPS = (2, 20)
 SEGMENT_COUNT = (2, 6)
 LOOKS = {"switch", "big", "arrow", "pill"}
 ARROW_DIRS = {"up", "down", "left", "right", "up2", "down2"}
-KINDS = {"frame", "text"}
+KINDS = {"frame", "text", "shield"}
 KIND_FIELDS = {"frame": {"kind", "id", "label", "x", "y", "w", "h"},
-               "text": {"kind", "id", "label", "x", "y", "w", "h", "align", "size"}}
-KIND_LABEL_MAX = {"frame": 40, "text": 120}
+               "text": {"kind", "id", "label", "x", "y", "w", "h", "align", "size"},
+               "shield": {"kind", "id", "x", "y", "w", "h"}}
+KIND_LABEL_MAX = {"frame": 40, "text": 120, "shield": 0}
+SHIELD_ZONES = {"front", "back", "left", "right", "reset"}   # Zonen im shield-Element freier Seiten
 TEXT_ALIGN = {"left", "center", "right"}
 TEXT_SIZE = {"s", "m", "l"}
 SECTION_MAX = 20
@@ -140,7 +145,7 @@ def validate_decor(b, where, ptype, cols, rows):
     if extra:
         _err(f"{where}: {kind} kennt kein Feld {sorted(extra)}")
     lab, mx = b.get("label"), KIND_LABEL_MAX[kind]
-    if lab is None and kind == "frame":
+    if lab is None and kind in ("frame", "shield"):
         lab = ""
     if not isinstance(lab, str) or len(lab) > mx or (kind == "text" and not lab.strip()):
         _err(f"{where}: label {0 if kind == 'frame' else 1}-{mx} Zeichen")
@@ -279,6 +284,7 @@ def validate_layout(layout):
                 type(cols) is int and GRID_COLS[0] <= cols <= GRID_COLS[1]
                 and type(rows) is int and GRID_ROWS[0] <= rows <= GRID_ROWS[1]):
             _err(f"Seite {pid}: cols {GRID_COLS[0]}-{GRID_COLS[1]}, rows {GRID_ROWS[0]}-{GRID_ROWS[1]}")
+        shields, zones = 0, set()
         for b in page["buttons"]:
             bid = b.get("id") if isinstance(b, dict) else None
             where = f"Taste {bid!r} (Seite {pid})"
@@ -289,6 +295,7 @@ def validate_layout(layout):
             if "kind" in b:
                 validate_decor(b, where, page.get("type"), cols, rows)
                 decor_ids.add(bid)
+                shields += b["kind"] == "shield"
                 continue
             if not isinstance(b.get("label"), str):
                 _err(f"{where}: label fehlt")
@@ -317,7 +324,13 @@ def validate_layout(layout):
                 validate_open(b["open"], where)
             if page.get("type") == "shield" and not _one_of(b.get("zone"), ZONES):
                 _err(f"{where}: zone muss {sorted(ZONES)} sein")
-            if page.get("type") == "free":
+            if page.get("type") == "free" and "zone" in b:
+                if not _one_of(b["zone"], SHIELD_ZONES) or b["zone"] in zones:
+                    _err(f"{where}: zone muss eine von {sorted(SHIELD_ZONES)} sein (je Seite einmal)")
+                if any(k in b for k in ("x", "y", "w", "h", "look", "slider", "states", "segment")):
+                    _err(f"{where}: Schildzone ohne x/y/w/h und ohne look/slider/states/segment")
+                zones.add(b["zone"])
+            elif page.get("type") == "free":
                 _check_cells(b, where, cols, rows)
             if "page" in b:
                 if not isinstance(b["page"], str) or any(k in b for k in ("key", "macro", "open")) \
@@ -325,6 +338,8 @@ def validate_layout(layout):
                     _err(f"{where}: page (Seiten-Link) ohne key/macro/open, mode tap, ohne hold")
                 links.append((where, b["page"]))
             buttons[bid] = b
+        if shields > 1 or (zones and not shields):
+            _err(f"Seite {pid}: Schildzonen brauchen genau ein shield-Element")
     for where, target in links:
         if target not in page_ids:
             _err(f"{where}: Seiten-Link auf unbekannte Seite {target!r}")

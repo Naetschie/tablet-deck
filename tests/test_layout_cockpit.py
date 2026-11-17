@@ -32,6 +32,20 @@ def bad(testcase, layout):
 
 
 class CockpitTest(unittest.TestCase):
+    def test_shield_element(self):
+        sh = {"kind": "shield", "id": "sh", "x": 0, "y": 0, "w": 6, "h": 4}
+        z = lambda zid, zone, **kw: dict({"id": zid, "label": zid, "key": "F1", "zone": zone}, **kw)
+        btns = validate_layout(free(sh, z("v", "front"), z("h", "back"), z("r", "reset"), key(x=8)))
+        self.assertEqual(set(btns), {"v", "h", "r", "a"})                      # Zonen sind normale Tasten
+        bad(self, free(z("v", "front")))                                       # Zone ohne shield
+        bad(self, free(sh, dict(sh, id="sh2"), z("v", "front")))               # zwei shields
+        bad(self, free(sh, z("v", "front"), z("w", "front")))                  # Zone doppelt
+        bad(self, free(sh, z("v", "top")))                                     # top/bottom nur auf Schild-Seiten
+        bad(self, free(sh, z("v", "front", x=0, y=0, w=1, h=1)))               # Zone ohne Position
+        bad(self, free(sh, z("v", "front", look="big")))
+        bad(self, free(dict(sh, label="Schilde")))                             # shield ohne Titel (dafür frame)
+        bad(self, {"pages": [{"id": "p", "title": "P", "buttons": [sh]}]})     # nur auf freien Seiten
+
     def test_lists_instead_of_text_are_value_errors(self):
         # handgeschriebene Panels: Listen/Zahlen in Auswahlfeldern -> Fehlermeldung statt TypeError
         bad(self, free({"kind": ["frame"], "id": "f", "x": 0, "y": 0, "w": 2, "h": 2}))
