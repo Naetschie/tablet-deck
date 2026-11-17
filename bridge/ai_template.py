@@ -188,9 +188,11 @@ def clean(data):
     for si, s in enumerate(data["sections"][:MAX_SECTIONS], 1):
         if not isinstance(s, dict) or not isinstance(s.get("areas"), list):
             continue
-        title = _text(s.get("title"), 20) or f"Seite {si}"
-        while title in seen:                 # Seitengruppen brauchen eindeutige Titel
-            title = (title[:17] + f" {si}")[:20]
+        base = _text(s.get("title"), 20) or f"Seite {si}"
+        title, n = base, 2
+        while title in seen:                 # Seitengruppen brauchen eindeutige Titel (Zähler: endet sicher)
+            title = f"{base[:20 - len(str(n)) - 1].rstrip()} {n}"
+            n += 1
         areas = []
         for a in s["areas"][:MAX_AREAS]:
             if not isinstance(a, dict) or not isinstance(a.get("items"), list):
@@ -199,7 +201,7 @@ def clean(data):
             for it in a["items"][:MAX_ITEMS]:
                 if not isinstance(it, dict):
                     continue
-                label = _text(it.get("label"), 40) or _text(it.get("action"), 40)
+                label = _text(it.get("label"), 22) or _text(it.get("action"), 22)
                 act = _text(it.get("action"), 120)
                 if not label or not act:
                     continue
@@ -209,7 +211,7 @@ def clean(data):
                 if it.get("guard") in ("hold", "double"):
                     t["mode"] = "hold-confirm" if it["guard"] == "hold" else "double"
                 act2 = _text(it.get("action2"), 120)
-                if it.get("kind") == "pair" and act2:
+                if it.get("kind") == "pair" and act2 and act2 != act:   # Paar nur aus zwei verschiedenen Aktionen
                     items.append({"pair": [t, dict(t, action=act2)]})
                 else:
                     if it.get("size") in ("l", "xl", "pill"):

@@ -320,6 +320,12 @@ class BundledTest(unittest.TestCase):
             self.assertEqual(on, {"js_default", "js_own"})     # gelöscht zählt nicht; Gamepad ohne Rebinds auch nicht
             self.assertEqual(cryengine.device_actions(dp, ""), frozenset())   # ohne actionmaps.xml: unbekannt
             self.assertEqual(cryengine.read({"default": str(dp), "user": str(up)}, d).on_device, on)
+            up.write_text("""<ActionMaps><actionmap name="m"><action name="js_own"><rebind input="js1"/></action>
+              <action><rebind input="js2_button1"/></action></actionmap></ActionMaps>""", encoding="utf-8")
+            self.assertEqual(cryengine.device_actions(dp, up), {"js_default", "js_cleared"})   # kaputte Einträge stören nicht
+            up.write_text("<ActionMaps><nicht wohlgeformt", encoding="utf-8")
+            res = cryengine.read({"default": str(dp), "user": ""}, d)
+            self.assertEqual(res.bindings["kb_only"].key, "F5")
 
     def test_cryengine_press_threshold(self):
         import tempfile

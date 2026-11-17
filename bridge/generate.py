@@ -189,8 +189,17 @@ def ai_draft(root, games_entry, hint="", style_prompt=None, style="areas", skip_
         raise ValueError(f"Claude-API-Fehler ({type(e).__name__})") from None
     except (KeyError, AttributeError, IndexError) as e:
         raise ValueError(f"KI-Antwort unbrauchbar ({type(e).__name__})") from None
+    dropped = []
+    if skip_device and result:
+        # auch was die KI trotz Liste nennt (oder der geänderte Prompt verlangt), fällt weg
+        spec, dropped = filter_spec(spec, None, result.on_device)
     layout, report = generate(auto_build(spec, style), result)
+    report += [dict(d, id="", key="", page_id="", source="weggelassen", note="liegt schon auf Joystick/Gamepad")
+               for d in dropped]
     source = "KI-Vorlage (Claude)" + (" + " + result.source if result else " – ohne Belegung: Tasten selbst eintragen")
+    if skip_device:
+        source += (f" · {len(dropped)} Aktion(en) weggelassen (Joystick/Gamepad)" if result
+                   else " · Filter Joystick/Gamepad ohne Belegungsquelle wirkungslos")
     return layout, report, source
 
 

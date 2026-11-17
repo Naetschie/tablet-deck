@@ -79,6 +79,16 @@ class AiTemplateTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 ai_template.generate_template(d, "S")
 
+    def test_doppelte_titel_enden_und_paar_gleicher_aktion(self):
+        long = "A" * 17 + " 2"
+        s = [sec(long, ("B", item("X", "a"))), sec(long, ("B", item("Y", "b"))), sec("A" * 20, ("B", item("Z", "c"))),
+             sec("A" * 20, ("B", item("Laut", "v", kind="pair", action2="v")))]
+        out = ai_template.generate_template(".", "S", client=FakeClient(reply(s)))
+        titles = [x["title"] for x in out["sections"]]
+        self.assertEqual(len(set(titles)), 4)
+        self.assertTrue(all(len(x) <= 20 for x in titles))
+        self.assertNotIn("pair", out["sections"][3]["areas"][0]["items"][0])   # gleiche Aktion: Einzeltaste
+
     def test_actions_im_user_text_und_parameter(self):
         c = FakeClient(reply([sec("P", ("B", item("X", "v_lights")))]))
         ai_template.generate_template(".", "Stalker 2", hint="h" * 5000, client=c, style_prompt="Nur große Tasten.",

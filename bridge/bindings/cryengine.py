@@ -134,10 +134,12 @@ def device_actions(default_path, user_path):
         return frozenset()
     on, cleared = set(), set()
     for a in root.iter("action"):
+        if not a.get("name"):
+            continue
         for rb in a.iter("rebind"):
             inp = rb.get("input", "")
             if inp.startswith(prefixes):
-                if inp.split("_", 1)[1].strip():
+                if inp.partition("_")[2].strip():
                     on.add(a.get("name"))
                 else:
                     cleared.add((a.get("name"), inp[:2]))
@@ -219,6 +221,6 @@ def read(cfg, root):
     src = f"{default.name}" + (f" + {Path(user).name}" if user and Path(user).exists() else "")
     try:
         on_device = device_actions(default, user)
-    except (ET.ParseError, OSError):
+    except Exception:  # noqa: BLE001 - Nebenfunktion (Filter): darf die echten Tasten nie kosten
         on_device = frozenset()
     return Result(out, [k for k in FREE_POOL if k not in used], src, on_device)
