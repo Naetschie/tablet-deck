@@ -109,6 +109,18 @@ def _registry_texts(regpath):
     return out
 
 
+_EMPTY_ENTRY = re.compile(r"^\s*[\w.\-]+\s*[=:]\s*$")
+_FILLED_ENTRY = re.compile(r"^\s*[\w.\-]+\s*[=:]\s*\S")
+
+
+def _empty_mapping(text):
+    """Datei mit vielen Einträgen ohne Wert („Inventory =“): das Spiel speichert nur Änderungen, es gibt keine."""
+    lines = text.splitlines()
+    empty = sum(1 for line in lines if _EMPTY_ENTRY.match(line))
+    filled = sum(1 for line in lines if _FILLED_ENTRY.match(line) and "struct.begin" not in line)
+    return empty >= 5 and filled <= 1
+
+
 def _rank(r, user_dir, strong, mtime):
     return (r.count > 0, r.method == "exact", user_dir, strong, r.count, mtime)
 
@@ -156,6 +168,8 @@ def search(name, install_dir=None, appid=None, learned=None):
                 only_changes += 1
             elif kind in ("encrypted", "binary") and (user_dir or re.search(r"bind|key", f.name, re.I)):
                 unreadable += 1   # Steuerungs- oder Einstellungsdatei, aber nicht lesbar
+            elif strong and kind == "text" and user_dir and _empty_mapping(content):
+                only_changes += 1   # Steuerungsdatei mit lauter leeren Einträgen: nichts geändert
             elif strong and kind == "text" and user_dir and len(content.strip()) > 64:
                 unknown += 1      # fast leere Dateien (z. B. „Input.ini“ mit 2 Bytes) zählen nicht
     if cands:

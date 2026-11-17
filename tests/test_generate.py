@@ -87,6 +87,14 @@ class GenerateTest(unittest.TestCase):
                            "a_mouse": Binding(None, False, "nur Maus/Achse (mouse1)")},
                           ["RCTRL+NUMPAD1", "RCTRL+NUMPAD2"], "test")
 
+    def test_template_bindings_fallback(self):
+        from bridge.generate import template_bindings
+        r = template_bindings(str(Path(__file__).resolve().parent.parent), "stalker2")
+        self.assertGreaterEqual(len(r.bindings), 10)
+        self.assertTrue(all(b.key for b in r.bindings.values()))         # nur Aktionen mit Taste
+        self.assertIn("Vorlage", r.source)
+        self.assertIsNone(template_bindings(str(Path(__file__).resolve().parent.parent), "gibtsnicht"))
+
     def test_filter_spec_sections_and_device(self):
         from bridge.generate import filter_spec
         spec = {"sections": [

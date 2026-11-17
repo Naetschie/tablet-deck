@@ -165,6 +165,11 @@ def ai_draft(root, games_entry, hint="", style_prompt=None, style="areas", skip_
         raise ValueError("Paket anthropic fehlt (pip install -r requirements.txt)") from None
     from .ai_template import generate_template
     result, bind_msg = _read_bindings(root, games_entry)[:2]
+    if result is None:
+        # keine lesbare Belegung: Aktionen und Tasten der Vorlagen des Spiels (echte Quelle, nicht geraten)
+        result = template_bindings(root, games_entry.get("id"))
+        if result:
+            bind_msg = result.source
     actions = None
     if result:
         skip = result.on_device if skip_device else frozenset()
@@ -282,11 +287,52 @@ def _read_bindings(root, games_entry, with_state=False):
         return (None, msg, "unreadable") if with_state else (None, msg)
 
 
+def template_bindings(root, gid):
+    """Ersatzquelle, wenn das Spiel keine lesbare Belegung hat: Aktionen und Tasten aus seinen Vorlagen
+    (dort aus Handbuch/Standardbelegung des Spiels übernommen). Result oder None."""
+    from .bindings import Binding, Result
+    from .bindings.cryengine import FREE_POOL
+    found = {}
+
+    def take(t):
+        if isinstance(t, dict):
+            act, key = t.get("sc") or t.get("action"), t.get("key")
+            if isinstance(act, str) and isinstance(key, str) and key and act not in found:
+                found[act] = Binding(key, bool(t.get("hold")), "Vorlage", t.get("press_ms") or 0)
+
+    for entry in list_templates(root, gid):
+        try:
+            t = read_template(root, gid, entry["id"])
+        except (ValueError, OSError):
+            continue
+        if is_semantic(t):
+            for s in t.get("sections", []):
+                for a in s.get("areas", []):
+                    for it in a.get("items", []):
+                        for x in (it.get("pair") if isinstance(it.get("pair"), list) else [it]):
+                            take(x)
+                    for z in (a.get("shield") or {}).values():
+                        take(z)
+        else:
+            for p in t.get("pages", []):
+                for b in p.get("buttons", []):
+                    take(b)
+    if not found:
+        return None
+    used = {b.key for b in found.values()}
+    return Result(found, [k for k in FREE_POOL if k not in used],
+                  f"Standardtasten aus der Vorlage ({len(found)} Aktionen)")
+
+
 def binding_status(root, games_entry):
     """Für den Editor vor dem Erzeugen: {ok, state, source, count, learned} - woher die Tasten kommen (oder warum
     keine). state: read | recognized | only_changes | unreadable | unknown | none (siehe bindings/scan.py)."""
     result, source, state = _read_bindings(root, games_entry, with_state=True)
     n = sum(1 for b in result.bindings.values() if b.key) if result else 0
+    if not n and not games_entry.get("bindings"):
+        tb = template_bindings(root, games_entry.get("id"))
+        if tb:
+            source += f" · „Mit KI erstellen“ nutzt stattdessen die {tb.source}"
     return {"ok": bool(result and n), "state": state, "source": source, "count": n,
             "learned": bool(learned_path(root, games_entry.get("id"))), "adapter": bool(games_entry.get("bindings"))}
 

@@ -125,6 +125,11 @@ class ReviewTest(unittest.TestCase):
         keys = "[Keys]\nJump=Space\nUse=E\nMap=M\nInventory=I\nCrouch=C\nSprint=LeftShift\n"
         self.assertEqual(read_content("text", keys).count, 6)   # „[Keys]“ ist kein JSON
 
+    def test_empty_mapping_is_only_changes(self):
+        txt = "PlayerMappings : struct.begin\n" + "".join(f"\t{n} =\n" for n in ("A1", "B1", "C1", "D1", "E1", "F1")) + "struct.end\n"
+        self.assertTrue(scan._empty_mapping(txt))
+        self.assertFalse(scan._empty_mapping("Jump = Space\nUse = E\nMap = M\nA =\nB =\nC =\nD =\nE =\n"))
+
     def test_gzip_bomb_limited(self):
         kind, content = open_bytes(gzip.compress(bytes(50_000_000)))
         self.assertLessEqual(len(content or b""), 8 * 1024 * 1024)
