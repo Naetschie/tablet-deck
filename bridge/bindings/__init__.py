@@ -28,6 +28,19 @@ def resolve_cfg(cfg, root, entries=None):
     return dict(cfg), []
 
 
+def find_fallback(name, install_dir=None):
+    """Spiel ohne Adapter: Belegungsdatei in den Spielordnern suchen (bindings/scan.py).
+    Rückgabe (Result oder None, Meldung) - Meldung sagt auch, wenn nur Unlesbares gefunden wurde."""
+    from . import scan
+    from .cryengine import FREE_POOL
+    found, msg, _src = scan.find(name, install_dir)
+    if not found:
+        return None, msg
+    out = {a: Binding(k, h, n) for a, (k, h, n) in found.items()}
+    used = {b.key for b in out.values() if b.key}
+    return Result(out, [k for k in FREE_POOL if k not in used], msg), msg
+
+
 def apply_sc(layout, result):
     """Kopie des Layouts, in der Tasten mit Feld "sc" die echte Belegung des Spielers tragen (key, bei Halte-
     Aktionen hold=true). Aktionen ohne Tastaturbelegung oder unbekannte Aktionen behalten, was in der Datei steht.

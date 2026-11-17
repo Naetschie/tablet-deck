@@ -207,7 +207,7 @@ class ActionsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = self.make_root(d)
             tpls, source = actions(root, {"id": "spiel"})
-            self.assertIn("keine Belegungsquelle", source)
+            self.assertIn("keine lesbare Belegungsdatei", source)   # Rückfall-Suche fand nichts
             self.assertEqual(tpls[0]["pages"][0]["actions"][1]["source"], "Vorlage")     # Taste Q aus der Vorlage
             self.assertEqual(actions(root, {"id": "gibtsnicht"}), ([], source))
 

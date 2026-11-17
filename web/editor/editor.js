@@ -73,10 +73,18 @@
         if (isDirty()) changed(); else status("Gespeichert – Tablet aktualisiert sich", "ok");
       } else if (m.t === "ai_key") {
         aiKeyShow(m);
+      } else if (m.t === "bind_status") {
+        if (m.game === cur.game) {
+          $("genBind").textContent = m.ok ? "Tasten: " + m.count + " Aktionen mit Taste – " + m.source
+            : "Achtung: " + m.source + ". Erzeugte Tasten haben dann keine Taste (gestrichelt).";
+          $("genBind").className = "hint " + (m.ok ? "ok" : "warn");
+        }
       } else if (m.t === "ai_prompt") {
         genPromptShow(m);
       } else if (m.t === "error" && /^ai_key_/.test(m.req || "")) {
         aiKeyBusy(false); aiKeyMsg("Fehler: " + m.msg, "err");
+      } else if (m.t === "error" && m.req === "bind_status") {
+        $("genBind").textContent = "Tastenbelegung nicht geprüft: " + m.msg; $("genBind").className = "hint warn";
       } else if (m.t === "error" && (m.req === "generate" || m.req === "templates" || m.req === "ai")) {
         if (m.req === "ai") $("genAiRun").disabled = false;
         $("genReport").textContent = "Fehler: " + m.msg;
@@ -244,7 +252,9 @@
     if (!cur.game) return;
     $("genReport").innerHTML = ""; $("genTake").disabled = true; genLast = null;
     $("genSource").textContent = "Vorlagen werden geladen …";
+    $("genBind").textContent = "Tastenbelegung wird gesucht …"; $("genBind").className = "hint";
     send({ t: "templates", game: cur.game });
+    send({ t: "bind_status", game: cur.game });
     send({ t: "ai_key_status" });
     send({ t: "ai_prompt" });
     $("genDlg").showModal();
@@ -324,8 +334,7 @@
       $("genSource").textContent = "Für dieses Spiel gibt es noch keine Vorlage – unten mit KI erstellen.";
       renderGenPages(); return;
     }
-    $("genSource").textContent = m.bindings ? "Tasten kommen aus deiner Belegung im Spiel, sonst aus der Vorlage."
-      : "Keine Belegungsquelle für dieses Spiel – Tasten kommen aus der Vorlage (Standardbelegung des Spiels).";
+    $("genSource").textContent = "Tasten kommen aus deiner Belegung im Spiel, sonst aus der Vorlage (Rückfall).";
     genList.forEach(function (t) { sel.appendChild(el("option", { value: t.id, text: t.title })); });
     renderGenPages(); genStyleHint();
   }

@@ -164,16 +164,12 @@ def ai_draft(root, games_entry, hint="", style_prompt=None, style="areas", skip_
     except ImportError:
         raise ValueError("Paket anthropic fehlt (pip install -r requirements.txt)") from None
     from .ai_template import generate_template
-    cfg = games_entry.get("bindings")
-    result, actions = None, None
-    if cfg:
-        try:
-            result = bindings.read(cfg, root)
-            skip = result.on_device if skip_device else frozenset()
-            actions = [{"action": a, "key": b.key} for a, b in sorted(result.bindings.items())
-                       if b.key and a not in skip][:MAX_AI_ACTIONS]
-        except Exception as e:  # noqa: BLE001 - ohne Belegung weiter (Tasten bleiben dann leer)
-            log.warning("Belegung %s für KI nicht lesbar: %s", games_entry["id"], e)
+    result, bind_msg = _read_bindings(root, games_entry)
+    actions = None
+    if result:
+        skip = result.on_device if skip_device else frozenset()
+        actions = [{"action": a, "key": b.key} for a, b in sorted(result.bindings.items())
+                   if b.key and a not in skip][:MAX_AI_ACTIONS]
     try:
         spec = generate_template(root, games_entry.get("name", games_entry["id"]), actions=actions, hint=hint,
                                  style_prompt=style_prompt)
@@ -196,24 +192,49 @@ def ai_draft(root, games_entry, hint="", style_prompt=None, style="areas", skip_
     layout, report = generate(auto_build(spec, style), result)
     report += [dict(d, id="", key="", page_id="", source="weggelassen", note="liegt schon auf Joystick/Gamepad")
                for d in dropped]
-    source = "KI-Vorlage (Claude)" + (" + " + result.source if result else " – ohne Belegung: Tasten selbst eintragen")
+    source = "KI-Vorlage (Claude) + " + (result.source if result else bind_msg)
     if skip_device:
         source += (f" · {len(dropped)} Aktion(en) weggelassen (Joystick/Gamepad)" if result
                    else " · Filter Joystick/Gamepad ohne Belegungsquelle wirkungslos")
     return layout, report, source
 
 
+def _library_dir(games_entry):
+    """Installationsordner aus der Spielebibliothek (Steam, Epic, …), passend zu id oder Name."""
+    try:
+        from . import library
+        names = {str(games_entry.get("id", "")).lower(), str(games_entry.get("name", "")).lower()}
+        for g in library.scan_library():
+            if str(g.get("id", "")).lower() in names or str(g.get("name", "")).lower() in names:
+                return g.get("dir")
+    except Exception:  # noqa: BLE001 - ohne Bibliothek nur die Benutzerordner durchsuchen
+        pass
+    return None
+
+
 def _read_bindings(root, games_entry):
-    """Belegung des Spiels (games.json-Eintrag) lesen -> (Result oder None, Quellenbeschreibung)."""
+    """Belegung des Spiels (games.json-Eintrag oder Bibliothekseintrag) lesen -> (Result oder None, Quelle).
+    Ohne eigenen Adapter: Rückfall-Suche in den Spielordnern (lesbare Dateien; Unlesbares wird gemeldet)."""
     cfg = games_entry.get("bindings")
     if not cfg:
-        return None, "nur Vorlage (keine Belegungsquelle hinterlegt)"
+        try:
+            return bindings.find_fallback(games_entry.get("name") or games_entry.get("id"), _library_dir(games_entry))
+        except Exception as e:  # noqa: BLE001
+            log.warning("Belegungssuche %s: %s", games_entry.get("id"), type(e).__name__)
+            return None, "Belegungssuche fehlgeschlagen – Tasten bleiben leer"
     try:
         result = bindings.read(cfg, root)
         return result, result.source
     except (OSError, ValueError, Exception) as e:  # noqa: BLE001 - kaputte XML o. Ä.: mit Vorlage weiter
         log.warning("Belegung %s: %s", games_entry["id"], e)
         return None, f"Belegung nicht lesbar ({e}) – nur Vorlagentasten"
+
+
+def binding_status(root, games_entry):
+    """Für den Editor vor dem Erzeugen: {ok, source, count} - woher die Tasten kommen (oder warum keine)."""
+    result, source = _read_bindings(root, games_entry)
+    n = sum(1 for b in result.bindings.values() if b.key) if result else 0
+    return {"ok": bool(result and n), "source": source, "count": n}
 
 
 def draft(root, games_entry, tid, pages=None, style="areas", skip_device=False):

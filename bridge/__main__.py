@@ -31,7 +31,7 @@ from .firstrun import ensure_from_example
 from .outputs import make_output
 from .keys import ALIASES, MEDIA_VK, SCANCODES
 from .games import watch_games
-from .generate import actions_message, ai_draft, draft, list_templates
+from .generate import actions_message, ai_draft, binding_status, draft, list_templates
 from . import ai_template
 from .profiles import Exists, Profiles
 from .layout import button_for_press, needed_keys
@@ -382,6 +382,15 @@ class Bridge:
                             raise ValueError(f"KI-Vorlage fehlgeschlagen ({type(e).__name__})") from None
                         await ws.send(json.dumps({"t": "draft", "game": gi["id"], "template": "ki",
                                                   "layout": layout, "report": report, "source": source}))
+                    elif t == "bind_status":
+                        # woher die Tasten kommen (Adapter, Rückfall-Suche in den Spielordnern) - vor dem Erzeugen zeigen
+                        g = msg.get("game")
+                        gi = self.profiles.game(g) or (
+                            {"id": g, "name": g} if isinstance(g, str) and re.fullmatch(r"[a-z0-9-]{1,40}", g) else None)
+                        if not gi:
+                            raise ValueError("Spiel fehlt oder ungültig")
+                        st = await asyncio.get_running_loop().run_in_executor(None, binding_status, ROOT, gi)
+                        await ws.send(json.dumps({"t": "bind_status", "game": gi["id"], **st}))
                     elif t == "ai_prompt":
                         await ws.send(json.dumps({"t": "ai_prompt", **ai_template.prompt_parts()}))
                     elif t == "ai_key_status":
