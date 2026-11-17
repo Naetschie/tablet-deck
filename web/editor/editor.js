@@ -290,7 +290,8 @@
   function aiKeyButtons() { $("aiKeyCheck").disabled = !aiKeySet; $("aiKeyDel").disabled = !aiKeySet; }
   function aiKeyShow(m) {
     // verspätete Antwort für einen anderen Anbieter (schneller Wechsel): nur den Hinweis im Dialog „Automatisch“ nutzen
-    var stale = aiProvTouched && m.provider && m.provider !== aiProv();
+    // (nur bei offenem Dialog; das Ergebnis eines „Prüfen“ für den vorigen Anbieter geht dabei bewusst verloren)
+    var stale = $("setDlg").open && aiProvTouched && m.provider && m.provider !== aiProv();
     var activeSet0 = m.active_set !== undefined ? !!m.active_set : !!m.set;
     if (stale) { $("genAiNoKey").hidden = activeSet0; return; }
     aiKeySet = !!m.set;

@@ -79,6 +79,17 @@ class ProviderTest(unittest.TestCase):
             self.assertNotIn(OKEY, str(cm.exception))                     # nie der Schlüssel in Meldungen
         self.assertEqual(ai_providers.check_openai(self.root, opener=opener_for({"data": []}))["ok"], True)
 
+    def test_error_detail_only_codes(self):
+        ai_providers.save_key(self.root, "openai", OKEY)
+        body = json.dumps({"error": {"code": "unsupported_tool", "type": "invalid_request_error",
+                                     "param": "tools", "message": "Schlüssel " + OKEY}}).encode()
+
+        def op(req, timeout=None):
+            raise urllib.error.HTTPError(req.full_url, 400, "x", {}, io.BytesIO(body))
+        with self.assertRaises(ValueError) as cm:
+            ai_providers.openai_json(self.root, "s", "u", {}, opener=op)
+        self.assertEqual(str(cm.exception), "OpenAI-API-Fehler 400 (unsupported_tool, invalid_request_error, tools)")
+
     def test_web_json_from_text(self):
         ai_providers.save_key(self.root, "openai", OKEY)
         calls = []
@@ -94,6 +105,14 @@ class ProviderTest(unittest.TestCase):
         self.assertEqual(ai_providers._json_from_text(prose)["bindings"][0]["a"], "{x}")
         with self.assertRaises(ValueError):
             ai_providers._json_from_text("kein JSON {hier}")
+        import time
+        t0 = time.monotonic()
+        for bad in ("{" * 100000, "[" * 5000 + "{" + "[" * 5000):
+            with self.assertRaises(ValueError):
+                ai_providers._json_from_text(bad)
+        self.assertLess(time.monotonic() - t0, 2)                          # kein quadratisches Hängen
+        deep = '{"a": ' * 3000 + "1" + "}" * 3000 + ' {"bindings": [1]}'
+        self.assertEqual(ai_providers._json_from_text(deep), {"bindings": [1]})   # RecursionError abgefangen
         (Path(self.root) / "ai_settings.json").write_text('{"provider": []}', encoding="utf-8")
         self.assertEqual(ai_providers.settings(self.root)["provider"], "anthropic")   # kaputte Datei: Standard
 

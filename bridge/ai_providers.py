@@ -175,11 +175,18 @@ def _output_text(resp):
 def _json_from_text(text, want="bindings"):
     """Erstes JSON-Objekt im Freitext, das den Schlüssel want hat (auch mehrere Blöcke, Prosa mit Klammern)."""
     dec, first = json.JSONDecoder(), None
-    for m in re.finditer(r"\{", text):
+    text, pos, tries = text[:200_000], 0, 0          # begrenzt: kein quadratisches Hängen bei vielen „{“
+    while tries < 300:
+        i = text.find("{", pos)
+        if i < 0:
+            break
+        tries += 1
         try:
-            obj, _end = dec.raw_decode(text, m.start())
-        except ValueError:
+            obj, end = dec.raw_decode(text, i)
+        except (ValueError, RecursionError):
+            pos = i + 1
             continue
+        pos = end                                    # hinter dem Objekt weitersuchen, nicht hinein
         if isinstance(obj, dict):
             if want in obj:
                 return obj
