@@ -122,7 +122,9 @@
   // Elemente, die ganz in einem Rahmen liegen (wandern mit, wenn der Rahmen verschoben wird)
   function insideFrame(page, f) {
     return page.buttons.filter(function (b) {
-      return b.id !== f.id && isPlaced(b) && b.x >= f.x && b.y >= f.y && b.x + b.w <= f.x + f.w && b.y + b.h <= f.y + f.h;
+      if (b.id === f.id || !isPlaced(b)) return false;
+      if (b.kind === "frame" && b.x === f.x && b.y === f.y && b.w === f.w && b.h === f.h) return false;
+      return b.x >= f.x && b.y >= f.y && b.x + b.w <= f.x + f.w && b.y + b.h <= f.y + f.h;
     }).map(function (b) { return b.id; });
   }
 
@@ -179,6 +181,11 @@
   // frei, wachsen die Zeilen (bis 12), zuletzt wird überlappend gesetzt. Ergebnis {overlap: bool}.
   function placeFree(page, b, at) {
     var w = Math.max(1, Math.min(b.w || 2, cols(page))), h = Math.max(1, Math.min(b.h || 1, rows(page)));
+    if (b.kind === "frame") {
+      b.w = w; b.h = h;
+      b.x = Math.max(0, Math.min(at ? at.x : 0, cols(page) - w)); b.y = Math.max(0, Math.min(at ? at.y : 0, rows(page) - h));
+      return { overlap: false };
+    }
     var spot = null;
     for (;;) {
       spot = at ? nearestFree(page, w, h, at.x, at.y) : freeSpot(page, w, h);
@@ -270,6 +277,7 @@
     if (!(c >= 2 && c <= MAX_COLS && r >= 2 && r <= MAX_ROWS)) return false;
     p.cols = c; p.rows = r;
     p.buttons.forEach(function (b) {
+      if (!isPlaced(b)) return;   // Zonen der Schiffsansicht haben keine Lage
       b.w = Math.min(b.w || 1, c); b.h = Math.min(b.h || 1, r);
       b.x = Math.min(b.x || 0, c - b.w); b.y = Math.min(b.y || 0, r - b.h);
     });
@@ -394,13 +402,14 @@
     ctx = ctx || {};
     var cur = artOf(b);
     if (cur === art) return b;
-    var keys = carryKeys(b), confirm = b.mode === "hold-confirm";
+    var keys = carryKeys(b), confirm = b.mode === "hold-confirm", twice = b.mode === "double";
+    if (art === "slider" || art === "states") { delete b.look; delete b.dir; }   // layout.py: look nicht mit slider/states
     var media = cur === "media" ? b.macro[0].media : MEDIA_DEFAULT;
     var oldStates = b.states, oldMacro = b.macro, sc = b.sc;
     ["key", "macro", "open", "page", "states", "slider", "hold", "mode", "sc"].forEach(function (k) { delete b[k]; });
     // sc (Spielaktion für scripts/sc_bindings.py) bleibt, solange es eine Einzeltaste bleibt
     if (sc !== undefined && (art === "press" || art === "hold" || art === "toggle")) b.sc = sc;
-    var mode = confirm ? "hold-confirm" : "tap";
+    var mode = confirm ? "hold-confirm" : twice ? "double" : "tap";   // Sicherung bleibt beim Art-Wechsel
     if (art === "press" || art === "hold" || art === "toggle") {
       if (keys[0]) b.key = keys[0];
       if (art === "toggle") b.mode = "toggle";
@@ -665,7 +674,9 @@
   // ---------------------------------------------------------------- Gemeinsame Felder (Mehrfachauswahl)
   // Wirkt das Feld bei dieser Taste? (mode/hold nur, wo layout.py sie erlaubt; group nicht auf Schild-Seiten)
   function applies(b, key, pageType) {
+    if (b.kind) return false;   // Rahmen, Beschriftung, Schiff: keine Tastenfelder
     if (key === "style") return true;
+    if (pageType === "free" && !isPlaced(b) && key === "group") return false;   // Zone der Schiffsansicht
     if (key === "mode") return !b.page && !b.slider && !b.states;
     if (key === "hold") return !b.page && !b.slider;
     if (key === "group") return pageType !== "shield";

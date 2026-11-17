@@ -605,7 +605,9 @@
   // Doppelklick auf eine freie Zelle: neue Taste dort
   function onDbl(e) {
     var p = page();
-    if (!isFree(p) || !freeEl || (e.target.closest && e.target.closest("[data-id]")) || !freeEl.contains(e.target)) return;
+    var hitEl = e.target.closest && e.target.closest("[data-id]");
+    if (hitEl && hitEl.classList.contains("frame")) hitEl = null;   // Rahmen ist Hintergrund: Doppelklick legt darin an
+    if (!isFree(p) || !freeEl || hitEl || !freeEl.contains(e.target)) return;
     var c = cellInfo(e);
     addPayload({ kind: "block", block: "key" }, { at: { x: c.x, y: c.y } });
   }
@@ -675,17 +677,21 @@
     box.appendChild(field("Titel (Reiter)", input(p.title, function (v) { p.title = v; renderTabs(); $("pageHint").textContent = "– " + v; touch(); })));
     box.appendChild(field("Typ", select(p.type || "grid", [["grid", "Automatisch (nach Gruppen)"], ["free", "Frei (Raster)"], ["shield", "Schild (Zonen)"]],
       function (v) {
-        if (!PL.setPageType(p, v)) { alert("Zu viele Tasten für ein Raster (höchstens 12 × 12) – Seite teilen oder Tasten entfernen."); renderPageProps(); return; }
+        var decor = p.type === "free" && v !== "free" && p.buttons.some(function (b) { return b.kind; });
+        if (!PL.setPageType(p, v)) { alert("Zu viele Tasten für ein Raster (höchstens 24 × 16) – Seite teilen oder Tasten entfernen."); renderPageProps(); return; }
         commit();
+        if (decor) toast("Rahmen, Beschriftungen und Schiffsansicht gibt es nur auf freien Seiten – entfernt.", true);
       }),
       p.type === "shield" ? "Schild: Tasten brauchen eine Zone." :
       p.type === "free" ? "Tasten ziehen, Griffe ändern die Größe, Doppelklick auf eine freie Zelle = neue Taste." :
       "Tasten fließen nach Überschriften. Ziehen in der Vorschau macht die Seite frei."));
     if (isFree(p)) {
       box.appendChild(h("div", { cls: "row" }, [
-        field("Spalten", input(p.cols || 12, function (v) { var n = parseInt(v, 10); if (PL.setGrid(p, n, p.rows || 8)) { renderPage(); renderOverlay(); touch(); } }, { type: "number", min: 2, max: 16 })),
-        field("Zeilen", input(p.rows || 8, function (v) { var n = parseInt(v, 10); if (PL.setGrid(p, p.cols || 12, n)) { renderPage(); renderOverlay(); touch(); } }, { type: "number", min: 2, max: 12 }))]));
+        field("Spalten", input(p.cols || 12, function (v) { var n = parseInt(v, 10); if (PL.setGrid(p, n, p.rows || 8)) { renderPage(); renderOverlay(); touch(); } }, { type: "number", min: 2, max: 24 })),
+        field("Zeilen", input(p.rows || 8, function (v) { var n = parseInt(v, 10); if (PL.setGrid(p, p.cols || 12, n)) { renderPage(); renderOverlay(); touch(); } }, { type: "number", min: 2, max: 16 }))]));
       box.appendChild(h("button", { cls: "ghost", text: "Neu anordnen (nach Gruppen)", onclick: function () {
+        if (p.buttons.some(function (b) { return b.kind || !PL.isPlaced(b); }))
+          return alert("Seiten mit Bereichen (Rahmen) oder Schiffsansicht lassen sich nicht neu anordnen – Tasten von Hand verschieben.");
         if (!confirm("Alle Tasten dieser Seite neu anordnen?")) return;
         if (!PL.arrange(p)) return alert("Zu viele Tasten für das Raster.");
         commit(); } }));
@@ -753,7 +759,7 @@
     $("pRedo").disabled = !hist || !hist.canRedo();
     $("pDup").disabled = !has || !some;
     $("pDel").disabled = !has || !some;
-    var st = PL.arrangeState(sel.length);
+    var st = PL.arrangeState(selButtons().filter(PL.isPlaced).length);
     Object.keys(TOOLS).forEach(function (id) {
       var k = TOOLS[id][0] === "a" ? "align" : TOOLS[id][0] === "d" ? "distribute" : "sameSize";
       $(id).disabled = !has || !free || !st[k];
@@ -778,6 +784,7 @@
     var p = page();
     if (!p || !sel.length) return;
     var ids = PL.duplicate(layout, p, sel);
+    if (!ids.length) { api.status("Schiffsansicht und ihre Zonen gibt es je Seite nur einmal.", "err"); return; }
     setSel(ids, ids[ids.length - 1]); commit();
   }
   function onKey(e) {
@@ -794,7 +801,9 @@
     } else if (k === "Delete") removeSel();
     else if (k === "Escape") { if (sel.length) { setSel([]); refreshSel(); } else handled = false; }
     else if (k.indexOf("Arrow") === 0 && isFree(p) && sel.length) {
-      PL.moveBy(p, sel, k === "ArrowLeft" ? -1 : k === "ArrowRight" ? 1 : 0, k === "ArrowUp" ? -1 : k === "ArrowDown" ? 1 : 0);
+      var mv = sel.slice();
+      sel.forEach(function (i) { var x = btnById(i); if (x && x.kind === "frame") PL.insideFrame(p, x).forEach(function (j) { if (mv.indexOf(j) < 0) mv.push(j); }); });
+      PL.moveBy(p, mv, k === "ArrowLeft" ? -1 : k === "ArrowRight" ? 1 : 0, k === "ArrowUp" ? -1 : k === "ArrowDown" ? 1 : 0);
       commit();
     } else handled = false;
     if (handled) e.preventDefault();
@@ -943,7 +952,7 @@
       box.appendChild(field("Gruppe (Überschrift)", input(b.group, function (v) { if (v) b.group = v; else delete b.group; refresh(); })));
     }
     box.appendChild(field("Farbe", select(b.style || "", STYLE_OPTIONS, function (v) { if (v) b.style = v; else delete b.style; refresh(); })));
-    if (!b.slider && !b.states && !b.segment) {
+    if (!b.slider && !b.states && !b.segment && !(isFree(p) && !PL.isPlaced(b))) {
       box.appendChild(field("Aussehen", select(b.look || "", LOOK_OPTIONS, function (v) {
         if (v) b.look = v; else delete b.look;
         if (v === "arrow" && !b.dir) b.dir = "up";
@@ -998,7 +1007,10 @@
       (b.kind === "frame" ? " Verschieben nimmt alles mit, was ganz im Rahmen liegt." : "") +
       (b.kind === "shield" ? " Die Zonen (Vorn, Hinten, Links, Rechts, Reset) sind Tasten in der Liste." : "") }));
     if (b.kind !== "shield") box.appendChild(field(b.kind === "frame" ? "Titel" : "Text", input(b.label, function (v) {
-      if (b.kind === "frame" && !v) delete b.label; else b.label = v; refresh(); })));
+      if (b.kind === "frame" && !v) delete b.label;
+      else if (b.kind === "text" && !v.trim()) return;   // Beschriftung braucht Text (alter Wert bleibt)
+      else b.label = v;
+      refresh(); }, { maxlength: b.kind === "frame" ? 40 : 120 })));
     if (b.kind === "text") {
       box.appendChild(h("div", { cls: "row" }, [
         field("Ausrichtung", select(b.align || "left", [["left", "links"], ["center", "Mitte"], ["right", "rechts"]], function (v) { b.align = v; refresh(); })),
@@ -1038,7 +1050,9 @@
   function renderAction(box, p, b) {
     var art = PL.artOf(b), kind = art === "press" || art === "hold" || art === "toggle" ? "key" : art === "media" ? "media" : art;
     var def = PL.ARTS.filter(function (x) { return x.id === art; })[0];
-    box.appendChild(field("Art", select(art, PL.ARTS.map(function (x) { return [x.id, x.label]; }), function (v) {
+    var zoneBtn = isFree(p) && !PL.isPlaced(b);   // Zone der Schiffsansicht: kein Regler/Mehrfach-Schalter (layout.py)
+    var arts = PL.ARTS.filter(function (x) { return !zoneBtn || (x.id !== "slider" && x.id !== "states"); });
+    box.appendChild(field("Art", select(art, arts.map(function (x) { return [x.id, x.label]; }), function (v) {
       PL.convertArt(b, v, { page: p, pages: layout.pages });
       refresh(); renderProps();
     }), def ? def.hint : ""));
@@ -1270,7 +1284,7 @@
 
   // Mehrfachauswahl: gemeinsame Felder (nur wo sie bei der Taste gelten), „verschieden“ bei Unterschieden
   function renderMultiProps(box, p) {
-    var bs = selButtons();
+    var bs = selButtons().filter(function (b) { return !b.kind; });   // Rahmen/Text/Schiff haben keine Tastenfelder
     box.appendChild(h("p", { cls: "hint", text: bs.length + " Tasten gewählt – eine Änderung gilt für alle, bei denen das Feld möglich ist. Verschieben, Ausrichten und Duplizieren geht über die Werkzeugleiste." }));
     var fields = PL.commonFields(bs, p.type);
     var mixedOpt = function (f, opts) { return f.mixed ? [["__mixed", "(verschieden)"]].concat(opts) : opts; };

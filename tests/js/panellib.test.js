@@ -198,6 +198,28 @@ test("Rahmen sind Hintergrund, Zonen ohne Lage zählen nicht", () => {
   assert.equal(p.buttons[1].zone, undefined);
 });
 
+test("Review a9443c3: Raster ändern lässt Zonen ohne Lage, Rahmen ohne Tastenfelder, Art-Wechsel ohne look", () => {
+  const p = free([{ kind: "frame", id: "f", label: "R", x: 0, y: 0, w: 6, h: 4 }, B("a", 1, 1, 2, 1, { style: "accent" }),
+    { kind: "shield", id: "s", x: 6, y: 0, w: 4, h: 3 }, { id: "z", label: "V", zone: "front" }], { cols: 12, rows: 8 });
+  assert.equal(L.setGrid(p, 10, 6), true);
+  assert.equal(p.buttons[3].x, undefined);
+  L.setShared([p.buttons[0], p.buttons[1]], "style", "danger", "free");
+  L.setShared([p.buttons[0], p.buttons[1]], "mode", "hold-confirm", "free");
+  assert.equal(p.buttons[0].style, undefined);
+  assert.equal(p.buttons[0].mode, undefined);
+  assert.equal(p.buttons[1].style, "danger");
+  const k = { id: "k", label: "K", key: "F1", look: "arrow", dir: "up", mode: "double" };
+  L.convertArt(k, "states", {});
+  assert.equal(k.look, undefined);
+  const d = { id: "d", label: "D", key: "F1", mode: "double" };
+  L.convertArt(d, "hold", {});
+  assert.equal(d.mode, "double");
+  const g = free([{ kind: "frame", id: "f", label: "R", x: 0, y: 0, w: 4, h: 4 }, B("a", 0, 0, 4, 4)], { cols: 4, rows: 4 });
+  const f2 = { kind: "frame", id: "f2", label: "R2" };
+  L.addButton(g, f2, { kind: "frame", at: { x: 1, y: 1 } });
+  assert.equal(g.rows, 4);                                        // Rahmen: keine Platzsuche, Raster wächst nicht
+});
+
 test("free -> grid entfernt die Lage; -> Schild vergibt Zonen", () => {
   const p = free([B("a", 0, 0, 2, 1)]);
   L.setPageType(p, "grid");
