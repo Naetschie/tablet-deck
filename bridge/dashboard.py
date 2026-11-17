@@ -372,8 +372,8 @@ class Dashboards:
             self._follow_default(to)
 
     def delete(self, name):
-        self._raw_cache = None   # benutzte Rohwerte neu ermitteln
         """Eigenes Dashboard in dashboards/eigene/.papierkorb/ verschieben (wiederherstellbar)."""
+        self._raw_cache = None   # benutzte Rohwerte neu ermitteln
         src = self._own_path(name)
         trash = self.own / ".papierkorb"
         trash.mkdir(exist_ok=True)

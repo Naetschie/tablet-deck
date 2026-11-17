@@ -224,7 +224,8 @@
     clearTimeout(st.timer);
     var tgt = st.part || st.el;   // Auswahlleiste: nur der berührte Teil leuchtet
     tgt.classList.remove("down", "arming");
-    if (st.fired) send({ t: "up", id: st.id, panel: st.panel });
+    if (st.fired) send(st.part ? { t: "up", id: st.id, panel: st.panel, seg: parseInt(st.part.getAttribute("data-seg"), 10) }
+                               : { t: "up", id: st.id, panel: st.panel });
     // gleiche Taste noch von anderem Finger gehalten? Dann Markierung wieder setzen
     for (var k in active) if ((active[k].part || active[k].el) === tgt && active[k].fired) tgt.classList.add("down");
   }

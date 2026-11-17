@@ -32,6 +32,15 @@ def bad(testcase, layout):
 
 
 class CockpitTest(unittest.TestCase):
+    def test_lists_instead_of_text_are_value_errors(self):
+        # handgeschriebene Panels: Listen/Zahlen in Auswahlfeldern -> Fehlermeldung statt TypeError
+        bad(self, free({"kind": ["frame"], "id": "f", "x": 0, "y": 0, "w": 2, "h": 2}))
+        bad(self, free(key(look=["switch"])))
+        bad(self, free(key(look="arrow", dir=["up"])))
+        bad(self, free(key(mode=["tap"])))
+        bad(self, free(key(style=1)))
+        bad(self, free({"kind": "text", "id": "t", "label": "T", "align": ["left"], "x": 0, "y": 0, "w": 2, "h": 1}))
+
     def test_grid_up_to_24x16(self):
         validate_layout(free(key(x=22, y=14), cols=24, rows=16))
         for cols, rows in ((25, 8), (12, 17)):

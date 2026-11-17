@@ -311,9 +311,10 @@ class Bridge:
                         # mitgeliefertes Panel -> eigene Kopie; layout = schon geänderter Stand (optional)
                         new = self.profiles.copy_bundled(msg.get("game"), msg.get("panel"), msg.get("title"),
                                                          msg.get("layout"))
-                        log.info("Editor: Kopie %s/%s von %s angelegt", msg.get("game"), new, msg.get("panel"))
+                        log.info("Editor: Kopie %s von %s angelegt", new, msg.get("panel"))
                         await self.reload_profiles()
-                        await ws.send(json.dumps({"t": "created", "game": msg["game"], "panel": new,
+                        await ws.send(json.dumps({"t": "created", "game": msg["game"],
+                                                  "panel": new.split("/", 1)[1],
                                                   "games": self.games_info()}))
                     elif t == "templates":
                         g = msg.get("game")
@@ -841,6 +842,8 @@ class Bridge:
                 cur_btn = cur["buttons"].get(bid) if cur else None
                 if msg.get("dir") in ("up", "down") and cur_btn and "slider" in cur_btn:
                     hk += "/" + msg["dir"]   # Regler: up und down getrennt halten (nur bei Reglern)
+                elif cur_btn and "segment" in cur_btn and type(msg.get("seg")) is int:
+                    hk += "/s" + str(msg["seg"])   # Auswahlleiste: jeder Teil hält seine eigene Taste
                 if t == "down":
                     if hk in held:          # weiterer Finger auf derselben Taste
                         held[hk][1] += 1

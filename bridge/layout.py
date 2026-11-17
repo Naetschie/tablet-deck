@@ -111,14 +111,19 @@ def validate_segment(b, where):
         _err(f"{where}: segment nur mit mode tap, ohne hold")
 
 
+def _one_of(v, allowed):
+    """v ist einer der erlaubten Texte (Listen o. Ä. ergäben sonst TypeError statt einer Fehlermeldung)."""
+    return isinstance(v, str) and v in allowed
+
+
 def validate_look(b, where):
     look = b.get("look")
-    if "look" in b and look not in LOOKS:
+    if "look" in b and not _one_of(look, LOOKS):
         _err(f"{where}: look muss {sorted(LOOKS)} sein")
     if "look" in b and any(k in b for k in ("slider", "states", "segment")):
         _err(f"{where}: look nicht mit slider/states/segment kombinierbar")
     if look == "arrow":
-        if b.get("dir") not in ARROW_DIRS:
+        if not _one_of(b.get("dir"), ARROW_DIRS):
             _err(f"{where}: look arrow braucht dir {sorted(ARROW_DIRS)}")
     elif "dir" in b:
         _err(f"{where}: dir nur mit look arrow")
@@ -127,7 +132,7 @@ def validate_look(b, where):
 def validate_decor(b, where, ptype, cols, rows):
     """frame/text (kind): nicht-interaktive Elemente, nur auf freien Seiten."""
     kind = b["kind"]
-    if kind not in KINDS:
+    if not _one_of(kind, KINDS):
         _err(f"{where}: kind muss {sorted(KINDS)} sein")
     if ptype != "free":
         _err(f"{where}: {kind} nur auf freien Seiten (type free)")
@@ -140,9 +145,9 @@ def validate_decor(b, where, ptype, cols, rows):
     if not isinstance(lab, str) or len(lab) > mx or (kind == "text" and not lab.strip()):
         _err(f"{where}: label {0 if kind == 'frame' else 1}-{mx} Zeichen")
     if kind == "text":
-        if b.get("align", "left") not in TEXT_ALIGN:
+        if not _one_of(b.get("align", "left"), TEXT_ALIGN):
             _err(f"{where}: align muss {sorted(TEXT_ALIGN)} sein")
-        if b.get("size", "m") not in TEXT_SIZE:
+        if not _one_of(b.get("size", "m"), TEXT_SIZE):
             _err(f"{where}: size muss {sorted(TEXT_SIZE)} sein")
     _check_cells(b, where, cols, rows)
 
@@ -287,11 +292,11 @@ def validate_layout(layout):
                 continue
             if not isinstance(b.get("label"), str):
                 _err(f"{where}: label fehlt")
-            if b.get("mode", "tap") not in MODES:
+            if not _one_of(b.get("mode", "tap"), MODES):
                 _err(f"{where}: mode muss {sorted(MODES)} sein")
             if "hold" in b and not isinstance(b["hold"], bool):
                 _err(f"{where}: hold muss true/false sein")
-            if b.get("style", "") not in STYLES:
+            if not _one_of(b.get("style", ""), STYLES):
                 _err(f"{where}: style muss accent/danger oder leer sein")
             if "key" in b and b["key"] not in (None, ""):
                 try:
@@ -310,7 +315,7 @@ def validate_layout(layout):
                 validate_macro(b["macro"], where)
             if "open" in b:
                 validate_open(b["open"], where)
-            if page.get("type") == "shield" and b.get("zone") not in ZONES:
+            if page.get("type") == "shield" and not _one_of(b.get("zone"), ZONES):
                 _err(f"{where}: zone muss {sorted(ZONES)} sein")
             if page.get("type") == "free":
                 _check_cells(b, where, cols, rows)

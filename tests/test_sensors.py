@@ -1072,6 +1072,17 @@ class RawItemsTest(unittest.TestCase):
         for p in ("/intelcpu/0/clock/1", long, "/ÄÖÜ/ß/0", "/" + "x" * 200):
             self.assertTrue(SENSOR_ID.fullmatch(raw_id("lhm", p)), p)
 
+    def test_kollision_bei_langer_id_bekommt_pruefsumme(self):
+        # 56-64 Zeichen: ohne Kollision ungekürzt, bei Kollision (force_hash) trotzdem eindeutig
+        from bridge.sensors.mapping import raw_id
+        from bridge.dashboard import SENSOR_ID
+        for n in (40, 50, 56, 60, 64):
+            path = "/" + "a" * (n - 6)
+            a, b = raw_id("lhm", path), raw_id("lhm", path, force_hash=True)
+            self.assertNotEqual(a, b, n)
+            self.assertLessEqual(len(b), 64)
+            self.assertTrue(SENSOR_ID.fullmatch(b), b)
+
     def test_alle_lhm_werte_mit_bauteil(self):
         from bridge.sensors.mapping import raw_items
         cpu = FakeHardware([lhm_sensor("Core #1", "Temperature", "/intelcpu/0/temperature/1", 50.0)])

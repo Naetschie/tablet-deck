@@ -369,12 +369,7 @@ def raw_id(source, path, force_hash=False):
     force_hash) bekommen eine Prüfsumme des Originalpfads."""
     segs = [s for s in (_RAW_BAD.sub("_", p.lower()).strip("_") for p in str(path).split("/")) if s]
     ident = ".".join([source] + segs)
-    if force_hash and len(ident) > _RAW_ID_MAX - 9:
-        force_hash = False          # wird unten ohnehin mit Prüfsumme gekürzt
-    if force_hash:
-        import hashlib
-        ident = ident + "." + hashlib.sha1(str(path).encode("utf-8")).hexdigest()[:8]
-    elif len(ident) > _RAW_ID_MAX:
+    if force_hash or len(ident) > _RAW_ID_MAX:
         import hashlib
         h = hashlib.sha1(str(path).encode("utf-8")).hexdigest()[:8]
         ident = ident[:_RAW_ID_MAX - 9].rstrip("._") + "." + h
