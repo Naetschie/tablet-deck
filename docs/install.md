@@ -201,7 +201,12 @@ SHA-256 `69572e37…aa8c48`. Beim ersten Verbinden fragt Android einmal nach der
 - Taskleisten-Symbol: Modus am Tablet wählen, Panel-Editor öffnen, beenden.
 - Logs: `bridge.log`, `supervise.log` im Projektordner.
 - Autostart entfernen: `scripts\install-autostart.ps1 -Remove`.
-- **KI-Panels (optional):** „Automatisch … → Mit KI erstellen“ entwirft ein Panel für Spiele ohne Vorlage. Dafür im
+- **Automatisch erzeugen:** „Automatisch …“ im Editor baut ein Panel aus einer Vorlage und deiner Belegung.
+  Wählbar: Darstellung (Bereiche im Raster wie das Cockpit oder einfache Kacheln) und optional „was schon auf
+  Joystick/HOTAS oder Gamepad liegt, weglassen“ (Standard aus).
+- **KI-Panels (optional):** „Automatisch … → Mit KI erstellen“ entwirft ein Panel für Spiele ohne Vorlage. Die KI
+  wählt und gliedert nur Aktionen; Tasten erfindet sie nie (die kommen aus deiner Belegung, sonst trägst du sie
+  ein). Unter „Prompt ansehen und anpassen“ steht der feste Teil (Regeln) und ein änderbarer Gestaltungsteil. Dafür im
   Editor oben rechts **⚙ Einstellungen** öffnen und einen eigenen Anthropic-API-Schlüssel eintragen
   (console.anthropic.com → API Keys; jede Erzeugung kostet etwas API-Guthaben). „Prüfen“ testet ihn kostenlos,
   „Entfernen“ löscht ihn. Er liegt nur in `secrets/anthropic.key` (nicht im Git, nicht im Zip, nie im Log).

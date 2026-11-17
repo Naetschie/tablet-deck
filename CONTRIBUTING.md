@@ -6,7 +6,8 @@ der Hub prüft – Programmieren ist dafür nicht nötig.
 ## Panel für ein Spiel
 1. Spiel in `games.json` eintragen (falls noch nicht da): `id`, `name`, `exe` (Programmname des Spiels).
 2. Panel anlegen: am einfachsten im Panel-Editor (Taskleisten-Symbol → „Panel-Editor öffnen“) oder mit dem
-   Generator (`bridge/generate.py`, Vorlagen in `bridge/templates/`). Die Datei liegt dann unter
+   Generator („Automatisch …“; Vorlagen in `templates/<spiel-id>/`, semantisch: Bereiche → Gruppen → Aktionen
+   ohne Koordinaten, Format in `bridge/autolayout.py`; die Anordnung macht das Auto-Layout). Die Datei liegt dann unter
    `profiles/<spiel-id>/<panel>.json` (eigene Panels). Mitgelieferte, schreibgeschützte Panels liegen unter
    `panels/<spiel-id>/<name>.json` und werden nur vom Projekt gepflegt; der Hub zeigt sie als „mitgeliefert“
    (Schloss), bearbeiten geht nur über eine Kopie. Ein Beitrag, der mitgeliefert werden soll, kommt nach `panels/`.
