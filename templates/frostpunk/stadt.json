@@ -1,21 +1,95 @@
 {
-  "title": "Stadt",
-  "holdMs": 1000,
-  "pages": [
-    {"id": "stadt", "title": "Stadt", "type": "grid", "buttons": [
-      {"id": "pause", "label": "PAUSE", "action": "pause", "mode": "tap", "key": "SPACE", "group": "Zeit", "style": "accent"},
-      {"id": "time-1", "label": "ZEITSTUFE 1", "action": "time_1", "mode": "tap", "key": "1", "group": "Zeit"},
-      {"id": "time-2", "label": "ZEITSTUFE 2", "action": "time_2", "mode": "tap", "key": "2", "group": "Zeit"},
-      {"id": "time-3", "label": "ZEITSTUFE 3", "action": "time_3", "mode": "tap", "key": "3", "group": "Zeit"},
-      {"id": "build", "label": "BAUEN", "action": "build", "mode": "tap", "key": "B", "group": "Menüs", "style": "accent"},
-      {"id": "laws", "label": "GESETZBUCH", "action": "laws", "mode": "tap", "key": "L", "group": "Menüs"},
-      {"id": "tech", "label": "TECHNOLOGIE", "action": "tech", "mode": "tap", "key": "T", "group": "Menüs"},
-      {"id": "economy", "label": "WIRTSCHAFT", "action": "economy", "mode": "tap", "key": "V", "group": "Menüs"},
-      {"id": "heat", "label": "TEMPERATUR", "action": "heat", "mode": "tap", "key": "O", "group": "Ansicht"},
-      {"id": "worldmap", "label": "WELTKARTE", "action": "worldmap", "mode": "tap", "key": "HOME", "group": "Ansicht"},
-      {"id": "center", "label": "ZUM GENERATOR", "action": "center", "mode": "tap", "key": "C", "group": "Ansicht"},
-      {"id": "zoom-in", "label": "ZOOM +", "action": "zoom_in", "mode": "tap", "key": "PGUP", "group": "Ansicht", "hold": true},
-      {"id": "zoom-out", "label": "ZOOM −", "action": "zoom_out", "mode": "tap", "key": "PGDN", "group": "Ansicht", "hold": true}
-    ]}
-  ]
+ "title": "Stadt",
+ "holdMs": 1000,
+ "sections": [
+  {
+   "title": "Stadt",
+   "areas": [
+    {
+     "title": "Zeit",
+     "items": [
+      {
+       "label": "PAUSE",
+       "action": "pause",
+       "key": "SPACE",
+       "style": "accent"
+      },
+      {
+       "label": "ZEITSTUFE 1",
+       "action": "time_1",
+       "key": "1"
+      },
+      {
+       "label": "ZEITSTUFE 2",
+       "action": "time_2",
+       "key": "2"
+      },
+      {
+       "label": "ZEITSTUFE 3",
+       "action": "time_3",
+       "key": "3"
+      }
+     ]
+    },
+    {
+     "title": "Menüs",
+     "items": [
+      {
+       "label": "BAUEN",
+       "action": "build",
+       "key": "B",
+       "style": "accent"
+      },
+      {
+       "label": "GESETZBUCH",
+       "action": "laws",
+       "key": "L"
+      },
+      {
+       "label": "TECHNOLOGIE",
+       "action": "tech",
+       "key": "T"
+      },
+      {
+       "label": "WIRTSCHAFT",
+       "action": "economy",
+       "key": "V"
+      }
+     ]
+    },
+    {
+     "title": "Ansicht",
+     "items": [
+      {
+       "label": "TEMPERATUR",
+       "action": "heat",
+       "key": "O"
+      },
+      {
+       "label": "WELTKARTE",
+       "action": "worldmap",
+       "key": "HOME"
+      },
+      {
+       "label": "ZUM GENERATOR",
+       "action": "center",
+       "key": "C"
+      },
+      {
+       "label": "ZOOM +",
+       "action": "zoom_in",
+       "key": "PGUP",
+       "hold": true
+      },
+      {
+       "label": "ZOOM −",
+       "action": "zoom_out",
+       "key": "PGDN",
+       "hold": true
+      }
+     ]
+    }
+   ]
+  }
+ ]
 }

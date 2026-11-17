@@ -1,34 +1,162 @@
 {
-  "title": "Zone",
-  "holdMs": 1000,
-  "pages": [
-    {"id": "waffen", "title": "Waffen", "type": "grid", "buttons": [
-      {"id": "knife", "label": "MESSER", "action": "knife", "mode": "tap", "key": "1", "group": "Waffen"},
-      {"id": "pistol", "label": "PISTOLE", "action": "pistol", "mode": "tap", "key": "2", "group": "Waffen"},
-      {"id": "primary", "label": "PRIMÄRWAFFE", "action": "primary", "mode": "tap", "key": "3", "group": "Waffen"},
-      {"id": "secondary", "label": "SEKUNDÄRWAFFE", "action": "secondary", "mode": "tap", "key": "4", "group": "Waffen"},
-      {"id": "grenade", "label": "GRANATE", "action": "grenade", "mode": "tap", "key": "5", "group": "Waffen"},
-      {"id": "bolt", "label": "BOLZEN", "action": "bolt", "mode": "tap", "key": "6", "group": "Ausrüstung"},
-      {"id": "detector", "label": "DETEKTOR", "action": "detector", "mode": "tap", "key": "7", "group": "Ausrüstung"},
-      {"id": "reload", "label": "NACHLADEN", "action": "reload", "mode": "tap", "key": "R", "group": "Waffen", "style": "accent"},
-      {"id": "ammo", "label": "MUNITION WECHSELN", "action": "ammo", "mode": "tap", "key": "N", "group": "Waffen"},
-      {"id": "firemode", "label": "FEUERMODUS", "action": "firemode", "mode": "tap", "key": "B", "group": "Waffen"},
-      {"id": "holster", "label": "WAFFE WEGSTECKEN", "action": "holster", "mode": "tap", "key": "H", "group": "Waffen"},
-      {"id": "flashlight", "label": "TASCHENLAMPE", "action": "flashlight", "mode": "toggle", "key": "L", "group": "Ausrüstung"}
-    ]},
-    {"id": "pda", "title": "PDA & Heilung", "type": "grid", "buttons": [
-      {"id": "inventory", "label": "INVENTAR", "action": "inventory", "mode": "tap", "key": "I", "group": "Menüs", "style": "accent"},
-      {"id": "pda", "label": "PDA", "action": "pda", "mode": "tap", "key": "P", "group": "Menüs"},
-      {"id": "map", "label": "KARTE", "action": "map", "mode": "tap", "key": "M", "group": "Menüs"},
-      {"id": "journal", "label": "TAGEBUCH", "action": "journal", "mode": "tap", "key": "J", "group": "Menüs"},
-      {"id": "notes", "label": "NOTIZEN", "action": "notes", "mode": "tap", "key": "K", "group": "Menüs"},
-      {"id": "upgrades", "label": "UPGRADES", "action": "upgrades", "mode": "tap", "key": "U", "group": "Menüs"},
-      {"id": "quick-1", "label": "SCHNELLZUGRIFF 1", "action": "quick_1", "mode": "tap", "group": "Heilung"},
-      {"id": "quick-2", "label": "SCHNELLZUGRIFF 2", "action": "quick_2", "mode": "tap", "group": "Heilung"},
-      {"id": "quick-3", "label": "SCHNELLZUGRIFF 3", "action": "quick_3", "mode": "tap", "group": "Heilung"},
-      {"id": "quick-4", "label": "SCHNELLZUGRIFF 4", "action": "quick_4", "mode": "tap", "group": "Heilung"},
-      {"id": "quicksave", "label": "SCHNELLSPEICHERN", "action": "quicksave", "mode": "tap", "key": "F5", "group": "Spiel"},
-      {"id": "quickload", "label": "SCHNELLLADEN", "action": "quickload", "mode": "hold-confirm", "key": "F8", "group": "Spiel", "style": "danger"}
-    ]}
-  ]
+ "title": "Zone",
+ "holdMs": 1000,
+ "sections": [
+  {
+   "title": "Waffen",
+   "areas": [
+    {
+     "title": "Waffen",
+     "items": [
+      {
+       "label": "MESSER",
+       "action": "knife",
+       "key": "1"
+      },
+      {
+       "label": "PISTOLE",
+       "action": "pistol",
+       "key": "2"
+      },
+      {
+       "label": "PRIMÄRWAFFE",
+       "action": "primary",
+       "key": "3"
+      },
+      {
+       "label": "SEKUNDÄRWAFFE",
+       "action": "secondary",
+       "key": "4"
+      },
+      {
+       "label": "GRANATE",
+       "action": "grenade",
+       "key": "5"
+      },
+      {
+       "label": "NACHLADEN",
+       "action": "reload",
+       "key": "R",
+       "style": "accent"
+      },
+      {
+       "label": "MUNITION WECHSELN",
+       "action": "ammo",
+       "key": "N"
+      },
+      {
+       "label": "FEUERMODUS",
+       "action": "firemode",
+       "key": "B"
+      },
+      {
+       "label": "WAFFE WEGSTECKEN",
+       "action": "holster",
+       "key": "H"
+      }
+     ]
+    },
+    {
+     "title": "Ausrüstung",
+     "items": [
+      {
+       "label": "BOLZEN",
+       "action": "bolt",
+       "key": "6"
+      },
+      {
+       "label": "DETEKTOR",
+       "action": "detector",
+       "key": "7"
+      },
+      {
+       "label": "TASCHENLAMPE",
+       "action": "flashlight",
+       "key": "L",
+       "mode": "toggle"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "PDA & Heilung",
+   "areas": [
+    {
+     "title": "Menüs",
+     "items": [
+      {
+       "label": "INVENTAR",
+       "action": "inventory",
+       "key": "I",
+       "style": "accent"
+      },
+      {
+       "label": "PDA",
+       "action": "pda",
+       "key": "P"
+      },
+      {
+       "label": "KARTE",
+       "action": "map",
+       "key": "M"
+      },
+      {
+       "label": "TAGEBUCH",
+       "action": "journal",
+       "key": "J"
+      },
+      {
+       "label": "NOTIZEN",
+       "action": "notes",
+       "key": "K"
+      },
+      {
+       "label": "UPGRADES",
+       "action": "upgrades",
+       "key": "U"
+      }
+     ]
+    },
+    {
+     "title": "Heilung",
+     "items": [
+      {
+       "label": "SCHNELLZUGRIFF 1",
+       "action": "quick_1"
+      },
+      {
+       "label": "SCHNELLZUGRIFF 2",
+       "action": "quick_2"
+      },
+      {
+       "label": "SCHNELLZUGRIFF 3",
+       "action": "quick_3"
+      },
+      {
+       "label": "SCHNELLZUGRIFF 4",
+       "action": "quick_4"
+      }
+     ]
+    },
+    {
+     "title": "Spiel",
+     "items": [
+      {
+       "label": "SCHNELLSPEICHERN",
+       "action": "quicksave",
+       "key": "F5"
+      },
+      {
+       "label": "SCHNELLLADEN",
+       "action": "quickload",
+       "key": "F8",
+       "style": "danger",
+       "mode": "hold-confirm"
+      }
+     ]
+    }
+   ]
+  }
+ ]
 }

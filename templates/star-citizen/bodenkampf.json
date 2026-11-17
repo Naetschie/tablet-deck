@@ -1,29 +1,121 @@
 {
-  "title": "Bodenkampf",
-  "holdMs": 1000,
-  "pages": [
-    {"id": "kampf", "title": "Kampf", "type": "grid", "buttons": [
-      {"id": "primary", "label": "PRIMÄRWAFFE", "sc": "select_primary_pit", "mode": "tap", "group": "Waffen"},
-      {"id": "secondary", "label": "SEKUNDÄRWAFFE", "sc": "select_secondary_pit", "mode": "tap", "group": "Waffen"},
-      {"id": "sidearm", "label": "PISTOLE", "sc": "select_sidearm_pit", "mode": "tap", "group": "Waffen"},
-      {"id": "melee", "label": "NAHKAMPF", "sc": "select_meleeweapon_pit", "mode": "tap", "group": "Waffen"},
-      {"id": "reload", "label": "NACHLADEN", "sc": "reload", "mode": "tap", "group": "Waffen", "style": "accent"},
-      {"id": "firemode", "label": "FEUERMODUS", "sc": "weapon_change_firemode", "mode": "tap", "group": "Waffen"},
-      {"id": "grenade", "label": "GRANATE", "sc": "pc_qs_grenades", "mode": "tap", "group": "Waffen"},
-      {"id": "consumables", "label": "MEDIZIN & VERBRAUCH", "sc": "pc_qs_consumables", "mode": "tap", "group": "Versorgung", "style": "accent"},
-      {"id": "revive", "label": "WIEDERBELEBUNG ANFORDERN", "sc": "downedRevivalRequest", "mode": "tap", "group": "Versorgung"},
-      {"id": "crouch", "label": "DUCKEN", "sc": "crouch", "mode": "tap", "group": "Haltung"},
-      {"id": "lowered", "label": "WAFFE SENKEN", "sc": "toggle_lowered", "mode": "toggle", "group": "Haltung"},
-      {"id": "thirdperson", "label": "3. PERSON", "sc": "thirdperson", "mode": "tap", "group": "Haltung"}
-    ]},
-    {"id": "ausruestung", "title": "Ausrüstung", "type": "grid", "buttons": [
-      {"id": "flashlight", "label": "LAMPE", "sc": "toggle_flashlight", "mode": "toggle", "group": "Ausrüstung"},
-      {"id": "helmet", "label": "HELM AUF/AB", "sc": "toggleEquipHelmet", "mode": "tap", "group": "Ausrüstung"},
-      {"id": "visor", "label": "VISIER WISCHEN", "sc": "visor_wipe", "mode": "tap", "group": "Ausrüstung"},
-      {"id": "inventory", "label": "INVENTAR", "sc": "pc_pit_inventory", "mode": "tap", "group": "Menüs"},
-      {"id": "mobiglas", "label": "MOBIGLAS", "sc": "mobiglas", "mode": "tap", "group": "Menüs"},
-      {"id": "starmap_f", "label": "STERNENKARTE", "sc": "v_starmap", "mode": "tap", "group": "Menüs"},
-      {"id": "interact", "label": "INTERAKTION", "sc": "pc_interaction_mode", "mode": "tap", "group": "Menüs"}
-    ]}
-  ]
+ "title": "Bodenkampf",
+ "holdMs": 1000,
+ "sections": [
+  {
+   "title": "Kampf",
+   "areas": [
+    {
+     "title": "Waffen",
+     "items": [
+      {
+       "label": "PRIMÄRWAFFE",
+       "sc": "select_primary_pit"
+      },
+      {
+       "label": "SEKUNDÄRWAFFE",
+       "sc": "select_secondary_pit"
+      },
+      {
+       "label": "PISTOLE",
+       "sc": "select_sidearm_pit"
+      },
+      {
+       "label": "NAHKAMPF",
+       "sc": "select_meleeweapon_pit"
+      },
+      {
+       "label": "NACHLADEN",
+       "sc": "reload",
+       "style": "accent"
+      },
+      {
+       "label": "FEUERMODUS",
+       "sc": "weapon_change_firemode"
+      },
+      {
+       "label": "GRANATE",
+       "sc": "pc_qs_grenades"
+      }
+     ]
+    },
+    {
+     "title": "Versorgung",
+     "items": [
+      {
+       "label": "MEDIZIN & VERBRAUCH",
+       "sc": "pc_qs_consumables",
+       "style": "accent"
+      },
+      {
+       "label": "WIEDERBELEBUNG ANFORDERN",
+       "sc": "downedRevivalRequest"
+      }
+     ]
+    },
+    {
+     "title": "Haltung",
+     "items": [
+      {
+       "label": "DUCKEN",
+       "sc": "crouch"
+      },
+      {
+       "label": "WAFFE SENKEN",
+       "sc": "toggle_lowered",
+       "mode": "toggle"
+      },
+      {
+       "label": "3. PERSON",
+       "sc": "thirdperson"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Ausrüstung",
+   "areas": [
+    {
+     "title": "Ausrüstung",
+     "items": [
+      {
+       "label": "LAMPE",
+       "sc": "toggle_flashlight",
+       "mode": "toggle"
+      },
+      {
+       "label": "HELM AUF/AB",
+       "sc": "toggleEquipHelmet"
+      },
+      {
+       "label": "VISIER WISCHEN",
+       "sc": "visor_wipe"
+      }
+     ]
+    },
+    {
+     "title": "Menüs",
+     "items": [
+      {
+       "label": "INVENTAR",
+       "sc": "pc_pit_inventory"
+      },
+      {
+       "label": "MOBIGLAS",
+       "sc": "mobiglas"
+      },
+      {
+       "label": "STERNENKARTE",
+       "sc": "v_starmap"
+      },
+      {
+       "label": "INTERAKTION",
+       "sc": "pc_interaction_mode"
+      }
+     ]
+    }
+   ]
+  }
+ ]
 }

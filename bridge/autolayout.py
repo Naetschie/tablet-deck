@@ -17,6 +17,7 @@ Darstellung (style):
   "grid":  jede Section wird eine Kachel-Seite (type grid), Bereiche sind Gruppen; Schilde eigene Seite.
 """
 import itertools
+import math
 import re
 import time
 
@@ -228,9 +229,13 @@ def _best_arrangement(areas, first=False):
             for i, (x, y) in zip(order, pos):
                 placed[i] = (x, y, boxes[i][0], boxes[i][1])
             rects, holes = _expand(placed)
-            # Dehnung = Fläche, die Tasten nur größer macht; möglichst wenig, keine Löcher, vorgegebene Reihenfolge
-            stretch = sum(w * h for _, _, w, h in rects) - sum(bw * bh for bw, bh, _ in boxes)
-            score = (holes, stretch, oi)
+            # gleichmäßig dehnen: je Bereich Breite und Höhe ähnlich, alle Bereiche ähnlich stark
+            # (sonst z. B. eine lange Reihe oben und ein riesiger, fast leerer Bereich darunter)
+            logs = [(math.log(w / bw), math.log(h / bh)) for (_, _, w, h), (bw, bh, _) in zip(rects, boxes)]
+            uneven = sum(abs(lx - ly) for lx, ly in logs)
+            mean = sum(lx + ly for lx, ly in logs) / len(logs)
+            spread = sum(abs(lx + ly - mean) for lx, ly in logs)
+            score = (holes, round(uneven * 50 + spread * 100), oi)
             if best is None or score < best[0]:
                 best = (score, combo, rects)
             break   # erste passende Reihenfolge genügt
@@ -285,8 +290,11 @@ def _place_area(area, rows, fx, fy, fw, fh, ids, page_id):
     growable = [i for i, (r, _) in enumerate(rows) if any(u[0] != "pill" for u in r)]
     add = [0] * len(rows)
     for k in range(max(0, extra)):
-        if growable:
-            add[growable[k % len(growable)]] += 1
+        cand = [i for i in growable if add[i] < rows[i][1]]   # Reihe höchstens doppelt so hoch
+        if not cand:
+            break
+        add[cand[k % len(cand)]] += 1
+    y += max(0, extra - sum(add)) // 2   # was übrig bleibt: Reihen senkrecht mittig
     for (row, rh), plus in zip(rows, add):
         # freie Spalten: Bausteine der Reihe breiter
         used = sum(u[3] for u in row)
