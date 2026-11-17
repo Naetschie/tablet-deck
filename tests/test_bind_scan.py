@@ -54,6 +54,19 @@ class ScanTest(unittest.TestCase):
             b = scan.parse_unreal_ini(f)
         self.assertEqual((b["Jump"][0], b["QuickSave"][0], b["Fire"][0], b["Slot1"][0]), ("SPACE", "LCTRL+F5", None, "1"))
 
+    def test_review_9298f81(self):
+        ue = UE + 'ActionMappings=(ActionName="Fire",bShift=False,bCtrl=False,bAlt=False,bCmd=False,Key=F)\n' + \
+            'ActionMappings=(ActionName="Copy",bShift=False,bCtrl=False,bAlt=False,bCmd=True,Key=C)\n'
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "Input.ini"
+            f.write_text(ue, encoding="utf-8")
+            b = scan.parse_unreal_ini(f)
+        self.assertEqual(b["Fire"][0], "F")                                  # Tastatur ersetzt Mauszeile
+        self.assertIsNone(b["Copy"][0])                                      # Cmd: nicht als Einzeltaste
+        self.assertTrue(scan._is_text(("a" * 4095 + "ä").encode("utf-8")))   # abgeschnittenes Zeichen
+        self.assertTrue(scan._is_text("x=1".encode("utf-16")))              # UTF-16 mit BOM
+        self.assertFalse(scan._is_text(b"NCS1\x01\x00\xff" * 20))
+
     def test_find_readable_unreadable_none(self):
         with tempfile.TemporaryDirectory() as d:
             home, local = Path(d) / "home", Path(d) / "local"
@@ -70,6 +83,7 @@ class ScanTest(unittest.TestCase):
                 b2, msg2, _ = scan.find("Geheim 2", install_dir=str(Path(d) / "x" / "GEHEIM2"))
                 self.assertIsNone(b2)
                 self.assertIn("nicht lesbar", msg2)
+                self.assertNotIn("DeviceSetting", msg2)                     # keine Dateinamen (evtl. mit Namen)
                 b3, msg3, _ = scan.find("Gibtsnicht")
                 self.assertIsNone(b3)
                 self.assertIn("keine lesbare", msg3)

@@ -110,7 +110,10 @@ def parse_unreal_ini(path):
             continue
         f = dict(re.findall(r'(\w+)=("[^"]*"|[^,]*)', m.group(1)))
         act, key = f.get("ActionName", "").strip('"'), unreal_key(f.get("Key"))
-        if not act or act in out:
+        if not act or (act in out and out[act][0]):
+            continue   # erste Tastaturbelegung gilt; Maus-/Pad-Zeilen davor werden ersetzt
+        if f.get("bCmd", "False").lower() == "true":
+            out[act] = (None, False, "mit Cmd-Taste (Mac)")
             continue
         if not key:
             out[act] = (None, False, f"nur Maus/Controller ({f.get('Key', '')})")
@@ -124,13 +127,15 @@ def parse_unreal_ini(path):
 def _is_text(data):
     if not data:
         return False
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):        # UTF-16 mit BOM
+        return True
     if b"\x00" in data[:4096]:
         return False
     try:
-        data[:4096].decode("utf-8")
+        data[:4092].decode("utf-8")   # Ende kann ein abgeschnittenes Mehrbytezeichen sein
         return True
     except UnicodeDecodeError:
-        return False
+        return data[:4092].decode("utf-8", errors="replace").count("\ufffd") < 4
 
 
 def _variants(name):
@@ -139,9 +144,27 @@ def _variants(name):
     return {v for v in out if len(v) >= 3}
 
 
-def candidate_dirs(name, install_dir=None):
+def _documents():
+    """Dokumente-Ordner (auch umgeleitet, z. B. OneDrive) über die Windows-API, sonst ~/Documents."""
     home = Path(os.path.expanduser("~"))
-    bases = [home / "Documents", home / "Documents" / "My Games", home / "Saved Games",
+    try:
+        import ctypes
+        from ctypes import wintypes
+        buf = ctypes.create_unicode_buffer(wintypes.MAX_PATH)
+        if ctypes.windll.shell32.SHGetFolderPathW(None, 5, None, 0, buf) == 0 and buf.value:   # CSIDL_PERSONAL
+            p = Path(buf.value)
+            if p.is_dir() and str(home).lower() in str(p).lower():
+                return p
+    except Exception:  # noqa: BLE001 - kein Windows o. Ä.
+        pass
+    return home / "Documents"
+
+
+def candidate_dirs(name, install_dir=None):
+    """[(Ordner, ist_benutzerordner)] passend zum Spiel."""
+    home = Path(os.path.expanduser("~"))
+    docs = _documents()
+    bases = [docs, docs / "My Games", home / "Documents", home / "Documents" / "My Games", home / "Saved Games",
              Path(os.environ.get("LOCALAPPDATA", home / "AppData" / "Local")),
              Path(os.environ.get("APPDATA", home / "AppData" / "Roaming"))]
     names = set(_variants(name))
@@ -155,18 +178,26 @@ def candidate_dirs(name, install_dir=None):
             continue
         for n in names:
             p = entries.get(n.lower())
-            if p and p not in out:
-                out.append(p)
+            if p and p not in [x for x, _ in out]:
+                out.append((p, True))
     if install_dir and Path(install_dir).is_dir():
-        out.append(Path(install_dir))
+        out.append((Path(install_dir), False))
     return out
+
+
+def _is_link(p):
+    try:
+        return p.is_symlink() or (hasattr(os.path, "isjunction") and os.path.isjunction(p))
+    except OSError:
+        return True
 
 
 def _files(d):
     n = 0
     for root, dirs, files in os.walk(d):
+        n += 1 + len(dirs)   # auch Ordner zählen (tiefe, leere Bäume)
         dirs[:] = [x for x in dirs if x.lower() not in ("logs", "crashes", "webcache", "shadercache", "cache")
-                   and not x.lower().startswith("webcache")]
+                   and not x.lower().startswith("webcache") and not _is_link(Path(root) / x)]
         for f in files:
             n += 1
             if n > MAX_FILES:
@@ -181,30 +212,35 @@ def _shown(f):
 
 def find(name, install_dir=None):
     """Belegung suchen -> (bindings {aktion: (taste|None, hold, notiz)} oder None, Meldung, Quelldatei|None)."""
-    unreadable = []
-    for d in candidate_dirs(name, install_dir):
+    unreadable, found = 0, []
+    for d, user_dir in candidate_dirs(name, install_dir):
         for f in _files(d):
             low = f.name.lower()
             try:
-                if f.stat().st_size > MAX_FILE:
+                st = f.stat()
+                if st.st_size > MAX_FILE:
                     continue
                 if low.endswith(".xml") and "preset" in low:
                     head = f.read_bytes()[:4096]
                     if b"<preset" in head and b"<input" in head:
                         b = parse_enforce(f)
                         if any(v[0] for v in b.values()):
-                            return b, f"Belegung aus {_shown(f)}", str(f)
+                            found.append((st.st_mtime, b, f))
                 elif low == "input.ini":
                     b = parse_unreal_ini(f)
                     if any(v[0] for v in b.values()):
-                        return b, f"Belegung aus {_shown(f)}", str(f)
-                elif NAME_HINT.search(low) and low.endswith((".dat", ".sav", ".bin", ".cfg", ".ini", ".json", ".xml")):
+                        found.append((st.st_mtime, b, f))
+                elif (user_dir and NAME_HINT.search(low)   # Installationsordner: zu viele Asset-Dateien
+                      and low.endswith((".dat", ".sav", ".bin", ".cfg", ".ini", ".json", ".xml"))):
                     if not _is_text(f.read_bytes()[:4096]):
-                        unreadable.append(_shown(f))
+                        unreadable += 1
             except (OSError, ET.ParseError, ValueError):
                 continue
+    if found:
+        _, b, f = max(found, key=lambda x: x[0])   # mehrere Profile: zuletzt geänderte Belegung
+        more = f" (neueste von {len(found)})" if len(found) > 1 else ""
+        return b, f"Belegung aus {_shown(f)}{more}", str(f)
     if unreadable:
-        shown = ", ".join(sorted(set(unreadable))[:3])
-        return None, (f"Belegungsdatei gefunden, aber nicht lesbar (verschlüsselt/binär: {shown}) – Tasten bleiben "
-                      "leer, bitte im Editor eintragen"), None
+        return None, (f"Einstellungsdateien gefunden, aber nicht lesbar (verschlüsselt/binär, {unreadable} Datei(en)) "
+                      "– Tasten bleiben leer, bitte im Editor eintragen"), None
     return None, "keine lesbare Belegungsdatei gefunden – Tasten bleiben leer, bitte im Editor eintragen", None
