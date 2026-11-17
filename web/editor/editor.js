@@ -77,12 +77,23 @@
         if (m.game === cur.game) bindStatusShow(m);
       } else if (m.t === "bind_learn") {
         if (m.game === cur.game) learnShow(m);
+      } else if (m.t === "web_found") {
+        if (m.game === cur.game) webShow(m);
+      } else if (m.t === "web_saved") {
+        if (m.game === cur.game) {
+          $("genWebOut").innerHTML = "";
+          $("genWebOut").appendChild(el("p", { cls: "hint ok", text: "Als Vorlage gespeichert – jetzt oben auswählen und erzeugen." }));
+          genWantTpl = m.template;
+          send({ t: "templates", game: cur.game }); send({ t: "bind_status", game: cur.game });
+        }
       } else if (m.t === "ai_prompt") {
         genPromptShow(m);
       } else if (m.t === "error" && /^ai_key_/.test(m.req || "")) {
         aiKeyBusy(false); aiKeyMsg("Fehler: " + m.msg, "err");
       } else if (m.t === "error" && /^bind_learn/.test(m.req || "")) {
         learnUi("idle"); learnMsg("Lernmodus: " + m.msg, true);
+      } else if (m.t === "error" && /^web_/.test(m.req || "")) {
+        $("genWebOut").innerHTML = ""; $("genWebOut").appendChild(el("p", { cls: "hint warn", text: m.msg }));
       } else if (m.t === "error" && m.req === "bind_status") {
         $("genBind").textContent = "Tastenbelegung nicht geprüft: " + m.msg; $("genBind").className = "hint warn";
       } else if (m.t === "error" && (m.req === "generate" || m.req === "templates" || m.req === "ai")) {
@@ -349,6 +360,35 @@
   $("genLearnCancel").onclick = function () { learnUi("idle"); learnMsg("", false); };
   $("genLearnForget").onclick = function () { send({ t: "bind_learn_forget", game: cur.game }); };
 
+  // Standardtasten aus dem Netz: suchen -> Vorschau mit Quelle -> speichern
+  var genWantTpl = null;
+  function webShow(m) {
+    var box = $("genWebOut"); box.innerHTML = "";
+    var link = el("a", { text: m.title || m.url });
+    link.href = m.url; link.target = "_blank"; link.rel = "noopener noreferrer";
+    box.appendChild(el("p", { cls: "hint" }, [document.createTextNode(m.site + ": " + m.count + " Tasten – "), link]));
+    var tb = el("tbody");
+    m.rows.forEach(function (r) { tb.appendChild(el("tr", {}, [el("td", { text: r[0] }), el("td", { text: r[1] }), el("td", { cls: "k", text: r[2] })])); });
+    box.appendChild(el("table", { cls: "rep" }, [el("thead", {}, [el("tr", {}, ["Bereich", "Aktion", "Taste"].map(function (h) { return el("th", { text: h }); }))]), tb]));
+    if (m.others && m.others.length) box.appendChild(el("p", { cls: "hint", text: "Weitere Treffer: " + m.others.map(function (o) { return o.title; }).join(" · ") +
+      " – bei Bedarf deren Adresse einfügen." }));
+    box.appendChild(el("div", { cls: "row end" }, [el("button", { id: "genWebSave", text: "Als Vorlage speichern" })]));
+    $("genWebSave").onclick = function () { send({ t: "web_save", game: cur.game }); };
+  }
+  $("genWebFind").onclick = function () {
+    if (!cur.game) return;
+    $("genWebOut").innerHTML = ""; $("genWebOut").appendChild(el("p", { cls: "hint", text: "Suche und lese die Seite …" }));
+    send({ t: "web_find", game: cur.game, url: $("genWebUrl").value.trim() || null });
+  };
+  function genTplSource() {
+    var t = genList.filter(function (x) { return x.id === $("genTpl").value; })[0], s = t && t.source, box = $("genTplSource");
+    box.innerHTML = "";
+    if (!s) return;
+    box.appendChild(document.createTextNode("Tasten der Vorlage aus: " + (s.site || "?") + (s.note ? " (" + s.note + ")" : "") +
+      (s.date ? ", Stand " + s.date : "") + (s.url ? " – " : "")));
+    if (s.url) { var a = el("a", { text: "Quelle" }); a.href = s.url; a.target = "_blank"; a.rel = "noopener noreferrer"; box.appendChild(a); }
+  }
+
   function genOptions() { return { style: $("genStyle").value, skip_device: $("genSkipDev").checked }; }
   function genStyleHint() {
     var t = genList.filter(function (x) { return x.id === $("genTpl").value; })[0];
@@ -370,7 +410,8 @@
     $("genSource").textContent = "Tasten kommen aus deiner Belegung im Spiel, sonst aus der Vorlage (Rückfall).";
     genList.forEach(function (t) { sel.appendChild(el("option", { value: t.id, text: t.title })); });
     sel.appendChild(el("option", { value: "", text: "– keine Vorlage: mit KI neu erstellen –" }));
-    renderGenPages(); genStyleHint();
+    if (genWantTpl && genList.some(function (x) { return x.id === genWantTpl; })) { sel.value = genWantTpl; genWantTpl = null; }
+    renderGenPages(); genStyleHint(); genTplSource();
   }
   function renderGenPages() {
     var box = $("genPages"); box.innerHTML = "";
@@ -383,7 +424,7 @@
   $("genTpl").onchange = function () {
     var none = !$("genTpl").value;   // ganz neu: nur die KI
     $("genRun").disabled = none; if (none) $("genAi").open = true;
-    renderGenPages(); genStyleHint(); $("genReport").innerHTML = ""; $("genTake").disabled = true;
+    renderGenPages(); genStyleHint(); genTplSource(); $("genReport").innerHTML = ""; $("genTake").disabled = true;
   };
   $("genAiRun").onclick = function () {
     if (!cur.game) return;

@@ -1,5 +1,10 @@
 {
  "title": "Kampagne",
+ "source": {
+  "site": "Xbox Wire 2022 / Magic Game World",
+  "note": "veröffentlichte Hotkey-Liste",
+  "date": "2026-11-13"
+ },
  "holdMs": 1000,
  "sections": [
   {

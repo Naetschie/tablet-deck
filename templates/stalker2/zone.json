@@ -1,5 +1,10 @@
 {
  "title": "Zone",
+ "source": {
+  "site": "Shacknews",
+  "note": "Steuerungstabelle (Standardbelegung)",
+  "date": "2026-11-13"
+ },
  "holdMs": 1000,
  "sections": [
   {

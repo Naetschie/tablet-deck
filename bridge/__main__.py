@@ -32,7 +32,8 @@ from .outputs import make_output
 from .keys import ALIASES, MEDIA_VK, SCANCODES
 from .games import watch_games
 from .generate import (actions_message, ai_draft, binding_status, draft, learn_finish, learn_snapshot,
-                       list_templates, set_learned)
+                       library_entry, list_templates, save_web_template, set_learned)
+from .bindings.web import lookup as web_lookup
 from . import ai_template
 from .profiles import Exists, Profiles
 from .layout import button_for_press, needed_keys
@@ -117,6 +118,7 @@ class Bridge:
         self.game = None       # laufendes Spiel (games.py)
         self.ai_busy = False   # KI-Vorlage läuft (Editor)
         self.learn_snaps = {}  # Lernmodus: Spiel -> Dateizustand vor der Tastenänderung im Spiel
+        self.web_pending = {}  # Standardtasten aus dem Netz: Spiel -> gelesene Vorlage bis zur Bestätigung
         self.pulse_q, self.pulse_tasks = {}, {}   # Impuls-Warteschlangen pro Taste (siehe _enqueue_pulse)
         self.hold_since, self.late_release = {}, {}   # press_ms bei Halte-Tasten: Druckbeginn, verzögertes Loslassen
         self.web = WebHome(ROOT)   # Startseite der Web-Kachel: Lesezeichen, gesendet, Verlauf
@@ -417,6 +419,31 @@ class Bridge:
                         else:
                             await loop.run_in_executor(None, set_learned, ROOT, gi["id"], None)
                             await ws.send(json.dumps({"t": "bind_learn", "game": gi["id"], "step": "forgotten"}))
+                    elif t in ("web_find", "web_save"):
+                        # Standardtasten aus einer Steuerungs-Seite im Netz (nur Spielname bzw. genannte Adresse)
+                        g = msg.get("game")
+                        gi = self.profiles.game(g) or (
+                            {"id": g, "name": g} if isinstance(g, str) and re.fullmatch(r"[a-z0-9-]{1,40}", g) else None)
+                        if not gi:
+                            raise ValueError("Spiel fehlt oder ungültig")
+                        loop = asyncio.get_running_loop()
+                        if t == "web_find":
+                            url = msg.get("url") if isinstance(msg.get("url"), str) and msg.get("url").strip() else None
+                            name = (library_entry(gi).get("name") if not self.profiles.game(g) else gi.get("name")) or g
+                            res = await loop.run_in_executor(None, web_lookup, name, url[:500] if url else None)
+                            self.web_pending[gi["id"]] = res["template"]
+                            await ws.send(json.dumps({"t": "web_found", "game": gi["id"], "site": res["site"],
+                                                      "url": res["url"], "title": res["title"], "count": len(res["rows"]),
+                                                      "rows": [[a, r, k] for a, r, k, _h in res["rows"][:80]],
+                                                      "others": res["others"]}))
+                        else:
+                            tpl = self.web_pending.pop(gi["id"], None)
+                            if not tpl:
+                                raise ValueError("nichts zum Speichern – erst suchen")
+                            tid = await loop.run_in_executor(None, save_web_template, ROOT, gi["id"], tpl)
+                            log.info("Editor: Vorlage %s/%s aus dem Netz gespeichert (%s)", gi["id"], tid,
+                                     tpl.get("source", {}).get("site", ""))
+                            await ws.send(json.dumps({"t": "web_saved", "game": gi["id"], "template": tid}))
                     elif t == "ai_prompt":
                         await ws.send(json.dumps({"t": "ai_prompt", **ai_template.prompt_parts()}))
                     elif t == "ai_key_status":

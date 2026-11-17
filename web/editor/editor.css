@@ -65,6 +65,8 @@ dialog .row { margin: 12px 0; } dialog .row.end { justify-content: flex-end; } d
 .checks { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0; }
 #genBind.ok { color: var(--ok); } #genBind.warn { color: var(--warn); font-weight: 600; }
 #genBind.check { color: #e6b800; } #genLearnRow { gap: 6px; flex-wrap: wrap; }
+#genWeb { margin: 8px 0; } #genWeb summary { cursor: pointer; color: var(--ac); }
+#genWebUrl { flex: 1; min-width: 0; } #genWebOut table { max-height: 220px; overflow: auto; display: block; }
 #genPrompt { margin: 8px 0; } #genPrompt summary { cursor: pointer; color: var(--dim); }
 .prompt-fixed { white-space: pre-wrap; max-height: 160px; overflow: auto; margin: 4px 0 8px; padding: 8px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px; color: var(--dim); font: 12px/1.4 var(--fm); }

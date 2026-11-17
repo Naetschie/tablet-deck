@@ -58,3 +58,5 @@ docs/weiter.md
 # im Lernmodus gefundene Steuerungsdateien (lokale Pfade)
 bindings_learned.json
 bindings_learned.tmp
+# aus dem Netz gelesene Vorlagen (lokal, Inhalte von Ratgeberseiten)
+templates/*/web-*.json

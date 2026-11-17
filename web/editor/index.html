@@ -179,7 +179,16 @@
   <div class="row">
     <label>Vorlage <select id="genTpl"></select></label>
   </div>
+  <p class="hint" id="genTplSource"></p>
   <div id="genPages" class="checks"></div>
+  <details id="genWeb">
+    <summary>Standardtasten aus dem Netz holen (Steuerungs-Seite, z. B. Magic Game World, Shacknews)</summary>
+    <p class="hint">Gesucht wird nur mit dem Spielnamen. Findet sich nichts, die Adresse einer Seite mit der
+      Tastenliste einfügen. Gelesen werden nur eindeutige Tasten; vor dem Speichern siehst du die Liste und die Quelle.</p>
+    <div class="row"><input id="genWebUrl" type="url" placeholder="https://… (optional)" spellcheck="false">
+      <button id="genWebFind" class="ghost small">Suchen</button></div>
+    <div id="genWebOut"></div>
+  </details>
   <div class="row">
     <label>Darstellung <select id="genStyle">
       <option value="areas">Bereiche im Raster (wie das Cockpit)</option>

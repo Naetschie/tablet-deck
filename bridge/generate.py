@@ -48,7 +48,11 @@ def list_templates(root, game):
             # semantisch: Auswahl nach Bereichen (die Seiten entstehen erst je nach Darstellung)
             pages = ([{"id": s["title"], "title": s["title"]} for s in t["sections"]] if semantic
                      else [{"id": p["id"], "title": p["title"]} for p in lay["pages"]])
-            entry = {"id": f.stem, "title": t.get("title", f.stem), "semantic": semantic, "pages": pages}
+            src = t.get("source") if isinstance(t.get("source"), dict) else None
+            entry = {"id": f.stem, "title": t.get("title", f.stem), "semantic": semantic, "pages": pages,
+                     "source": {k: str(v)[:200] for k, v in src.items() if k in ("site", "url", "note", "date",
+                                                                                  "title")} if src else None,
+                     "web": f.stem.startswith("web-")}
             _LIST_CACHE[ck] = entry
             out.append(entry)
         except (ValueError, OSError) as e:
@@ -285,6 +289,23 @@ def _read_bindings(root, games_entry, with_state=False):
         log.warning("Belegung %s: %s", games_entry["id"], e)
         msg = f"Belegung nicht lesbar ({type(e).__name__}) – nur Vorlagentasten"
         return (None, msg, "unreadable") if with_state else (None, msg)
+
+
+def save_web_template(root, gid, template):
+    """Aus dem Netz gelesene Vorlage lokal speichern: templates/<spiel>/web-<seite>.json (nicht im Git)."""
+    if not ID.fullmatch(gid or ""):
+        raise ValueError("ungültiges Spiel")
+    auto_build(template)   # muss sich anordnen lassen
+    site = re.sub(r"[^a-z0-9]+", "-", str(template.get("source", {}).get("site", "netz")).lower()).strip("-")[:20]
+    tid = f"web-{site or 'netz'}"
+    d = Path(root) / "templates" / gid
+    d.mkdir(parents=True, exist_ok=True)
+    f = d / f"{tid}.json"
+    tmp = f.with_suffix(".tmp")
+    tmp.write_text(json.dumps(template, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    tmp.replace(f)
+    _FALLBACK_CACHE.pop(gid, None)
+    return tid
 
 
 def template_bindings(root, gid):
