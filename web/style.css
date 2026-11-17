@@ -171,7 +171,9 @@ main.fill { overflow: hidden; }
 .free .key.fit1 .arrow { width: 20px; height: 20px; }
 .free.dense .btn .lockic { display: none; }   /* dichtes Raster: Warnstreifen reicht, Schloss läge auf der Schrift */
 .free .key.fit2 .sub, .free .segp.fit2 .sub { display: none; }
+.free .key, .free .segp { hyphens: manual; overflow-wrap: normal; }
 .free .key.fit3, .free .key.fit3 .lbl, .free .segp.fit3 { font-size: var(--fs-xs); line-height: 1.25; }
+.free .key.fit4, .free .segp.fit4 { hyphens: auto; overflow-wrap: anywhere; }
 .free .key.look-pill.fit3 .lbl { line-height: 1.5; }
 .free .key.fit3 .arrow { width: 16px; height: 16px; }
 .free .key.look-big.fit3 { font-size: var(--fs-md); }

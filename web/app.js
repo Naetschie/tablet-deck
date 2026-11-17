@@ -477,7 +477,7 @@
   }
 
   // Dichte Raster: passt der Inhalt nicht in die Taste, stufenweise kompakter (fit1 enger, fit2 ohne
-  // Tastenname, fit3 kleinere Schrift) - sonst wären Beschriftungen und Schalter abgeschnitten
+  // Tastenname, fit3 kleinere Schrift, fit4 Trennung mitten im Wort) - sonst wäre Text abgeschnitten
   var FIT_SKIP = ["hint", "bar", "lockic", "again", "lamp"];   // liegen absolut, zählen nicht
   function overflows(e) {
     var r = e.getBoundingClientRect(), top = Infinity, bottom = -Infinity, wide = false;
@@ -492,8 +492,8 @@
   function fitKeys() {
     // Stufe für Stufe: erst alle messen, dann allen Überläufern die nächste Klasse geben (wenige Reflows)
     var todo = Array.prototype.slice.call(pageEl.querySelectorAll(".free .key, .free .segp"));
-    todo.forEach(function (e) { e.classList.remove("fit1", "fit2", "fit3"); });
-    for (var i = 1; i <= 3 && todo.length; i++) {
+    todo.forEach(function (e) { e.classList.remove("fit1", "fit2", "fit3", "fit4"); });
+    for (var i = 1; i <= 4 && todo.length; i++) {
       todo = todo.filter(overflows);
       todo.forEach(function (e) { e.classList.add("fit" + i); });
     }

@@ -1,12 +1,18 @@
 # Star-Citizen-Belegung für das Panel
 
-Die Panel-Tasten in `profiles/star-citizen/*.json` verweisen über das Feld `sc` auf die Spielaktion. Die
+Mitgeliefert ist das Panel **Cockpit** (`panels/star-citizen/cockpit.json`) mit vier Bereichen: Flug & Kampf,
+Start & Landung, Industrie, Zu Fuß. Es enthält bewusst nur, was nicht ohnehin auf einem HOTAS liegt (Energie,
+Schilde, MFD, Systeme, Abwehr). Die Panel-Tasten verweisen über das Feld `sc` auf die Spielaktion. Die
 Tastenkombination (`key`) wird **aus dem Spiel abgeleitet**:
 
 ```
-python scripts/sc_bindings.py           # Bericht
-python scripts/sc_bindings.py --write   # Panel-Profil aktualisieren (Standard: main.json, sonst --layout)
+python scripts/sc_bindings.py                                   # Bericht (Standard: Cockpit)
+python scripts/sc_bindings.py --layout profiles/star-citizen/x.json --write   # eigenes Panel aktualisieren
 ```
+
+Aktionen, die das Spiel erst nach einer Haltezeit auslöst (`delayed_press`, z. B. Autolandung,
+Selbstzerstörung), hält der Hub so lange wie im Standardprofil angegeben (`pressTriggerThreshold` + 100 ms) -
+ein Tipp am Tablet genügt.
 
 **Mitgelieferte Panels** (`panels/star-citizen/*.json`) werden vom Skript nicht beschrieben: Der Hub setzt
 `key` (und `hold`) von Tasten mit `sc` beim Laden aus derselben Quelle (Standardprofil + eigene

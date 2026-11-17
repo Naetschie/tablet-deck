@@ -93,7 +93,7 @@ async def ws_tests():
 
 check("Startseite 200", http_status("/") == 200)
 check("/api/games 200", http_status("/api/games") == 200)
-check("Profil 200", http_status("/profiles/star-citizen/main.json") == 200)
+check("Profil 200", http_status("/profiles/star-citizen/std--cockpit.json") == 200)
 check("Profil-Traversal", raw_status("/profiles/../config.json") == 404)
 check("Profil unbekannt 404", http_status("/profiles/x/y.json") == 404)
 check("Traversal ..", raw_status("/../config.json") == 404)

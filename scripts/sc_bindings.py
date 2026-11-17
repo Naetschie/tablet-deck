@@ -1,6 +1,6 @@
 """Panel-Tasten aus der Star-Citizen-Belegung ableiten.
 
-Jede Taste in einem Panel-Profil (Standard profiles/star-citizen/main.json) kann ein Feld "sc" mit dem Namen der Spielaktion haben (z. B.
+Jede Taste in einem Panel-Profil (Standard: mitgeliefertes panels/star-citizen/cockpit.json) kann ein Feld "sc" mit dem Namen der Spielaktion haben (z. B.
 "v_target_cycle_hostile_fwd"). Dieses Skript ermittelt die *tatsächliche* Tastaturbelegung
 (Standardprofil des Spiels + eigene Änderungen aus actionmaps.xml) und trägt sie als "key" ein.
 Aktionen ohne Tastaturbelegung werden gemeldet, mit Vorschlag einer freien Kombination.
@@ -90,7 +90,7 @@ def apply_to_game(user_path, default_path, layout_path, eff, free):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--layout", default=str(ROOT / "profiles" / "star-citizen" / "main.json"))
+    ap.add_argument("--layout", default=str(ROOT / "panels" / "star-citizen" / "cockpit.json"))
     ap.add_argument("--default", default=str(DEFAULT_PROFILE))
     ap.add_argument("--user", default=None,
                     help="actionmaps.xml (Standard: über die Spielebibliothek gefunden)")

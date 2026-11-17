@@ -2,7 +2,7 @@
   "games": [
     {
       "id": "star-citizen", "name": "Star Citizen", "exe": ["StarCitizen.exe"], "steam": null,
-      "panels": ["main"],
+      "panels": [],
       "bindings": {"adapter": "cryengine", "default": "tools/sc/Data/Libs/Config/defaultProfile.plain.xml"},
       "maps": [
         {"name": "Ark Starmap", "url": "https://robertsspaceindustries.com/en/starmap"},
