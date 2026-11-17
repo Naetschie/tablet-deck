@@ -13,6 +13,22 @@ from bridge.bindings.cryengine import key_to_sc, sc_to_key
 from bridge.generate import actions, actions_message, draft, generate, list_templates, load_template
 from bridge.layout import validate_layout
 
+
+def setUpModule():
+    # Tests durchsuchen nie die echten Spielordner des Rechners (generischer Rückfall: bindings/scan.py)
+    import unittest.mock as um
+    from bridge.bindings import scan
+    global _no_scan
+    _no_scan = [um.patch("bridge.generate.library_entry", lambda gi: {}),
+                um.patch.object(scan, "search", lambda *a, **k: scan.Found("none", message=scan.STATE_TEXT["none"]))]
+    for p in _no_scan:
+        p.start()
+
+
+def tearDownModule():
+    for p in _no_scan:
+        p.stop()
+
 ROOT = Path(__file__).resolve().parent.parent
 
 DEFAULT_XML = """<profile><actionmap name="spaceship_general">
@@ -207,7 +223,7 @@ class ActionsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = self.make_root(d)
             tpls, source = actions(root, {"id": "spiel"})
-            self.assertIn("keine lesbare Belegungsdatei", source)   # Rückfall-Suche fand nichts
+            self.assertIn("keine Steuerungsdatei", source)   # Rückfall-Suche fand nichts
             self.assertEqual(tpls[0]["pages"][0]["actions"][1]["source"], "Vorlage")     # Taste Q aus der Vorlage
             self.assertEqual(actions(root, {"id": "gibtsnicht"}), ([], source))
 

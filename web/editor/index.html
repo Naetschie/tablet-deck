@@ -169,6 +169,13 @@
   <h2>Panel automatisch erzeugen</h2>
   <p class="hint" id="genSource"></p>
   <p class="hint" id="genBind">Tastenbelegung wird gesucht …</p>
+  <div class="row" id="genLearnRow">
+    <button id="genLearn" class="ghost small" title="Findet die Steuerungsdatei, indem du im Spiel eine Taste änderst">Belegungsdatei finden (Lernmodus)</button>
+    <button id="genLearnDone" class="small" hidden>Fertig – im Spiel geändert und gespeichert</button>
+    <button id="genLearnCancel" class="ghost small" hidden>Abbrechen</button>
+    <button id="genLearnForget" class="ghost small" hidden>Gelernte Datei vergessen</button>
+  </div>
+  <p class="hint" id="genLearnMsg" hidden></p>
   <div class="row">
     <label>Vorlage <select id="genTpl"></select></label>
   </div>

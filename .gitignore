@@ -54,3 +54,7 @@ CLAUDE.md
 PLAN.md
 HANDOFF-tablet.md
 docs/weiter.md
+
+# im Lernmodus gefundene Steuerungsdateien (lokale Pfade)
+bindings_learned.json
+bindings_learned.tmp

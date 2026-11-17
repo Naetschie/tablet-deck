@@ -28,17 +28,17 @@ def resolve_cfg(cfg, root, entries=None):
     return dict(cfg), []
 
 
-def find_fallback(name, install_dir=None):
-    """Spiel ohne Adapter: Belegungsdatei in den Spielordnern suchen (bindings/scan.py).
-    Rückgabe (Result oder None, Meldung) - Meldung sagt auch, wenn nur Unlesbares gefunden wurde."""
+def find_fallback(name, install_dir=None, appid=None, learned=None):
+    """Spiel ohne Adapter: Steuerung in den Spielordnern suchen (bindings/scan.py, generisch).
+    Rückgabe (Result oder None, Meldung, Zustand) - Zustand siehe scan.STATE_TEXT."""
     from . import scan
     from .cryengine import FREE_POOL
-    found, msg, _src = scan.find(name, install_dir)
-    if not found:
-        return None, msg
-    out = {a: Binding(k, h, n) for a, (k, h, n) in found.items()}
+    fd = scan.search(name, install_dir, appid, learned)
+    if not fd.count:
+        return None, fd.message, fd.state
+    out = {a: Binding(k, h, n) for a, (k, h, n) in fd.bindings.items()}
     used = {b.key for b in out.values() if b.key}
-    return Result(out, [k for k in FREE_POOL if k not in used], msg), msg
+    return Result(out, [k for k in FREE_POOL if k not in used], fd.message), fd.message, fd.state
 
 
 def apply_sc(layout, result):

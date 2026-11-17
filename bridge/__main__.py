@@ -31,7 +31,8 @@ from .firstrun import ensure_from_example
 from .outputs import make_output
 from .keys import ALIASES, MEDIA_VK, SCANCODES
 from .games import watch_games
-from .generate import actions_message, ai_draft, binding_status, draft, list_templates
+from .generate import (actions_message, ai_draft, binding_status, draft, learn_finish, learn_snapshot,
+                       list_templates, set_learned)
 from . import ai_template
 from .profiles import Exists, Profiles
 from .layout import button_for_press, needed_keys
@@ -115,6 +116,7 @@ class Bridge:
                                  bundled=ROOT / cfg.get("panels_bundled", "panels"))
         self.game = None       # laufendes Spiel (games.py)
         self.ai_busy = False   # KI-Vorlage läuft (Editor)
+        self.learn_snaps = {}  # Lernmodus: Spiel -> Dateizustand vor der Tastenänderung im Spiel
         self.pulse_q, self.pulse_tasks = {}, {}   # Impuls-Warteschlangen pro Taste (siehe _enqueue_pulse)
         self.hold_since, self.late_release = {}, {}   # press_ms bei Halte-Tasten: Druckbeginn, verzögertes Loslassen
         self.web = WebHome(ROOT)   # Startseite der Web-Kachel: Lesezeichen, gesendet, Verlauf
@@ -391,6 +393,27 @@ class Bridge:
                             raise ValueError("Spiel fehlt oder ungültig")
                         st = await asyncio.get_running_loop().run_in_executor(None, binding_status, ROOT, gi)
                         await ws.send(json.dumps({"t": "bind_status", "game": gi["id"], **st}))
+                    elif t in ("bind_learn_start", "bind_learn_done", "bind_learn_forget"):
+                        # Lernmodus: Dateien merken -> Nutzer ändert im Spiel eine Taste -> geänderte Datei finden
+                        g = msg.get("game")
+                        gi = self.profiles.game(g) or (
+                            {"id": g, "name": g} if isinstance(g, str) and re.fullmatch(r"[a-z0-9-]{1,40}", g) else None)
+                        if not gi:
+                            raise ValueError("Spiel fehlt oder ungültig")
+                        loop = asyncio.get_running_loop()
+                        if t == "bind_learn_start":
+                            self.learn_snaps[gi["id"]] = await loop.run_in_executor(None, learn_snapshot, gi)
+                            await ws.send(json.dumps({"t": "bind_learn", "game": gi["id"], "step": "started",
+                                                      "files": len(self.learn_snaps[gi["id"]])}))
+                        elif t == "bind_learn_done":
+                            snap = self.learn_snaps.pop(gi["id"], None)
+                            if snap is None:
+                                raise ValueError("Lernmodus nicht gestartet")
+                            res = await loop.run_in_executor(None, learn_finish, ROOT, gi, snap)
+                            await ws.send(json.dumps({"t": "bind_learn", "game": gi["id"], "step": "done", **res}))
+                        else:
+                            await loop.run_in_executor(None, set_learned, ROOT, gi["id"], None)
+                            await ws.send(json.dumps({"t": "bind_learn", "game": gi["id"], "step": "forgotten"}))
                     elif t == "ai_prompt":
                         await ws.send(json.dumps({"t": "ai_prompt", **ai_template.prompt_parts()}))
                     elif t == "ai_key_status":

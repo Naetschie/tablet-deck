@@ -64,6 +64,7 @@ dialog h2 { font-size: 16px; text-transform: none; color: var(--tx); margin-bott
 dialog .row { margin: 12px 0; } dialog .row.end { justify-content: flex-end; } dialog .row.end > * { flex: none; }
 .checks { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0; }
 #genBind.ok { color: var(--ok); } #genBind.warn { color: var(--warn); font-weight: 600; }
+#genBind.check { color: #e6b800; } #genLearnRow { gap: 6px; flex-wrap: wrap; }
 #genPrompt { margin: 8px 0; } #genPrompt summary { cursor: pointer; color: var(--dim); }
 .prompt-fixed { white-space: pre-wrap; max-height: 160px; overflow: auto; margin: 4px 0 8px; padding: 8px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px; color: var(--dim); font: 12px/1.4 var(--fm); }

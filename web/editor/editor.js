@@ -74,15 +74,15 @@
       } else if (m.t === "ai_key") {
         aiKeyShow(m);
       } else if (m.t === "bind_status") {
-        if (m.game === cur.game) {
-          $("genBind").textContent = m.ok ? "Tasten: " + m.count + " Aktionen mit Taste – " + m.source
-            : "Achtung: " + m.source + ". Erzeugte Tasten haben dann keine Taste (gestrichelt).";
-          $("genBind").className = "hint " + (m.ok ? "ok" : "warn");
-        }
+        if (m.game === cur.game) bindStatusShow(m);
+      } else if (m.t === "bind_learn") {
+        if (m.game === cur.game) learnShow(m);
       } else if (m.t === "ai_prompt") {
         genPromptShow(m);
       } else if (m.t === "error" && /^ai_key_/.test(m.req || "")) {
         aiKeyBusy(false); aiKeyMsg("Fehler: " + m.msg, "err");
+      } else if (m.t === "error" && /^bind_learn/.test(m.req || "")) {
+        learnUi("idle"); learnMsg("Lernmodus: " + m.msg, true);
       } else if (m.t === "error" && m.req === "bind_status") {
         $("genBind").textContent = "Tastenbelegung nicht geprüft: " + m.msg; $("genBind").className = "hint warn";
       } else if (m.t === "error" && (m.req === "generate" || m.req === "templates" || m.req === "ai")) {
@@ -253,6 +253,7 @@
     $("genReport").innerHTML = ""; $("genTake").disabled = true; genLast = null;
     $("genSource").textContent = "Vorlagen werden geladen …";
     $("genBind").textContent = "Tastenbelegung wird gesucht …"; $("genBind").className = "hint";
+    learnUi("idle"); learnMsg("", false);
     send({ t: "templates", game: cur.game });
     send({ t: "bind_status", game: cur.game });
     send({ t: "ai_key_status" });
@@ -316,6 +317,38 @@
     storeSet(PROMPT_STORE, v === promptDefault ? null : v);
   });
   $("genPromptReset").onclick = function () { $("genPromptStyle").value = promptDefault; storeSet(PROMPT_STORE, null); };
+  // Woher die Tasten kommen (Adapter oder generische Suche in den Spielordnern) und Lernmodus
+  function bindStatusShow(m) {
+    var cls = m.state === "read" && m.ok ? "ok" : m.state === "recognized" ? "check" : "warn";
+    var txt = m.ok ? m.count + " Aktionen mit Taste – " + m.source
+      : "Achtung: " + m.source + ". Erzeugte Tasten haben dann keine Taste (gestrichelt).";
+    $("genBind").textContent = txt; $("genBind").className = "hint " + cls;
+    $("genLearnRow").hidden = !!m.adapter;           // Spiele mit eigenem Adapter (Star Citizen) brauchen das nicht
+    $("genLearnForget").hidden = !m.learned;
+  }
+  function learnMsg(t, warn) { var e = $("genLearnMsg"); e.hidden = !t; e.textContent = t || ""; e.className = "hint" + (warn ? " warn" : ""); }
+  function learnUi(step) {
+    $("genLearn").hidden = step === "wait"; $("genLearnDone").hidden = step !== "wait"; $("genLearnCancel").hidden = step !== "wait";
+  }
+  function learnShow(m) {
+    if (m.step === "started") {
+      learnUi("wait");
+      learnMsg("Jetzt im Spiel eine Taste ändern und die Einstellungen speichern (gern wieder zurückstellen), dann „Fertig“ klicken. " +
+        "(" + m.files + " Dateien beobachtet)");
+    } else if (m.step === "done") {
+      learnUi("idle");
+      learnMsg(m.msg + (m.changed && m.changed.length ? " · geändert: " + m.changed.join(", ") : ""), !m.found);
+      send({ t: "bind_status", game: cur.game });
+    } else if (m.step === "forgotten") {
+      learnMsg("Gelernte Datei vergessen – es wird wieder automatisch gesucht.", false);
+      send({ t: "bind_status", game: cur.game });
+    }
+  }
+  $("genLearn").onclick = function () { learnMsg("Merke den Zustand der Spieldateien …", false); send({ t: "bind_learn_start", game: cur.game }); };
+  $("genLearnDone").onclick = function () { learnMsg("Suche geänderte Dateien …", false); send({ t: "bind_learn_done", game: cur.game }); };
+  $("genLearnCancel").onclick = function () { learnUi("idle"); learnMsg("", false); };
+  $("genLearnForget").onclick = function () { send({ t: "bind_learn_forget", game: cur.game }); };
+
   function genOptions() { return { style: $("genStyle").value, skip_device: $("genSkipDev").checked }; }
   function genStyleHint() {
     var t = genList.filter(function (x) { return x.id === $("genTpl").value; })[0];

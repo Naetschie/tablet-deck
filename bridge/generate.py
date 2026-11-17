@@ -164,7 +164,7 @@ def ai_draft(root, games_entry, hint="", style_prompt=None, style="areas", skip_
     except ImportError:
         raise ValueError("Paket anthropic fehlt (pip install -r requirements.txt)") from None
     from .ai_template import generate_template
-    result, bind_msg = _read_bindings(root, games_entry)
+    result, bind_msg = _read_bindings(root, games_entry)[:2]
     actions = None
     if result:
         skip = result.on_device if skip_device else frozenset()
@@ -199,42 +199,120 @@ def ai_draft(root, games_entry, hint="", style_prompt=None, style="areas", skip_
     return layout, report, source
 
 
-def _library_dir(games_entry):
-    """Installationsordner aus der Spielebibliothek (Steam, Epic, …), passend zu id oder Name."""
+def library_entry(games_entry):
+    """Eintrag der Spielebibliothek (Steam, Epic, …) zu id oder Name: {name, dir, steam} oder {}."""
     try:
         from . import library
         names = {str(games_entry.get("id", "")).lower(), str(games_entry.get("name", "")).lower()}
         for g in library.scan_library():
             if str(g.get("id", "")).lower() in names or str(g.get("name", "")).lower() in names:
-                return g.get("dir")
+                return g
     except Exception:  # noqa: BLE001 - ohne Bibliothek nur die Benutzerordner durchsuchen
         pass
-    return None
+    return {}
 
 
-def _read_bindings(root, games_entry):
+LEARNED_FILE = "bindings_learned.json"   # im Lernmodus gefundene Steuerungsdateien {spiel-id: pfad} (lokal)
+
+
+def learned_path(root, gid):
+    try:
+        data = json.loads((Path(root) / LEARNED_FILE).read_text(encoding="utf-8"))
+        p = data.get(gid) if isinstance(data, dict) else None
+        return p if isinstance(p, str) else None
+    except (OSError, ValueError):
+        return None
+
+
+def set_learned(root, gid, path):
+    f = Path(root) / LEARNED_FILE
+    try:
+        data = json.loads(f.read_text(encoding="utf-8"))
+        data = data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        data = {}
+    if path:
+        data[gid] = str(path)
+    else:
+        data.pop(gid, None)
+    tmp = f.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(f)
+
+
+def _fallback(root, games_entry):
+    lib = library_entry(games_entry)
+    name = lib.get("name") or games_entry.get("name") or games_entry.get("id")
+    return bindings.find_fallback(name, lib.get("dir"), lib.get("steam"), learned_path(root, games_entry.get("id")))
+
+
+def _read_bindings(root, games_entry, with_state=False):
     """Belegung des Spiels (games.json-Eintrag oder Bibliothekseintrag) lesen -> (Result oder None, Quelle).
-    Ohne eigenen Adapter: Rückfall-Suche in den Spielordnern (lesbare Dateien; Unlesbares wird gemeldet)."""
+    Ohne eigenen Adapter: generische Suche in den Spielordnern (bindings/scan.py; Unlesbares wird gemeldet)."""
     cfg = games_entry.get("bindings")
     if not cfg:
         try:
-            return bindings.find_fallback(games_entry.get("name") or games_entry.get("id"), _library_dir(games_entry))
+            res, msg, state = _fallback(root, games_entry)
         except Exception as e:  # noqa: BLE001
             log.warning("Belegungssuche %s: %s", games_entry.get("id"), type(e).__name__)
-            return None, "Belegungssuche fehlgeschlagen – Tasten bleiben leer"
+            res, msg, state = None, "Belegungssuche fehlgeschlagen – Tasten bleiben leer", "none"
+        return (res, msg, state) if with_state else (res, msg)
     try:
         result = bindings.read(cfg, root)
-        return result, result.source
+        return (result, result.source, "read") if with_state else (result, result.source)
     except (OSError, ValueError, Exception) as e:  # noqa: BLE001 - kaputte XML o. Ä.: mit Vorlage weiter
         log.warning("Belegung %s: %s", games_entry["id"], e)
         return None, f"Belegung nicht lesbar ({e}) – nur Vorlagentasten"
 
 
 def binding_status(root, games_entry):
-    """Für den Editor vor dem Erzeugen: {ok, source, count} - woher die Tasten kommen (oder warum keine)."""
-    result, source = _read_bindings(root, games_entry)
+    """Für den Editor vor dem Erzeugen: {ok, state, source, count, learned} - woher die Tasten kommen (oder warum
+    keine). state: read | recognized | only_changes | unreadable | unknown | none (siehe bindings/scan.py)."""
+    got = _read_bindings(root, games_entry, with_state=True)
+    result, source, state = got if len(got) == 3 else (got[0], got[1], "read" if got[0] else "none")
     n = sum(1 for b in result.bindings.values() if b.key) if result else 0
-    return {"ok": bool(result and n), "source": source, "count": n}
+    return {"ok": bool(result and n), "state": state, "source": source, "count": n,
+            "learned": bool(learned_path(root, games_entry.get("id"))), "adapter": bool(games_entry.get("bindings"))}
+
+
+def learn_snapshot(games_entry):
+    """Lernmodus Schritt 1: Zustand der Dateien des Spiels merken."""
+    from .bindings import scan
+    lib = library_entry(games_entry)
+    return scan.snapshot(lib.get("name") or games_entry.get("name") or games_entry.get("id"), lib.get("dir"),
+                         lib.get("steam"))
+
+
+def learn_finish(root, games_entry, snap):
+    """Lernmodus Schritt 2: geänderte Dateien prüfen, die erste lesbare merken. -> {found, changed, state, msg}"""
+    from .bindings import scan
+    from .bindings.containers import open_bytes
+    from .bindings.readers import read_content
+    lib = library_entry(games_entry)
+    name = lib.get("name") or games_entry.get("name") or games_entry.get("id")
+    files = scan.changed(snap, name, lib.get("dir"), lib.get("steam"))
+    shown = [scan._shown(f) for f in files[:8]]
+    if not files:
+        return {"found": False, "changed": [], "state": "none",
+                "msg": "keine geänderte Datei gefunden – im Spiel eine Taste ändern und die Einstellungen speichern"}
+    unreadable = 0
+    for f in files[:20]:
+        try:
+            kind, content = open_bytes(Path(f).read_bytes()[:scan.MAX_FILE])
+        except OSError:
+            continue
+        r = read_content(kind, content)
+        if r and r.count:
+            set_learned(root, games_entry["id"], f)
+            return {"found": True, "changed": shown, "state": "read" if r.method == "exact" else "recognized",
+                    "msg": f"Steuerungsdatei gefunden: {scan._shown(f)} ({r.count} Tasten) – wird ab jetzt verwendet"}
+        if kind in ("encrypted", "binary"):
+            unreadable += 1
+    if unreadable:
+        return {"found": False, "changed": shown, "state": "unreadable",
+                "msg": "geänderte Datei(en) gefunden, aber nicht lesbar (verschlüsselt/binär) – Tasten bitte im Editor eintragen"}
+    return {"found": False, "changed": shown, "state": "unknown",
+            "msg": "geänderte Datei(en) gefunden, Format aber nicht erkannt"}
 
 
 def draft(root, games_entry, tid, pages=None, style="areas", skip_device=False):
