@@ -19,7 +19,7 @@
       {"id": "pw_target", "label": "Verteilen auf", "segment": [{"label": "WAFFEN", "key": "NUMPAD1"}, {"label": "SCHILD", "key": "NUMPAD2"}, {"label": "ANTRIEB", "key": "NUMPAD3"}], "x": 9, "y": 5, "w": 6, "h": 2},
       {"kind": "frame", "id": "f_shield", "label": "Schilde", "x": 16, "y": 0, "w": 8, "h": 8},
       {"id": "sh_up", "label": "Vorn", "key": "NUMPAD7", "zone": "front"},
-      {"kind": "shield", "id": "sh", "x": 17, "y": 1, "w": 6, "h": 7},
+      {"kind": "shield", "id": "sh", "x": 16, "y": 1, "w": 8, "h": 7},
       {"id": "sh_left", "label": "Links", "key": "NUMPAD4", "zone": "left"},
       {"id": "sh_reset", "label": "Reset", "key": "NUMPAD0", "style": "accent", "zone": "reset"},
       {"id": "sh_right", "label": "Rechts", "key": "F8", "zone": "right"},
