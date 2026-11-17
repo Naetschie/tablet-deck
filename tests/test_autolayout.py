@@ -107,6 +107,17 @@ class AutoLayoutTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 build(cockpit(), style)
 
+    def test_even_stretch_and_height_cap(self):
+        # 9 + 3 Tasten: nebeneinander statt einer langen Reihe über einem fast leeren Bereich
+        spec = {"sections": [{"title": "S", "areas": [{"title": "A", "items": keys(9)}, {"title": "B", "items": keys(3)}]}]}
+        page = build(spec)["pages"][0]
+        frames = [b for b in page["buttons"] if b.get("kind") == "frame"]
+        self.assertTrue(all(f["h"] == ROWS for f in frames), frames)
+        for b in page["buttons"]:
+            if "kind" not in b:
+                self.assertLessEqual(b["h"], 4)                     # höchstens doppelt so hoch wie 2
+        self.check_page(page)
+
     def test_invalid(self):
         for bad in ({}, {"sections": []}, {"pages": []}, {"sections": [{"title": "S", "areas": [
                 {"title": "A", "items": [{"label": "x", "action": "a", "size": "riesig"}]}]}]},
