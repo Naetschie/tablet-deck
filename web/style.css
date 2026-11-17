@@ -187,7 +187,7 @@ main.fill { overflow: hidden; }
 .free .key.fit1 .swtch { width: 40px; height: 20px; }
 .free .key.fit1 .knob { top: 2px; left: 10px; width: 14px; height: 14px; }
 .free .key.fit1.look-switch.down .knob { transform: translateX(8px); }
-.free .key.fit1 .lockic { top: 3px; left: 12px; width: 13px; height: 13px; }
+.free.dense .btn .lockic { display: none; }   /* dichtes Raster: Warnstreifen reicht, Schloss läge auf der Schrift */
 .free .key.fit2 .sub, .free .segp.fit2 .sub { display: none; }
 .free .key.fit3, .free .key.fit3 .lbl, .free .segp.fit3 { font-size: var(--fs-xs); line-height: 1.25; }
 .free .key.look-pill.fit3 .lbl { line-height: 1.5; }

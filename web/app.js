@@ -490,7 +490,7 @@
       if (c.offsetParent === null || FIT_SKIP.some(function (k) { return c.classList.contains(k); })) return;
       var q = c.getBoundingClientRect();
       top = Math.min(top, q.top); bottom = Math.max(bottom, q.bottom);
-      if (c.scrollWidth > c.clientWidth + 1 || q.left < r.left - 1 || q.right > r.right + 1) wide = true;
+      if (c.scrollWidth > c.clientWidth || q.left < r.left - 1 || q.right > r.right + 1) wide = true;
     });
     return wide || top < r.top + 1 || bottom > r.bottom - 1 || e.scrollWidth > e.clientWidth + 1;
   }
