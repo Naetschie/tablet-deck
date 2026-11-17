@@ -337,8 +337,9 @@ class Bridge:
                         if pages is not None and not (isinstance(pages, list) and all(isinstance(x, str) for x in pages)):
                             raise ValueError("pages muss eine Liste sein")
                         # Dateien lesen (actionmaps.xml) nicht im Event-Loop
+                        style = msg.get("style", "areas")   # Darstellung semantischer Vorlagen: areas | grid
                         layout, report, source = await asyncio.get_running_loop().run_in_executor(
-                            None, draft, ROOT, gi, msg.get("template"), pages)
+                            None, draft, ROOT, gi, msg.get("template"), pages, style)
                         log.info("Editor: Entwurf %s/%s erzeugt (%s)", gi["id"], msg.get("template"), source)
                         await ws.send(json.dumps({"t": "draft", "game": gi["id"], "template": msg.get("template"),
                                                   "layout": layout, "report": report, "source": source}))

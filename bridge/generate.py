@@ -1,7 +1,9 @@
 """Panel automatisch erzeugen: Spielvorlage + eigene Tastenbelegung -> Panel-Entwurf.
 
-Vorlagen: templates/<spiel>/<vorlage>.json im Panel-Format (title, pages, buttons). Tasten nennen ihre
-Spielaktion in "sc" (Star Citizen) bzw. "action" und dürfen eine Standardtaste "key" mitbringen.
+Vorlagen: templates/<spiel>/<vorlage>.json im Panel-Format (title, pages, buttons) oder semantisch (title,
+sections -> areas -> items, ohne Koordinaten; siehe autolayout.py), dann ordnet das Auto-Layout an - als
+Bereiche im Raster ("areas") oder als Kacheln ("grid"). Tasten nennen ihre Spielaktion in "sc" (Star Citizen)
+bzw. "action" und dürfen eine Standardtaste "key" mitbringen.
 
 Reihenfolge für die Taste: eigene Belegung (Adapter) > Taste aus der Vorlage > keine (Taste bleibt
 unbelegt, mit Vorschlag einer freien Kombination). Gespeichert wird erst im Editor.
@@ -13,7 +15,10 @@ import re
 from pathlib import Path
 
 from . import bindings
+from .autolayout import build as auto_build, is_semantic
 from .layout import validate_layout
+
+STYLES = ("areas", "grid")   # Darstellung semantischer Vorlagen
 
 log = logging.getLogger("generate")
 ID = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
@@ -30,21 +35,28 @@ def list_templates(root, game):
             continue
         try:
             t = json.loads(f.read_text(encoding="utf-8"))
-            validate_layout(t)
-            out.append({"id": f.stem, "title": t.get("title", f.stem),
-                        "pages": [{"id": p["id"], "title": p["title"]} for p in t["pages"]]})
+            semantic = is_semantic(t)
+            lay = auto_build(t) if semantic else t
+            validate_layout(lay)
+            out.append({"id": f.stem, "title": t.get("title", f.stem), "semantic": semantic,
+                        "pages": [{"id": p["id"], "title": p["title"]} for p in lay["pages"]]})
         except (ValueError, OSError) as e:
             log.error("Vorlage %s/%s fehlerhaft: %s", game, f.stem, e)
     return out
 
 
-def load_template(root, game, tid):
+def load_template(root, game, tid, style="areas"):
+    """Vorlage als Panel-Layout; semantische Vorlagen ordnet das Auto-Layout im gewählten Stil an."""
     if not (ID.fullmatch(game or "") and ID.fullmatch(tid or "")):
         raise ValueError("ungültige Vorlage")
+    if style not in STYLES:
+        raise ValueError("Darstellung muss areas oder grid sein")
     f = Path(root) / "templates" / game / f"{tid}.json"
     if not f.is_file():
         raise ValueError("Vorlage nicht gefunden")
     t = json.loads(f.read_text(encoding="utf-8"))
+    if is_semantic(t):
+        return auto_build(t, style)
     validate_layout(t)
     return t
 
@@ -61,6 +73,8 @@ def generate(template, result=None, pages=None):
     report = []
     for page in layout["pages"]:
         for b in page["buttons"]:
+            if "kind" in b:
+                continue   # Rahmen, Beschriftung, Schiffsansicht: keine Tasten
             act = b.get("sc") or b.get("action")
             row = {"id": b["id"], "label": b["label"], "page": page["title"], "page_id": page["id"], "action": act or "",
                    "key": b.get("key", ""), "source": "Vorlage" if b.get("key") else "", "note": ""}
@@ -75,6 +89,8 @@ def generate(template, result=None, pages=None):
                     row["source"] = "Belegung"
                     if bd.hold:
                         b["hold"] = True
+                    if bd.min_ms:
+                        b["press_ms"] = bd.min_ms   # Spiel wertet erst lange Drücke (delayed_press)
                 else:
                     b.pop("key", None)
                     row["key"], row["source"], row["note"] = "", "", bd.note
@@ -138,9 +154,9 @@ def _read_bindings(root, games_entry):
         return None, f"Belegung nicht lesbar ({e}) – nur Vorlagentasten"
 
 
-def draft(root, games_entry, tid, pages=None):
+def draft(root, games_entry, tid, pages=None, style="areas"):
     """Vorlage + Belegung des Spiels (games.json-Eintrag) -> (layout, bericht, quelle)."""
-    template = load_template(root, games_entry["id"], tid)
+    template = load_template(root, games_entry["id"], tid, style)
     result, source = _read_bindings(root, games_entry)
     layout, report = generate(template, result, pages)
     return layout, report, source
@@ -165,7 +181,7 @@ def actions(root, games_entry):
         for page in layout["pages"]:
             acts = []
             for b in page["buttons"]:
-                if "page" in b:
+                if "page" in b or "kind" in b:
                     continue
                 r = rows[(page["id"], b["id"])]
                 acts.append({"button": {k: v for k, v in b.items() if k not in _POSITION_FIELDS},

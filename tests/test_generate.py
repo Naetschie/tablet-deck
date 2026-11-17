@@ -71,6 +71,17 @@ class GenerateTest(unittest.TestCase):
                            "a_mouse": Binding(None, False, "nur Maus/Achse (mouse1)")},
                           ["RCTRL+NUMPAD1", "RCTRL+NUMPAD2"], "test")
 
+    def test_semantic_template_press_ms_and_no_decor_rows(self):
+        from bridge.autolayout import build
+        spec = {"sections": [{"title": "S", "areas": [
+            {"title": "A", "items": [{"label": "Lang", "action": "a_long"}, {"label": "Kurz", "action": "a_bound"}]}]}]}
+        res = Result({"a_long": Binding("N", False, "", 350), "a_bound": Binding("F1", False, "")}, [], "t")
+        layout, report = generate(build(spec), res)
+        btn = {b["label"]: b for b in layout["pages"][0]["buttons"] if "kind" not in b}
+        self.assertEqual((btn["Lang"]["key"], btn["Lang"]["press_ms"]), ("N", 350))
+        self.assertNotIn("press_ms", btn["Kurz"])
+        self.assertEqual(sorted(r["label"] for r in report), ["Kurz", "Lang"])   # Rahmen nicht im Bericht
+
     def test_priority_binding_template_missing(self):
         t = tpl({"id": "b1", "label": "B1", "sc": "a_bound", "key": "Q"},
                 {"id": "b2", "label": "B2", "action": "a_hold"},
