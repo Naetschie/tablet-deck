@@ -20,6 +20,7 @@
     document.body.classList.toggle("offline", !ok);
   }
 
+  var webVer = null;   // Stand der Web-Dateien beim ersten "hello"
   function connect() {
     ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
     ws.onopen = function () {
@@ -30,6 +31,9 @@
       lastPong = Date.now();
       var m = JSON.parse(ev.data);
       if (m.t === "hello") {
+        // Web-Dateien seit dem Laden geändert (Update, Hub neu gestartet): Seite neu laden
+        if (m.web && webVer && m.web !== webVer) { location.reload(); return; }
+        webVer = m.web || webVer;
         // (Neu-)Verbindung: Bridge evtl. mit geänderten Profilen neu gestartet; laufendes Spiel bevorzugen
         loadGames(m.game && m.game.panels.length ? m.game.id : null);
       } else if (m.t === "profiles") {

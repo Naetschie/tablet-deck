@@ -43,6 +43,21 @@ from .tray import Tray
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "web"
+
+
+def web_version(web=None):
+    """Kennung des Stands von web/ (Pfade, Größen, Änderungszeiten). Die Seiten laden sich neu, wenn sie sich
+    nach einem Neuverbinden geändert hat - sonst liefe am Tablet nach einem Update weiter das alte app.js."""
+    import hashlib
+    web = web or WEB
+    h = hashlib.sha1()
+    for f in sorted(web.rglob("*")):
+        if f.is_file():
+            st = f.stat()
+            h.update(f"{f.relative_to(web).as_posix()}|{st.st_size}|{st.st_mtime_ns}\n".encode())
+    return h.hexdigest()[:12]
+
+
 PULSE_S = 0.08   # Dauer eines Tasten-Impulses (Panel-Tasten ohne "hold")
 PULSE_GAP_S = 0.03   # Pause zwischen zwei Impulsen derselben Taste
 PULSE_MAX_QUEUE = 40
@@ -772,7 +787,7 @@ class Bridge:
         pcst = self.pc.new_client()
         log.info("Client verbunden: %s (%d aktiv)", peer, len(self.clients))
         try:
-            await ws.send(json.dumps({"t": "hello", "mode": self.out.name,
+            await ws.send(json.dumps({"t": "hello", "mode": self.out.name, "web": web_version(),
                                       "game": self.profiles.summary(self.game) if self.game else None}))
             if self.volume_state:
                 await ws.send(json.dumps({"t": "volume", "v": self.volume_state[0], "mute": self.volume_state[1]}))

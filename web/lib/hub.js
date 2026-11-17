@@ -10,6 +10,7 @@ window.Hub = (function () {
     statusFns.forEach(function (f) { f(ok); });
   }
 
+  var webVer = null;
   function connect() {
     ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
     ws.onopen = function () { lastPong = Date.now(); setStatus(true); };
@@ -17,6 +18,10 @@ window.Hub = (function () {
       lastPong = Date.now();
       var m;
       try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (m.t === "hello" && m.web) {   // Web-Dateien geändert (Update): Seite neu laden
+        if (webVer && m.web !== webVer) { location.reload(); return; }
+        webVer = m.web;
+      }
       handlers.forEach(function (f) { f(m); });
     };
     ws.onclose = function () { setStatus(false); setTimeout(connect, 1000); };
