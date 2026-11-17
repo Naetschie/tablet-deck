@@ -1,0 +1,150 @@
+"""Standardtasten mit KI-Suche: Claude sucht und liest Steuerungs-Seiten im Netz (Websuche/Seitenabruf bei
+Anthropic) und meldet je Zeile Aktion, Taste (wie auf der Seite geschrieben) und die Seite. Der Hub glaubt das
+nicht einfach: er ruft jede genannte Seite selbst ab (sicherer Abruf, bindings/web.py) und behält nur Zeilen,
+deren Aktion und Tastentext dort wörtlich stehen und deren Taste das Tastenwörterbuch eindeutig kennt.
+Kostet API-Guthaben des Nutzers (eigener Schlüssel, secrets/anthropic.key).
+"""
+import logging
+import re
+import urllib.parse
+
+from .ai_template import BETAS, MODEL, _read_key
+from .bindings import web
+
+log = logging.getLogger("ai_bindings")
+MAX_ROUNDS = 6          # pause_turn-Fortsetzungen der serverseitigen Suche
+MAX_ROWS = 150
+MAX_PAGES = 4
+
+SYSTEM = """Du suchst die Standard-Tastaturbelegung (PC, Tastatur) eines Spiels im Netz.
+Vorgehen: mit der Websuche Seiten finden, die die PC-Steuerung als Liste oder Tabelle zeigen (offizielle Seiten,
+Handbücher, Wikis, Ratgeberseiten), die besten 1-3 mit dem Seitenabruf lesen.
+Regeln:
+- Nur Zeilen, die auf einer abgerufenen Seite wirklich stehen. Aktion und Taste genau so übernehmen, wie sie dort
+  geschrieben sind (key_text wörtlich, z. B. "Left Shift", "Ctrl + C", "F5"). Nichts ergänzen, nichts raten.
+- Je Zeile genau eine Tastatur-Taste oder eine Kombination. Zeilen mit Maus, Controller, mehreren Tasten
+  ("W, A, S, D", "1-9", "Q / E") weglassen.
+- url ist die Adresse der Seite, auf der die Zeile steht.
+- area ist die Überschrift der Seite über der Zeile (z. B. "Combat"), sonst leer.
+Zum Schluss genau einmal das Werkzeug report_controls aufrufen. Findest du nichts Verlässliches, rufe es mit
+leerer Liste auf."""
+
+REPORT_TOOL = {
+    "name": "report_controls",
+    "description": "Gefundene Standardtasten melden (Abschluss der Suche).",
+    "strict": True,
+    "input_schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["bindings"],
+        "properties": {
+            "bindings": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["area", "action", "key_text", "url"],
+                    "properties": {
+                        "area": {"type": "string"},
+                        "action": {"type": "string"},
+                        "key_text": {"type": "string"},
+                        "url": {"type": "string"},
+                    },
+                },
+            },
+        },
+    },
+}
+
+
+def _ask(client, game):
+    """KI-Suche ausführen -> Liste der gemeldeten Zeilen (ungeprüft)."""
+    tools = [{"type": "web_search_20260209", "name": "web_search", "max_uses": 5},
+             {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 6},
+             REPORT_TOOL]
+    messages = [{"role": "user", "content": f"Spiel: {game}\nFinde die PC-Standardtasten."}]
+    for _ in range(MAX_ROUNDS):
+        resp = client.beta.messages.create(
+            model=MODEL, max_tokens=16000, betas=BETAS, fallbacks="default",
+            output_config={"effort": "medium"}, system=SYSTEM, tools=tools, messages=messages)
+        if resp.stop_reason == "refusal":
+            raise ValueError("KI hat die Suche abgelehnt")
+        for block in resp.content:
+            if getattr(block, "type", None) == "tool_use" and block.name == "report_controls":
+                rows = block.input.get("bindings") if isinstance(block.input, dict) else None
+                return rows if isinstance(rows, list) else []
+        if resp.stop_reason == "pause_turn":   # serverseitige Suche läuft noch: fortsetzen, kein neuer Text
+            messages = [messages[0], {"role": "assistant", "content": resp.content}]
+            continue
+        raise ValueError("KI hat keine Liste gemeldet")
+    raise ValueError("KI-Suche hat zu lange gedauert")
+
+
+def _norm(s):
+    return re.sub(r"\s+", " ", str(s).lower().replace(" ", " ")).strip()
+
+
+def _page_blocks(page):
+    """Blöcke einer Seite (Tabellenzeile, Listenpunkt, Absatz) als normalisierter Text, über den linearen Leser."""
+    p = web._Blocks(scoped=False)
+    p.feed(page[:web.MAX_PAGE])
+    p.close()
+    p._flush()
+    return [_norm(" | ".join(c) if tag == "tr" else c) for tag, c in p.out if c]
+
+
+def _confirmed(blocks, action, key_text):
+    """Aktion und Tastentext stehen im selben Block, die Taste als eigenes Wort (nicht nur ein „n“ irgendwo)."""
+    a, k = _norm(action), _norm(key_text)
+    pat = re.compile(r"(?<![\w])" + re.escape(k) + r"(?![\w])")
+    return any(a in b and pat.search(b.replace(a, " ", 1)) for b in blocks)
+
+
+def verify(rows, fetch=None):
+    """Gemeldete Zeilen gegen die Seiten prüfen -> (geprüfte [(bereich, aktion, taste, halten)], urls, verworfen)."""
+    urls = []
+    for r in rows:
+        u = str(r.get("url", "")).strip()
+        if u and u not in urls and urllib.parse.urlparse(u).scheme in ("http", "https"):
+            urls.append(u)
+    fetch = fetch or web.fetch
+    texts = {}
+    for u in urls[:MAX_PAGES]:
+        try:
+            texts[u] = _page_blocks(fetch(u))
+        except (ValueError, OSError) as e:
+            log.info("Seite nicht prüfbar (%s): %s", urllib.parse.urlparse(u).hostname, type(e).__name__)
+    ok, dropped, seen = [], 0, set()
+    for r in rows[:MAX_ROWS]:
+        u, action, key_text = str(r.get("url", "")), str(r.get("action", "")).strip(), str(r.get("key_text", ""))
+        text = texts.get(u)
+        key, hold = web.page_key(key_text)
+        if (not text or not key or not action or len(action) > 60 or not _confirmed(text, action, key_text)
+                or action.lower() in seen):
+            dropped += 1
+            continue
+        seen.add(action.lower())
+        ok.append((str(r.get("area", ""))[:40], action, key, hold))
+    return ok, [u for u in urls if u in texts], dropped
+
+
+def lookup(root, game, client=None):
+    """KI-Suche + Gegenprüfung -> Ergebnis wie bindings.web.lookup (url, site, title, rows, others, template)."""
+    if client is None:
+        import anthropic
+        client = anthropic.Anthropic(api_key=_read_key(root), max_retries=2, timeout=300)
+    rows = _ask(client, game)
+    ok, urls, dropped = verify(rows)
+    if len(ok) < 3:
+        raise ValueError(f"KI-Suche: nur {len(ok)} Taste(n) ließen sich auf den Seiten bestätigen "
+                         f"({dropped} verworfen) – Adresse einer Seite selbst einfügen")
+    main = urls[0] if urls else ""
+    host = urllib.parse.urlparse(main).hostname or ""
+    tpl = web.to_template(game, ok, main, f"KI-Suche ({web.SITES.get(host, host)})", "")
+    tpl["source"]["note"] = (f"von Claude gefunden, {len(ok)} Tasten gegen {len(urls)} Seite(n) geprüft, "
+                             f"{dropped} verworfen")
+    if len(urls) > 1:
+        tpl["source"]["more"] = urls[1:]
+    return {"url": main, "site": tpl["source"]["site"], "title": f"{len(ok)} bestätigt, {dropped} verworfen",
+            "rows": ok, "others": [{"title": u, "url": u, "site": urllib.parse.urlparse(u).hostname} for u in urls[1:]],
+            "template": tpl}

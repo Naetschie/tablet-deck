@@ -431,8 +431,29 @@ class Bridge:
                             url = msg.get("url") if isinstance(msg.get("url"), str) and msg.get("url").strip() else None
                             lib_name = (await loop.run_in_executor(None, library_entry, gi)).get("name")
                             name = gi.get("name") or lib_name or g
-                            res = await loop.run_in_executor(None, web_lookup, name, url[:500] if url else None,
-                                                             lib_name)
+                            if msg.get("ai") is True:
+                                # KI-Suche (kostenpflichtig): nie zwei gleichzeitig, Sperre endet im Thread selbst
+                                if self.ai_busy:
+                                    raise ValueError("KI arbeitet gerade schon")
+                                from .ai_bindings import lookup as ai_web_lookup
+
+                                def run_ai_web(name=name):
+                                    try:
+                                        return ai_web_lookup(ROOT, name)
+                                    finally:
+                                        self.ai_busy = False
+                                self.ai_busy = True
+                                log.info("Editor: KI-Suche nach Standardtasten für %s", gi["id"])
+                                try:
+                                    res = await asyncio.shield(loop.run_in_executor(None, run_ai_web))
+                                except ValueError:
+                                    raise
+                                except Exception as e:  # noqa: BLE001 - API-Fehler als Meldung, nie mit Schlüssel
+                                    log.error("KI-Suche fehlgeschlagen: %s", type(e).__name__)
+                                    raise ValueError(f"KI-Suche fehlgeschlagen ({type(e).__name__})") from None
+                            else:
+                                res = await loop.run_in_executor(None, web_lookup, name, url[:500] if url else None,
+                                                                 lib_name)
                             self.web_pending[gi["id"]] = res["template"]
                             await ws.send(json.dumps({"t": "web_found", "game": gi["id"], "site": res["site"],
                                                       "url": res["url"], "title": res["title"], "count": len(res["rows"]),

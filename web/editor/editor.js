@@ -78,6 +78,7 @@
       } else if (m.t === "bind_learn") {
         if (m.game === cur.game) learnShow(m);
       } else if (m.t === "web_found") {
+        $("genWebAi").disabled = false;
         if (m.game === cur.game) webShow(m);
       } else if (m.t === "web_saved") {
         if (m.game === cur.game) {
@@ -93,6 +94,7 @@
       } else if (m.t === "error" && /^bind_learn/.test(m.req || "")) {
         learnUi("idle"); learnMsg("Lernmodus: " + m.msg, true);
       } else if (m.t === "error" && /^web_/.test(m.req || "")) {
+        $("genWebAi").disabled = false;
         $("genWebOut").innerHTML = ""; $("genWebOut").appendChild(el("p", { cls: "hint warn", text: m.msg }));
       } else if (m.t === "error" && m.req === "bind_status") {
         $("genBind").textContent = "Tastenbelegung nicht geprüft: " + m.msg; $("genBind").className = "hint warn";
@@ -375,6 +377,12 @@
     box.appendChild(el("div", { cls: "row end" }, [el("button", { id: "genWebSave", text: "Als Vorlage speichern" })]));
     $("genWebSave").onclick = function () { send({ t: "web_save", game: cur.game }); };
   }
+  $("genWebAi").onclick = function () {
+    if (!cur.game) return;
+    $("genWebAi").disabled = true;   // kostenpflichtig: nicht doppelt
+    $("genWebOut").innerHTML = ""; $("genWebOut").appendChild(el("p", { cls: "hint", text: "Claude sucht und liest Seiten, danach Prüfung … (meist 1–3 Minuten)" }));
+    send({ t: "web_find", game: cur.game, ai: true });
+  };
   $("genWebFind").onclick = function () {
     if (!cur.game) return;
     $("genWebOut").innerHTML = ""; $("genWebOut").appendChild(el("p", { cls: "hint", text: "Suche und lese die Seite …" }));

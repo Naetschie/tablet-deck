@@ -28,8 +28,10 @@ MAX_PAGE = 2 * 1024 * 1024
 TIMEOUT = 15          # je Verbindung/Lesevorgang
 TOTAL = 30            # Gesamtfrist für einen Abruf
 MAX_REDIRECTS = 3
-MGW_HOST = "www.magicgameworld.com"
-MGW_SEARCH = f"https://{MGW_HOST}/wp-json/wp/v2/search?per_page=10&search="
+# Ratgeberseiten mit offener WordPress-Suche (nur der Spielname geht hinaus)
+SEARCH_SITES = [("www.magicgameworld.com", "Magic Game World", "keyboard controls"),
+                ("allthings.how", "All Things How", "controls"), ("space4games.com", "space4games", "controls")]
+MAX_TRIES = 3   # so viele Treffer werden gelesen; der mit den meisten eindeutigen Tasten gewinnt
 GUIDE_WORDS = re.compile(r"(controls?|keybind|key bindings|keyboard|hotkeys?|shortcuts?)", re.I)
 MAX_ITEMS = 16
 
@@ -130,21 +132,29 @@ def name_variants(*names):
     return out
 
 
-def _search_one(game):
-    q = urllib.parse.quote(f"{game} keyboard controls")
+def _search_site(game, host, site, words, want):
+    q = urllib.parse.quote(f"{game} {words}")
     try:
-        data = json.loads(fetch(MGW_SEARCH + q))
+        data = json.loads(fetch(f"https://{host}/wp-json/wp/v2/search?per_page=10&search={q}"))
     except (ValueError, OSError):
         return []
-    want = {t for t in re.findall(r"[a-z0-9]+", game.lower()) if len(t) >= 3 and t not in ("the", "and")}
     out = []
     for d in data if isinstance(data, list) else []:
         title = html.unescape(str(d.get("title", "")))
         url = str(d.get("url", ""))
-        words = set(re.findall(r"[a-z0-9]+", title.lower()))
-        if (urllib.parse.urlparse(url).hostname == MGW_HOST and GUIDE_WORDS.search(title)
-                and want and want <= words):
-            out.append({"title": title, "url": url, "site": "Magic Game World"})
+        tw = set(re.findall(r"[a-z0-9]+", title.lower()))
+        if urllib.parse.urlparse(url).hostname == host and GUIDE_WORDS.search(title) and want and want <= tw:
+            out.append({"title": title, "url": url, "site": site})
+    return out
+
+
+def _search_one(game):
+    """Alle Suchseiten gleichzeitig fragen (sonst addieren sich die Wartezeiten)."""
+    from concurrent.futures import ThreadPoolExecutor
+    want = {t for t in re.findall(r"[a-z0-9]+", game.lower()) if len(t) >= 2 and t not in ("the", "and")}
+    with ThreadPoolExecutor(len(SEARCH_SITES)) as ex:
+        parts = list(ex.map(lambda s: _search_site(game, s[0], s[1], s[2], want), SEARCH_SITES))
+    out = [c for part in parts for c in part]
     out.sort(key=lambda x: len(set(re.findall(r"[a-z0-9]+", x["title"].lower())) - want))   # genauer Titel zuerst
     return out
 
@@ -316,7 +326,8 @@ def to_template(game, rows, url, site, title):
 
 
 SITES = {"www.magicgameworld.com": "Magic Game World", "magicgameworld.com": "Magic Game World",
-         "www.shacknews.com": "Shacknews", "shacknews.com": "Shacknews"}
+         "www.shacknews.com": "Shacknews", "shacknews.com": "Shacknews", "allthings.how": "All Things How",
+         "space4games.com": "space4games"}
 
 
 def lookup(game, url=None, *more_names):
@@ -324,13 +335,24 @@ def lookup(game, url=None, *more_names):
     cands = [] if url else search(game, *more_names)
     if not url and not cands:
         raise ValueError("keine Steuerungs-Seite gefunden – Adresse einer Seite (z. B. Shacknews) einfügen")
-    target = url or cands[0]["url"]
+    best, tried = None, []
+    for target in ([url] if url else [c["url"] for c in cands[:MAX_TRIES]]):
+        try:
+            page = fetch(target)
+        except (ValueError, OSError) as e:
+            tried.append(f"{urllib.parse.urlparse(target).hostname}: {e}")
+            continue
+        rows = parse_page(page)
+        if best is None or len(rows) > len(best[1]):
+            best = (target, rows, page)
+    if best is None or len(best[1]) < 3:
+        n = len(best[1]) if best else 0
+        raise ValueError(f"auf der Seite keine Tastentabelle erkannt ({n} Zeilen)" + (f" – {'; '.join(tried)}"
+                                                                                     if tried else ""))
+    target, rows, page = best
     host = urllib.parse.urlparse(target).hostname or ""
     site = SITES.get(host, host)
-    page = fetch(target)
-    rows = parse_page(page)
-    if len(rows) < 3:
-        raise ValueError(f"auf der Seite keine Tastentabelle erkannt ({len(rows)} Zeilen)")
     title = _title(page)
     return {"url": target, "site": site, "title": title, "rows": rows,
-            "others": [c for c in cands[1:4]], "template": to_template(game, rows, target, site, title)}
+            "others": [c for c in cands if c["url"] != target][:4], "template": to_template(game, rows, target,
+                                                                                             site, title)}

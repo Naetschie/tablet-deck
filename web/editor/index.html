@@ -186,7 +186,10 @@
     <p class="hint">Gesucht wird nur mit dem Spielnamen. Findet sich nichts, die Adresse einer Seite mit der
       Tastenliste einfügen. Gelesen werden nur eindeutige Tasten; vor dem Speichern siehst du die Liste und die Quelle.</p>
     <div class="row"><input id="genWebUrl" type="url" placeholder="https://… (optional)" spellcheck="false">
-      <button id="genWebFind" class="ghost small">Suchen</button></div>
+      <button id="genWebFind" class="ghost small">Suchen</button>
+      <button id="genWebAi" class="ghost small" title="Claude sucht im Netz; jede Taste wird danach gegen die Seite geprüft. Kostet API-Guthaben.">Mit KI suchen</button></div>
+    <p class="hint">„Mit KI suchen“: Claude findet auch Wikis und Foren. Behalten wird nur, was auf der genannten
+      Seite wörtlich steht. Braucht den API-Schlüssel (⚙ Einstellungen) und kostet etwas Guthaben.</p>
     <div id="genWebOut"></div>
   </details>
   <div class="row">
