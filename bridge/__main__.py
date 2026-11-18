@@ -578,9 +578,8 @@ class Bridge:
                 pass
 
     async def power_wlan(self, action):
-        """Tablets, die nur per WLAN verbunden sind (per USB erledigt das adb) schlafen legen ("sleep")."""
-        if action == "sleep":
-            self.wlan_woken.clear()   # beim nächsten Verbinden wieder wecken
+        """Tablets, die nur per WLAN verbunden sind (per USB erledigt das adb) schlafen legen ("sleep").
+        Die Menge wlan_woken leert notify() (auch ohne verbundenes WLAN-Tablet)."""
         for ws in list(self.ctl_clients):
             if not is_loopback(ws.remote_address):
                 await ws.send(json.dumps({"t": "power", "action": action}))
@@ -636,8 +635,8 @@ class Bridge:
             # Im WLAN beim Herunterfahren des PCs schlafen gelegt -> wieder wecken (per USB: adb_watch)
             if (not is_loopback(ws.remote_address) and self.cfg.get("tablet_sleep_with_pc", True)
                     and peer not in self.wlan_woken):
-                self.wlan_woken.add(peer)
                 await ws.send(json.dumps({"t": "power", "action": "wake"}))
+                self.wlan_woken.add(peer)   # erst nach dem Senden (bricht es ab, beim nächsten Mal erneut)
             # Wunsch der Automatik auch für später verbundene Launcher (nur Web-Ansichten, damit eine
             # App-Kachel nicht bei jedem Neuverbinden gestartet wird)
             # Nur nach einer Änderung, die noch kein Launcher bekommen hat - ein Wechsel von Hand bleibt
@@ -1600,6 +1599,8 @@ async def main():
                 loop = asyncio.get_running_loop()
 
                 def notify(action):   # aus einem Hilfs-Thread: Befehl an Tablets im WLAN, max. 1 s
+                    if action == "sleep":   # auch gerade getrennte WLAN-Tablets beim Verbinden wieder wecken
+                        loop.call_soon_threadsafe(bridge.wlan_woken.clear)
                     if not any(not is_loopback(ws.remote_address) for ws in list(bridge.ctl_clients)):
                         return        # kein Tablet im WLAN - nichts zu tun
                     asyncio.run_coroutine_threadsafe(bridge.power_wlan(action), loop).result(1.0)

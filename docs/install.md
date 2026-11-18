@@ -150,9 +150,9 @@ Daueranzeige, kein Eingriff in Ausrichtung oder Startbildschirm.
 **Was ohne Root fehlt:**
 - Firewall-Modul `hardening` (nur ausgehender Verkehr zum PC/Internet über den Proxy) und Akku-Modul `chargectl`
   (Ladegrenze) - `-Modules` wird im Begleit-Modus mit Warnung übersprungen.
-- Schlafen legen und Wecken: per USB erledigt das der Hub über adb (`tablet_sleep_with_pc`); im WLAN geht es
-  ohne Root nicht (mit Root über das Modul `hardening`, Wecken ab Version 1.7), die Anfrage des PCs bleibt wirkungslos (nur Logeintrag). Auch der Rückfall „nach
-  5 min ohne PC herunterfahren“ entfällt.
+- Schlafen legen und Wecken: per USB erledigt das der Hub über adb (`tablet_sleep_with_pc`). Im WLAN geht es
+  nur mit Root (Modul `hardening`), ohne Root bleibt die Anfrage des PCs wirkungslos (nur Logeintrag). Auch
+  der Rückfall „nach 5 min ohne PC herunterfahren“ entfällt.
 - Der Startbildschirm: HOME-Taste führt zum normalen Android-Launcher, die App startet man über ihr Symbol.
 
 ## Tablet als Startbildschirm / Root (optional)
@@ -187,7 +187,8 @@ SHA-256 `69572e37…aa8c48`. Beim ersten Verbinden fragt Android einmal nach der
 - **Herunterfahren, Neustart, Abmelden:** Der Wächter (bzw. ohne Wächter die Bridge) legt das Tablet über
   eine vorgehaltene adb-Shell schlafen (Bildschirm aus) - beim Herunterfahren startet Windows keine neuen
   Programme mehr. Startet der PC wieder, weckt die Bridge es beim Verbinden (im WLAN einmal pro Start bzw.
-  Schlafbefehl, nicht nach jedem WLAN-Aussetzer; Modul `hardening` ab 1.7). Ausgeschaltet wird es nicht:
+  Schlafbefehl, nicht nach jedem WLAN-Aussetzer; im WLAN braucht das Root und Modul `hardening` ab 1.7).
+  Ausgeschaltet wird es nicht:
   Liefert der PC auch ausgeschaltet USB-Strom (BIOS „ErP“ aus, z. B. für Wake on LAN), startete es mit
   `off-mode-charge 0` nach etwa einer Minute von selbst wieder.
 - **Rückfall am Tablet:** War es seit dem Einschalten mit dem PC verbunden und ist dann 5 Minuten weder
