@@ -151,7 +151,7 @@ Daueranzeige, kein Eingriff in Ausrichtung oder Startbildschirm.
 - Firewall-Modul `hardening` (nur ausgehender Verkehr zum PC/Internet über den Proxy) und Akku-Modul `chargectl`
   (Ladegrenze) - `-Modules` wird im Begleit-Modus mit Warnung übersprungen.
 - Schlafen legen und Wecken: per USB erledigt das der Hub über adb (`tablet_sleep_with_pc`); im WLAN geht es
-  ohne Root nicht, die Anfrage des PCs bleibt wirkungslos (nur Logeintrag). Auch der Rückfall „nach
+  ohne Root nicht (mit Root über das Modul `hardening`, Wecken ab Version 1.7), die Anfrage des PCs bleibt wirkungslos (nur Logeintrag). Auch der Rückfall „nach
   5 min ohne PC herunterfahren“ entfällt.
 - Der Startbildschirm: HOME-Taste führt zum normalen Android-Launcher, die App startet man über ihr Symbol.
 
@@ -186,13 +186,14 @@ SHA-256 `69572e37…aa8c48`. Beim ersten Verbinden fragt Android einmal nach der
 ## Tablet schläft mit dem PC
 - **Herunterfahren, Neustart, Abmelden:** Der Wächter (bzw. ohne Wächter die Bridge) legt das Tablet über
   eine vorgehaltene adb-Shell schlafen (Bildschirm aus) - beim Herunterfahren startet Windows keine neuen
-  Programme mehr. Startet der PC wieder, weckt die Bridge es beim Verbinden. Ausgeschaltet wird es nicht:
+  Programme mehr. Startet der PC wieder, weckt die Bridge es beim Verbinden (im WLAN einmal pro Start bzw.
+  Schlafbefehl, nicht nach jedem WLAN-Aussetzer; Modul `hardening` ab 1.7). Ausgeschaltet wird es nicht:
   Liefert der PC auch ausgeschaltet USB-Strom (BIOS „ErP“ aus, z. B. für Wake on LAN), startete es mit
   `off-mode-charge 0` nach etwa einer Minute von selbst wieder.
 - **Rückfall am Tablet:** War es seit dem Einschalten mit dem PC verbunden und ist dann 5 Minuten weder
   per USB noch per WLAN verbunden, fährt es herunter - aber nur bei ausgeschaltetem Bildschirm (in
   Benutzung bleibt es an) und ohne Stromquelle (am Strom schläft es weiter und prüft alle 30 Minuten
-  erneut). Ein mitgenommenes Tablet geht im Standby so nach 5 (zuvor am Strom bis zu 30) Minuten aus. Solange es wartet, ist
+  erneut). Abgesteckt geht es im Standby also nach 5 bis 30 Minuten aus. Solange es wartet, ist
   „Wach bleiben beim Laden“ aus; beim Wiederverbinden setzt die Bridge es wieder.
 - `tablet_sleep_with_pc: false` in `config.json` schaltet das ab.
 

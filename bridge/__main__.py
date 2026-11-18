@@ -133,6 +133,9 @@ class Bridge:
         self.plugged_serial = None
         self.homes_left = 0        # höchstens so oft zurückholen (kein Hin und Her mit spacedesk)
         self.ctl_clients = {}  # ws -> zuletzt gemeldeter Modus (Launcher-Steuerkanal /ctl)
+        # WLAN-Tablets (IP), die seit dem Start bzw. dem letzten Schlafbefehl schon geweckt wurden - nicht bei
+        # jedem Neuverbinden (WLAN-Aussetzer) wecken, wie bei USB nur bei neuem Gerät bzw. nach Schlafen
+        self.wlan_woken = set()
         self.auto_mode = None  # aktueller Wunschmodus der Automatik (autoprofile.py)
         self.auto_pending = False  # Wunschmodus geändert, aber noch an keinen Launcher gesendet
         port = int(cfg.get("port", 8765))
@@ -575,7 +578,9 @@ class Bridge:
                 pass
 
     async def power_wlan(self, action):
-        """Tablets, die nur per WLAN verbunden sind (per USB erledigt das adb): "sleep" oder "wake"."""
+        """Tablets, die nur per WLAN verbunden sind (per USB erledigt das adb) schlafen legen ("sleep")."""
+        if action == "sleep":
+            self.wlan_woken.clear()   # beim nächsten Verbinden wieder wecken
         for ws in list(self.ctl_clients):
             if not is_loopback(ws.remote_address):
                 await ws.send(json.dumps({"t": "power", "action": action}))
@@ -629,7 +634,9 @@ class Bridge:
             if self.wlan_tls and is_loopback(ws.remote_address):
                 await ws.send(json.dumps(self.wlan_msg()))
             # Im WLAN beim Herunterfahren des PCs schlafen gelegt -> wieder wecken (per USB: adb_watch)
-            if not is_loopback(ws.remote_address) and self.cfg.get("tablet_sleep_with_pc", True):
+            if (not is_loopback(ws.remote_address) and self.cfg.get("tablet_sleep_with_pc", True)
+                    and peer not in self.wlan_woken):
+                self.wlan_woken.add(peer)
                 await ws.send(json.dumps({"t": "power", "action": "wake"}))
             # Wunsch der Automatik auch für später verbundene Launcher (nur Web-Ansichten, damit eine
             # App-Kachel nicht bei jedem Neuverbinden gestartet wird)
