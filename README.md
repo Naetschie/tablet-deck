@@ -6,6 +6,8 @@ Tablet-Einrichtung: [docs/tablet-setup.md](docs/tablet-setup.md).
 
 **Bedienung mit Bildern: [docs/guide.md](docs/guide.md)**
 
+Änderungen je Version: [CHANGELOG.md](CHANGELOG.md)
+
 ![Spiel-Panel am Tablet (Star Citizen)](docs/bilder/tablet-panel-flug.png)
 
 ```
