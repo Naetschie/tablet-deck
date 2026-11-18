@@ -11,7 +11,7 @@
   Schlafbefehl, nicht nach jedem WLAN-Aussetzer. Braucht Root und das Modul `hardening` ab 1.7
   (`tablet/install-module.ps1 tablet/hardening/module -Reboot`).
 - Rückfall-Abschaltung im Launcher: fährt das Tablet nur noch ohne Stromquelle herunter (mitgenommen, Akku).
-  Am Strom schläft es weiter und prüft alle 30 Minuten erneut; abgesteckt geht es so nach 5 bis 30 Minuten aus.
+  Am Strom schläft es weiter und prüft alle 30 Minuten erneut; abgesteckt geht es so spätestens 30 Minuten nach dem Abstecken aus.
 - Begleit-Modus (ohne Root): per USB wird das Gerät beim Herunterfahren ebenfalls nur schlafen gelegt.
 
 ### Dokumentation

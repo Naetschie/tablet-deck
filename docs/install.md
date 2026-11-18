@@ -193,7 +193,7 @@ SHA-256 `69572e37…aa8c48`. Beim ersten Verbinden fragt Android einmal nach der
 - **Rückfall am Tablet:** War es seit dem Einschalten mit dem PC verbunden und ist dann 5 Minuten weder
   per USB noch per WLAN verbunden, fährt es herunter - aber nur bei ausgeschaltetem Bildschirm (in
   Benutzung bleibt es an) und ohne Stromquelle (am Strom schläft es weiter und prüft alle 30 Minuten
-  erneut). Abgesteckt geht es im Standby also nach 5 bis 30 Minuten aus. Solange es wartet, ist
+  erneut). Abgesteckt geht es im Standby also spätestens 30 Minuten nach dem Abstecken aus. Solange es wartet, ist
   „Wach bleiben beim Laden“ aus; beim Wiederverbinden setzt die Bridge es wieder.
 - `tablet_sleep_with_pc: false` in `config.json` schaltet das ab.
 
