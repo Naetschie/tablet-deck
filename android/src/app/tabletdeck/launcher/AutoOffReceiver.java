@@ -20,6 +20,7 @@ import android.util.Log;
  */
 public class AutoOffReceiver extends BroadcastReceiver {
     static final long AUTO_OFF_MS = 5 * 60_000;
+    static final long PLUGGED_RECHECK_MS = 30 * 60_000;
 
     static PendingIntent intent(Context c) {
         return PendingIntent.getBroadcast(c, 0, new Intent(c, AutoOffReceiver.class),
@@ -27,8 +28,12 @@ public class AutoOffReceiver extends BroadcastReceiver {
     }
 
     static void arm(Context c) {
+        arm(c, AUTO_OFF_MS);
+    }
+
+    static void arm(Context c, long delay) {
         c.getSystemService(AlarmManager.class).setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                SystemClock.elapsedRealtime() + AUTO_OFF_MS, intent(c));
+                SystemClock.elapsedRealtime() + delay, intent(c));
         // "Wach bleiben beim Laden" aus: liefert der PC nach dem Herunterfahren weiter USB-Strom, bliebe der
         // Bildschirm sonst an und das Tablet gälte nie als unbenutzt. Alter Wert wird gemerkt.
         android.content.SharedPreferences p = c.getSharedPreferences("deck", Context.MODE_PRIVATE);
@@ -71,9 +76,10 @@ public class AutoOffReceiver extends BroadcastReceiver {
             arm(c);
             return;
         }
-        // am Strom (z. B. PC aus, USB liefert weiter Strom): weiter schlafen, später erneut prüfen
+        // am Strom (z. B. PC aus, USB liefert weiter Strom): weiter schlafen, in 30 min erneut prüfen
+        // (abgesteckt fährt es also spätestens 30 min später herunter)
         if (plugged(c)) {
-            arm(c);
+            arm(c, PLUGGED_RECHECK_MS);
             return;
         }
         Log.w(HomeActivity.TAG, "Seit 5 min keine Verbindung zum PC - Tablet fährt herunter");

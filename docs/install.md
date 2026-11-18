@@ -150,8 +150,8 @@ Daueranzeige, kein Eingriff in Ausrichtung oder Startbildschirm.
 **Was ohne Root fehlt:**
 - Firewall-Modul `hardening` (nur ausgehender Verkehr zum PC/Internet über den Proxy) und Akku-Modul `chargectl`
   (Ladegrenze) - `-Modules` wird im Begleit-Modus mit Warnung übersprungen.
-- Ausschalten und Schlafen legen: per USB erledigt das der Hub über adb (`tablet_sleep_with_pc`); im WLAN gibt es
-  ohne Root kein Ausschalten, die Anfrage des PCs bleibt wirkungslos (nur Logeintrag). Auch der Rückfall „nach
+- Schlafen legen und Wecken: per USB erledigt das der Hub über adb (`tablet_sleep_with_pc`); im WLAN geht es
+  ohne Root nicht, die Anfrage des PCs bleibt wirkungslos (nur Logeintrag). Auch der Rückfall „nach
   5 min ohne PC herunterfahren“ entfällt.
 - Der Startbildschirm: HOME-Taste führt zum normalen Android-Launcher, die App startet man über ihr Symbol.
 
@@ -191,8 +191,8 @@ SHA-256 `69572e37…aa8c48`. Beim ersten Verbinden fragt Android einmal nach der
   `off-mode-charge 0` nach etwa einer Minute von selbst wieder.
 - **Rückfall am Tablet:** War es seit dem Einschalten mit dem PC verbunden und ist dann 5 Minuten weder
   per USB noch per WLAN verbunden, fährt es herunter - aber nur bei ausgeschaltetem Bildschirm (in
-  Benutzung bleibt es an) und ohne Stromquelle (am Strom schläft es weiter). So geht ein mitgenommenes
-  Tablet im Standby nach spätestens 5 Minuten aus. Solange es wartet, ist
+  Benutzung bleibt es an) und ohne Stromquelle (am Strom schläft es weiter und prüft alle 30 Minuten
+  erneut). Ein mitgenommenes Tablet geht im Standby so nach 5 (zuvor am Strom bis zu 30) Minuten aus. Solange es wartet, ist
   „Wach bleiben beim Laden“ aus; beim Wiederverbinden setzt die Bridge es wieder.
 - `tablet_sleep_with_pc: false` in `config.json` schaltet das ab.
 

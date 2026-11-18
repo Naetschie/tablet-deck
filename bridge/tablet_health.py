@@ -1,7 +1,7 @@
 """Zustand des Tablets fürs Log: Speicher, Laufzeit, Neustarts und Android-Ereignisse (DropBox).
 
 Hilft bei Fehlern, die man erst hinterher bemerkt: spacedesk startet nicht (Tablet überlastet, kein Speicher),
-Tablet geht beim Herunterfahren des PCs nicht aus (startet am USB-Strom neu). Der Hub ruft check() für jedes
+Tablet startet unerwartet neu (z. B. am USB-Strom nach einem Ausschalten). Der Hub ruft check() für jedes
 per USB verbundene Tablet etwa alle 5 Minuten auf; geloggt wird nur, was neu ist:
 - neue DropBox-Einträge (Neustart, Absturz, hängende App) mit ihrer Uhrzeit am Tablet
 - ein Neustart seit der letzten Prüfung (Laufzeit kleiner geworden)

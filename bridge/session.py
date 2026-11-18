@@ -37,7 +37,6 @@ class WNDCLASSW(ctypes.Structure):
                 ("lpszMenuName", wintypes.LPCWSTR), ("lpszClassName", wintypes.LPCWSTR)]
 
 
-_known = []   # Seriennummern aus dem letzten Schlafbefehl (bei WM_ENDSESSION kein erneutes "adb devices")
 _shells = {}  # Seriennummer -> offene "adb shell" (Popen mit stdin); siehe keep_shells
 _shell_lock = threading.Lock()
 
@@ -118,10 +117,8 @@ def sleep_tablets(adb):
     for serial in via:
         log.info("Windows wird beendet: Tablet %s schlafen gelegt (offene Shell)", serial)
     if via:
-        _known[:] = via
         return
-    _known[:] = _targets(adb)
-    for serial in _known:
+    for serial in _targets(adb):
         try:   # ein Aufruf statt zwei
             subprocess.run([adb, "-s", serial, "shell", "svc power stayon false; input keyevent KEYCODE_SLEEP"],
                            capture_output=True, timeout=2, creationflags=NO_WINDOW)

@@ -188,15 +188,15 @@ public class HomeActivity extends Activity {
     /**
      * Schlafen/Ausschalten auf Wunsch des PCs (WLAN-Betrieb). Der Launcher hat dafür keine Rechte und
      * bekommt auch kein Root: Er legt nur eine Anfrage in seinem privaten Ordner ab, das Root-Modul
-     * hardening führt sie aus (prüft alle 2 s, nur "sleep" oder "shutdown").
+     * hardening führt sie aus (prüft alle 2 s, nur "sleep", "shutdown" oder "wake").
      */
     void requestPower(String action) {
         if (companion) {
             Log.i(TAG, "Begleit-Modus: Power-Anfrage '" + action + "' ohne Wirkung (kein Root)");
             return;
         }
-        if (!"sleep".equals(action) && !"shutdown".equals(action)) return;
-        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (!"sleep".equals(action) && !"shutdown".equals(action) && !"wake".equals(action)) return;
+        if (!"wake".equals(action)) getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         try (java.io.FileOutputStream f = new java.io.FileOutputStream(new java.io.File(getFilesDir(), "power_request"))) {
             f.write(action.getBytes("UTF-8"));
         } catch (java.io.IOException e) {

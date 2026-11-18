@@ -575,7 +575,7 @@ class Bridge:
                 pass
 
     async def power_wlan(self, action):
-        """Tablets, die nur per WLAN verbunden sind (per USB erledigt das adb): schlafen/ausschalten."""
+        """Tablets, die nur per WLAN verbunden sind (per USB erledigt das adb): "sleep" oder "wake"."""
         for ws in list(self.ctl_clients):
             if not is_loopback(ws.remote_address):
                 await ws.send(json.dumps({"t": "power", "action": action}))
@@ -628,6 +628,9 @@ class Bridge:
             # WLAN-Adressen für den Launcher (nur über USB/loopback mitteilen - dort ist die Kopplung physisch)
             if self.wlan_tls and is_loopback(ws.remote_address):
                 await ws.send(json.dumps(self.wlan_msg()))
+            # Im WLAN beim Herunterfahren des PCs schlafen gelegt -> wieder wecken (per USB: adb_watch)
+            if not is_loopback(ws.remote_address) and self.cfg.get("tablet_sleep_with_pc", True):
+                await ws.send(json.dumps({"t": "power", "action": "wake"}))
             # Wunsch der Automatik auch für später verbundene Launcher (nur Web-Ansichten, damit eine
             # App-Kachel nicht bei jedem Neuverbinden gestartet wird)
             # Nur nach einer Änderung, die noch kein Launcher bekommen hat - ein Wechsel von Hand bleibt

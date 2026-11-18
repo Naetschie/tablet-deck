@@ -118,6 +118,7 @@ power_request() {
   case $req in
     sleep)    log "PC: schlafen";  input keyevent KEYCODE_SLEEP ;;
     shutdown) log "PC: aus";       sync; svc power shutdown ;;
+    wake)     log "PC: wecken";    input keyevent KEYCODE_WAKEUP ;;
   esac
 }
 
