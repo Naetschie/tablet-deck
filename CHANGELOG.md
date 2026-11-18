@@ -11,7 +11,7 @@
   Schlafbefehl, nicht nach jedem WLAN-Aussetzer. Braucht Root und das Modul `hardening` ab 1.7
   (`tablet/install-module.ps1 tablet/hardening/module -Reboot`).
 - Rückfall-Abschaltung im Launcher: fährt das Tablet nur noch ohne Stromquelle herunter (mitgenommen, Akku).
-  Am Strom schläft es weiter und prüft alle 30 Minuten erneut.
+  Am Strom schläft es weiter und prüft alle 30 Minuten erneut; abgesteckt geht es so nach 5 bis 30 Minuten aus.
 - Begleit-Modus (ohne Root): per USB wird das Gerät beim Herunterfahren ebenfalls nur schlafen gelegt.
 
 ### Dokumentation
@@ -20,8 +20,10 @@
 - `docs/install.md`: Abschnitt „Tablet schläft mit dem PC“ neu gefasst.
 
 ### Aktualisieren
-- Launcher-App: `python android/build.py`, dann `adb install -r android/build/tablet-deck.apk`.
-- Modul `hardening` 1.7 (nur für das Wecken per WLAN nötig, siehe oben).
+- Launcher-App: `python android/build.py`, dann
+  `tools\platform-tools\adb.exe install -r android\build\tablet-deck.apk`.
+- Modul `hardening` 1.7 (nur für das Wecken per WLAN nötig, Tablet startet dabei neu):
+  `tablet\install-module.ps1 tablet\hardening\module -Reboot`.
 - Hub neu starten (geplante Aufgabe „Tablet Deck Bridge“ beenden und starten).
 
 ## 4.0 – 17.11.2026
