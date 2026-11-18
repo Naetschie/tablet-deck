@@ -9,12 +9,15 @@ Zwei Wege, je nach Tablet:
 ## Schnellstart
 Voraussetzungen: Windows 10/11, das Tablet per USB am PC, am Tablet in den Entwickleroptionen
 **USB-Debugging** an (beim ersten Anstecken den Dialog „USB-Debugging zulassen“ bestätigen). Fehlt Python
-(ab 3.11), installiert `install.ps1` es selbst für den aktuellen Benutzer (winget, sonst python.org).
+(ab 3.11), installiert `install.ps1` es selbst (winget, sonst python.org): für alle Benutzer mit einer
+UAC-Abfrage, weil der Sensor-Helfer das braucht; mit `-SkipSensors` nur für den aktuellen Benutzer.
 
 Die Launcher-App liegt fertig als `tablet-deck.apk` in den
 [GitHub-Releases](https://github.com/Naetschie/tablet-deck/releases). `install.ps1` lädt die zur Version passende
-APK selbst, wenn sie fehlt und keine Build-Werkzeuge da sind. Offline: die Datei nach `android\build\` legen
-oder mit `-Apk <Pfad>` angeben.
+APK selbst, wenn keine Build-Werkzeuge da sind. Geprüft werden die SHA-256-Prüfsumme aus der GitHub-API und das
+Signaturzertifikat (`android\release-cert.sha256`); man vertraut damit den Releases dieses Repos. Offline, bei
+einer Version ohne Release (z. B. ein Zip vom aktuellen Stand) oder wenn die GitHub-API gerade nicht antwortet
+(Grenze 60 Anfragen pro Stunde): die Datei nach `android\build\` legen oder mit `-Apk <Pfad>` angeben.
 
 Im Projektordner (bzw. im entpackten Zip, siehe [Weitergabe als Zip](#weitergabe-als-zip)):
 
@@ -51,9 +54,9 @@ Danach: Taskleisten-Symbol am PC, die App „Tablet Deck“ am Tablet. Weiter mi
 
 **PC**
 1. Python ab 3.11 suchen und die Pakete aus `requirements.txt` installieren (`pip --user`).
-   Fehlt Python, wird es für den aktuellen Benutzer installiert (ohne Adminrechte): per winget, ohne winget mit
-   dem Installer von python.org (Signatur der Python Software Foundation wird geprüft). Ein neues Terminal ist
-   nicht nötig.
+   Fehlt Python, wird es installiert: per winget, ohne winget mit dem Installer von python.org (Signatur der
+   Python Software Foundation wird geprüft). Für alle Benutzer (UAC-Abfrage), mit `-SkipSensors` nur für den
+   aktuellen Benutzer. Ein neues Terminal ist nicht nötig.
 2. adb (Android platform-tools) nach `tools\platform-tools` laden, falls es dort fehlt. Die Google-Signatur
    von `adb.exe` wird geprüft.
 3. spacedesk-Treiber per `winget` installieren und „USB Cable Android“ einschalten. Windows fragt dabei
@@ -106,9 +109,10 @@ Kopie im Programmverzeichnis.
 Eigene PC-Werte-Dashboards (Editor) liegen in `dashboards\eigene\`; sie sind nicht im Git und nicht im
 Weitergabe-Paket, Updates lassen sie unberührt (sichern: den Ordner kopieren).
 
-Liegt Python unter `%LOCALAPPDATA%` (Standard bei „nur für mich“), bricht die Einrichtung ab. Dann Python für
-alle Benutzer installieren: `winget install -e --id Python.Python.3.13 --scope machine`, neues Terminal,
-`install.ps1` erneut.
+Liegt Python unter `%LOCALAPPDATA%` (Standard bei „nur für mich“), überspringt `install.ps1` den Sensor-Helfer
+mit einem Hinweis. Dann Python für alle Benutzer installieren:
+`winget install -e --id Python.Python.3.13 --scope machine`, neues Terminal, `install.ps1` erneut. Gefunden wird
+zuerst das Python im PATH; ein Python für alle Benutzer steht dort vor dem eigenen.
 
 Von Hand (PowerShell als Administrator):
 ```

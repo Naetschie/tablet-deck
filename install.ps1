@@ -31,6 +31,11 @@ param([switch]$SkipTablet, [switch]$SkipSpacedesk, [switch]$SkipAutostart, [swit
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 . (Join-Path $root "scripts\install-helpers.ps1")
+# -Apk relativ zum Aufrufort auflösen (gleich danach wechselt das Skript in den Projektordner)
+if ($Apk) {
+    if (-not (Test-Path -LiteralPath $Apk -PathType Leaf)) { throw "APK nicht gefunden: $Apk" }
+    $Apk = (Resolve-Path -LiteralPath $Apk).Path
+}
 # Downloads (adb, Python, APK): TLS 1.2 auch unter Windows PowerShell 5.1
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 # Ausgaben von Python (Smoke-Test) als UTF-8 lesen - sonst "w³rde" statt "würde" (Windows PowerShell 5.1)
@@ -87,13 +92,8 @@ if ($Check) {
     $missing = 0
     function Need($ok, $good, $bad) { if ($ok) { Ok $good } else { Warn $bad; $script:missing++ } }
     Step "Prüfung (ändert nichts)"
-    $py = $null
-    foreach ($cand in @("python", "py")) {
-        if (Get-Command $cand -ErrorAction SilentlyContinue) {
-            $r = Run $cand -c "import sys, websockets, pycaw; print(sys.executable if sys.version_info >= (3, 11) else '')"
-            if ($r.Code -eq 0 -and $r.Out) { $py = ($r.Out -split "`r?`n")[-1].Trim(); break }
-        }
-    }
+    $py = Find-Python
+    if ($py -and (Run $py -c "import websockets, pycaw").Code -ne 0) { $py = $null }
     Need $py "Python mit Abhängigkeiten: $py" "Python >= 3.11 mit requirements.txt fehlt - install.ps1 ausführen"
     Need (Test-Path (Join-Path $root "tools\platform-tools\adb.exe")) "adb vorhanden" "adb fehlt - install.ps1 ausführen"
     Need (Get-ScheduledTask -TaskName "Tablet Deck Bridge" -ErrorAction SilentlyContinue) "Autostart 'Tablet Deck Bridge'" "Autostart fehlt - install.ps1 ausführen"
@@ -139,7 +139,8 @@ if ($Check) {
 Step "Python"
 $python = Find-Python
 if (-not $python) {
-    Install-Python
+    # Der Sensor-Helfer läuft mit Adminrechten und braucht ein Python, das nur Admins ändern können
+    Install-Python -Machine:(-not $SkipSensors)
     $python = Find-Python
     if (-not $python) {
         throw "Python 3.11 oder neuer nicht gefunden. Von Hand: winget install -e --id Python.Python.3.13 - danach neues Terminal öffnen und install.ps1 erneut starten."
@@ -174,13 +175,20 @@ if (-not $SkipSpacedesk) {
     Step "spacedesk-Treiber (Zweitbildschirm per USB)"
     $svc = Get-Service spacedeskService -ErrorAction SilentlyContinue
     if (-not $svc) {
-        if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { throw "winget fehlt - spacedesk-Treiber von spacedesk.net installieren oder -SkipSpacedesk" }
-        Write-Host "   Installation per winget (Windows fragt nach Administratorrechten) ..."
-        $r = Run winget install -e --id Datronicsoft.SpacedeskDriver.Server --silent --accept-package-agreements --accept-source-agreements
-        if ($r.Code -ne 0) { throw "winget-Installation fehlgeschlagen:`n$($r.Out)" }
-        $svc = Get-Service spacedeskService -ErrorAction SilentlyContinue
-        if (-not $svc) { throw "spacedesk-Dienst nach der Installation nicht gefunden - ggf. PC neu starten und install.ps1 erneut ausführen" }
+        if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+            Warn "winget fehlt - spacedesk-Treiber von spacedesk.net installieren (oder App Installer aus dem Microsoft Store aktualisieren), dann install.ps1 erneut; ohne Zweitbildschirm: -SkipSpacedesk"
+        } else {
+            Write-Host "   Installation per winget (Windows fragt nach Administratorrechten) ..."
+            $r = Run winget install -e --id Datronicsoft.SpacedeskDriver.Server --silent --accept-package-agreements --accept-source-agreements
+            $svc = Get-Service spacedeskService -ErrorAction SilentlyContinue
+            if (-not $svc) {
+                # z. B. Code 3010 / "Neustart erforderlich": Dienst gibt es erst nach dem Neustart
+                Warn "spacedesk-Treiber noch nicht aktiv (winget-Code $($r.Code)) - PC neu starten und install.ps1 erneut ausführen"
+            }
+        }
     }
+}
+if (-not $SkipSpacedesk -and $svc) {
     Ok "Treiber installiert"
     $key = "HKLM:\SOFTWARE\datronicsoft\spacedesk\Service"
     $on = (Get-ItemProperty $key -Name AndroidUsbControlEnabled -ErrorAction SilentlyContinue).AndroidUsbControlEnabled
@@ -246,6 +254,10 @@ if (-not $SkipSensors) {
     if ((Get-ScheduledTask -TaskName "Tablet Deck Sensors" -ErrorAction SilentlyContinue) -and (Test-SensorCopy)) {
         Ok "Aufgabe 'Tablet Deck Sensors' eingerichtet, Kopie aktuell"
         if (-not (Get-SensorSources)) { Start-ScheduledTask -TaskName "Tablet Deck Sensors" -ErrorAction SilentlyContinue }
+    } elseif (Test-UserPython $python) {
+        # install-sensors.ps1 würde nach der UAC-Abfrage abbrechen: ein Python im Benutzerprofil kann jeder
+        # Prozess des Nutzers ändern - mit Adminrechten gestartet wäre das eine Rechteausweitung
+        Warn "Sensor-Helfer übersprungen: $python ist nur für diesen Benutzer installiert. Python für alle Benutzer: winget install -e --id Python.Python.3.13 --scope machine - dann install.ps1 erneut (oder -SkipSensors)"
     } else {
         # Was jetzt kopiert wird, läuft danach mit Adminrechten. Lokale (nicht eingecheckte) Änderungen an diesen
         # Dateien nur mit -AllowLocalChanges - so wird eine unbemerkte Änderung nicht per UAC zu Admin-Code.
@@ -301,22 +313,28 @@ if (-not $SkipTablet) {
         $apkDir = Join-Path $root "android\build"
         $apkPath = Join-Path $apkDir "tablet-deck.apk"   # setup-launcher.ps1 installiert genau diese Datei
         $canBuild = (Test-Path (Join-Path $root "tools\jdk")) -and (Test-Path (Join-Path $root "tools\android-sdk"))
+        $ver = Get-LauncherVersion $root
+        $verFile = "$apkPath.version"   # Version einer aus dem Release geladenen APK
+        $haveVer = if (Test-Path -LiteralPath $verFile) { "$(Get-Content -LiteralPath $verFile -Raw)".Trim() } else { "" }
         if ($Apk) {
-            if (-not (Test-Path $Apk -PathType Leaf)) { throw "APK nicht gefunden: $Apk" }
-            $src = (Resolve-Path $Apk).Path
-            if ($src -ne $apkPath) {
+            if ($Apk -ne $apkPath) {
                 New-Item -ItemType Directory -Force $apkDir | Out-Null
-                Copy-Item -Force $src $apkPath
+                Copy-Item -Force -LiteralPath $Apk -Destination $apkPath
+                Remove-Item -LiteralPath $verFile -Force -ErrorAction SilentlyContinue
             }
-            Ok "Launcher-APK: $src"
+            Ok "Launcher-APK: $Apk"
         } elseif ($canBuild) {
             $r = Run $python (Join-Path $root "android\build.py")
             if ($r.Code -ne 0) { throw "APK-Build fehlgeschlagen:`n$($r.Out)" }
             Ok "Launcher gebaut"
-        } elseif (Test-Path $apkPath) {
-            Ok "vorhandene Launcher-APK: android\build\tablet-deck.apk"
+            Remove-Item -LiteralPath $verFile -Force -ErrorAction SilentlyContinue
+        } elseif ((Test-Path -LiteralPath $apkPath) -and $ver -and $haveVer -eq $ver) {
+            Ok "Launcher-APK $ver aus den Releases: android\build\tablet-deck.apk"
         } elseif (Get-ReleaseApk $root $apkPath) {
-            Ok "Launcher-APK aus den GitHub-Releases geladen (Prüfsumme ok)"
+            Ok "Launcher-APK $ver aus den GitHub-Releases geladen (Prüfsumme und Signatur ok)"
+        } elseif (Test-Path -LiteralPath $apkPath) {
+            # z. B. aus dem Weitergabe-Zip oder offline: nehmen, aber sagen, dass die Version ungeprüft ist
+            Warn "nehme vorhandene android\build\tablet-deck.apk (Version nicht geprüft, Projekt ist $ver)"
         }
         if (-not (Test-Path $apkPath)) {
             Warn "keine Launcher-APK: tablet-deck.apk aus den Releases laden ($ReleasesUrl) und nach android\build\ legen oder angeben: install.ps1 -Apk <Pfad zur tablet-deck.apk>"
