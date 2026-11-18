@@ -1,12 +1,14 @@
-"""Windows fährt herunter / meldet ab: Tablet aus bzw. dunkel. Der Befehl kommt immer vom PC - das Tablet
-schaltet sich nicht selbst ab (abgesteckt/WLAN-Betrieb soll es laufen).
+"""Windows fährt herunter / meldet ab: Tablet schlafen legen (Bildschirm aus, stayon aus).
+
+Nicht ausschalten: Der PC liefert auch ausgeschaltet USB-Strom (ErP aus, nötig für Wake on LAN), und mit
+off-mode-charge 0 startet ein am Strom ausgeschaltetes Tablet nach ~60 s von selbst wieder. Im Schlaf bleibt
+es dunkel; chargectl hält den Akku weiter im Fenster. Kappt der PC doch den Strom, läuft es vom Akku und die
+Rückfall-Abschaltung des Launchers (AutoOffReceiver, nur ohne Stromquelle) fährt es nach 5 min herunter.
 
 Ein unsichtbares Fenster (kein Message-only-Fenster - die bekommen WM_ENDSESSION nicht) empfängt:
-- WM_QUERYENDSESSION: Tablet schlafen legen (umkehrbar - das Herunterfahren kann noch abgebrochen werden).
-- WM_ENDSESSION TRUE beim Herunterfahren/Neustart: Tablet ausschalten (svc power shutdown, stayon aus).
-  Kappt der PC den USB-Strom, bleibt es aus und startet mit dem PC wieder (off-mode-charge 0). Liefert der
-  PC weiter Strom, startet es nach ~60 s neu und wird nach der Zeitsperre dunkel (stayon ist aus).
-  Beim Abmelden (ENDSESSION_LOGOFF) nur schlafen.
+- WM_QUERYENDSESSION: Tablet schlafen legen (das Herunterfahren kann noch abgebrochen werden).
+- WM_ENDSESSION TRUE (Herunterfahren, Neustart, Abmelden): schlafen legen (falls QUERYENDSESSION es nicht
+  schon erledigt hat - doppelt schadet nicht).
 - WM_ENDSESSION FALSE: abgebrochen -> wieder wecken.
 - WM_POWERBROADCAST: Energiesparmodus/Ruhezustand -> schlafen; Aufwecken durch den Benutzer -> wecken
   (nicht bei Wartungs-Aufwachen per Weck-Timer).
@@ -128,22 +130,6 @@ def sleep_tablets(adb):
             log.warning("Sitzungsende: Tablet %s nicht schlafen gelegt: %s", serial, e)
 
 
-def shutdown_tablets(adb):
-    """Tablets ausschalten (geht als Shell-Nutzer). stayon aus, damit ein Neustart am USB-Strom dunkel wird."""
-    via = _via_shell("svc power stayon false; svc power shutdown")
-    for serial in via:
-        log.info("Windows fährt herunter: Tablet %s ausgeschaltet (offene Shell)", serial)
-    if via:
-        return
-    for serial in _known or _targets(adb):
-        try:
-            subprocess.run([adb, "-s", serial, "shell", "svc power stayon false; svc power shutdown"],
-                           capture_output=True, timeout=2, creationflags=NO_WINDOW)
-            log.info("Windows fährt herunter: Tablet %s ausgeschaltet", serial)
-        except (OSError, subprocess.SubprocessError) as e:
-            log.warning("Sitzungsende: Tablet %s nicht ausgeschaltet: %s", serial, e)
-
-
 def wake_tablets(adb):
     via = _via_shell("svc power stayon true; input keyevent KEYCODE_WAKEUP")
     for serial in via:
@@ -172,7 +158,7 @@ def _devices(adb, quiet=False):
 
 def watch_session_end(adb, notify=None, serials=None, on_end=None):
     """Startet den Fenster-Thread. adb: Pfad zu adb.exe (oder None).
-    notify(action): dieselbe Aktion ("sleep"/"shutdown") an Tablets im WLAN (Steuerkanal), synchron und kurz.
+    notify(action): dieselbe Aktion ("sleep") an Tablets im WLAN (Steuerkanal), synchron und kurz.
     serials(): per USB eingerichtete Tablets (aus der Bridge), spart beim Herunterfahren das "adb devices".
     on_end(ending): Sitzung endet (True) bzw. Herunterfahren abgebrochen (False) - z. B. Wächter: kein Neustart."""
     global _serials
@@ -202,13 +188,6 @@ def watch_session_end(adb, notify=None, serials=None, on_end=None):
             sleep_tablets(adb)
         if t:
             t.join(1.0)
-
-    def do_shutdown():
-        t = tell("shutdown")
-        if adb:
-            shutdown_tablets(adb)
-        if t:
-            t.join(0.5)
 
     def sleep_locked():
         with order:
@@ -252,10 +231,7 @@ def watch_session_end(adb, notify=None, serials=None, on_end=None):
             if wparam:
                 done.set()
                 with order:   # wartet auf einen noch laufenden Schlafbefehl
-                    if lparam & ENDSESSION_LOGOFF:
-                        do_sleep()        # nur abmelden: PC läuft weiter
-                    else:
-                        do_shutdown()     # endgültig: Herunterfahren oder Neustart
+                    do_sleep()    # Herunterfahren, Neustart, Abmelden: nur schlafen (siehe oben)
             elif not wparam and done.is_set():
                 # Herunterfahren abgebrochen (z. B. ungespeicherte Datei): Tablet wieder wecken
                 done.clear()
@@ -298,7 +274,7 @@ def watch_session_end(adb, notify=None, serials=None, on_end=None):
             if not hwnd:
                 log.error("Sitzungsende-Wächter: CreateWindow fehlgeschlagen (Fehler %d)", ctypes.get_last_error())
                 return
-            log.info("Sitzungsende-Wächter aktiv (%s)", "Tablet geht mit dem PC aus" if adb
+            log.info("Sitzungsende-Wächter aktiv (%s)", "Tablet schläft mit dem PC" if adb
                      else "nur WLAN-Meldung, USB-Tablets schaltet der Wächter")
             msg = wintypes.MSG()
             while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
@@ -306,7 +282,7 @@ def watch_session_end(adb, notify=None, serials=None, on_end=None):
                 user32.DispatchMessageW(ctypes.byref(msg))
             log.error("Sitzungsende-Wächter: Nachrichtenschleife beendet")
         except Exception:  # noqa: BLE001
-            log.exception("Sitzungsende-Wächter ausgefallen - Tablet geht nicht mit dem PC aus")
+            log.exception("Sitzungsende-Wächter ausgefallen - Tablet schläft nicht mit dem PC")
 
     # Unter den Anwendungen zuerst benachrichtigt werden (höchste Stufe für Nicht-System-Prozesse)
     ctypes.windll.kernel32.SetProcessShutdownParameters(0x3FF, 0)

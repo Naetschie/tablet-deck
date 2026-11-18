@@ -8,7 +8,7 @@ Aufruf (aus der geplanten Aufgabe): pythonw -m bridge.supervise [config.json]
 - Die Bridge hängt in einem Job-Objekt mit KILL_ON_JOB_CLOSE: Wird der Wächter beendet (z. B. die
   geplante Aufgabe gestoppt), endet die Bridge mit - es bleibt keine verwaiste Bridge zurück.
 Protokoll: supervise.log (eigene Datei - zwei Prozesse dürfen nicht dieselbe rotierende Datei schreiben).
-- Sitzungsende: Der Wächter legt das Tablet beim Herunterfahren ebenfalls schlafen/aus (bridge/session.py).
+- Sitzungsende: Der Wächter legt das Tablet beim Herunterfahren ebenfalls schlafen (bridge/session.py).
   Die Bridge wurde am 13.11. beim Herunterfahren sofort beendet (Code 0x40010004), bevor ihr Befehl
   durch war; der Wächter lebte länger. Doppelte Befehle (Bridge und Wächter) schaden nicht.
 """

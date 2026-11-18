@@ -5,14 +5,16 @@ import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.BatteryManager;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.util.Log;
 
 /**
- * Rückfall, falls der PC das Tablet beim Herunterfahren nicht ausschalten konnte: War das Tablet mit dem Hub
- * verbunden und ist dann AUTO_OFF_MS lang weder per USB noch per WLAN verbunden und der Bildschirm aus
- * (nicht in Benutzung), fährt es herunter
+ * Rückfall ohne PC: War das Tablet mit dem Hub verbunden und ist dann AUTO_OFF_MS lang weder per USB noch per
+ * WLAN verbunden, der Bildschirm aus (nicht in Benutzung) und keine Stromquelle angeschlossen, fährt es herunter
+ * (am Strom nicht: mit off-mode-charge 0 startete es sofort wieder - es schläft, bis der PC es weckt)
  * (über die Power-Anfrage an das Root-Modul hardening). Ein Wecker statt eines Handlers, damit das auch im
  * Schlaf des Tablets greift. Wieder verbunden -> Wecker gelöscht.
  */
@@ -69,11 +71,22 @@ public class AutoOffReceiver extends BroadcastReceiver {
             arm(c);
             return;
         }
+        // am Strom (z. B. PC aus, USB liefert weiter Strom): weiter schlafen, später erneut prüfen
+        if (plugged(c)) {
+            arm(c);
+            return;
+        }
         Log.w(HomeActivity.TAG, "Seit 5 min keine Verbindung zum PC - Tablet fährt herunter");
         // kurz wach halten, bis das Root-Modul (prüft alle 2 s) die Anfrage ausgeführt hat
         PowerManager.WakeLock wl = c.getSystemService(PowerManager.class)
                 .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "tabletdeck:autooff");
         wl.acquire(15_000);
         a.requestPower("shutdown");
+    }
+
+    /** Stromquelle angeschlossen (USB/Netzteil/kabellos) - unabhängig davon, ob chargectl gerade lädt. */
+    static boolean plugged(Context c) {
+        Intent b = c.getApplicationContext().registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        return b != null && b.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0;
     }
 }

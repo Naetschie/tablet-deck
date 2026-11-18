@@ -183,17 +183,16 @@ SHA-256 `69572e37…aa8c48`. Beim ersten Verbinden fragt Android einmal nach der
 (platform `android-36`, build-tools `36.0.0`). Beides ist nicht im Git. Die Bezugsquellen stehen in
 [tablet-setup.md](tablet-setup.md).
 
-## Tablet mit dem PC aus
-- **Herunterfahren/Neustart von Windows:** Der Wächter (bzw. ohne Wächter die Bridge) schaltet das Tablet
-  über eine vorgehaltene adb-Shell aus - beim Herunterfahren startet Windows keine neuen Programme mehr.
-  Kappt der PC den
-  USB-Strom, bleibt es aus und startet mit dem PC wieder. Liefert der PC auch ausgeschaltet Strom (BIOS,
-  z. B. „ErP“ aus), startet das Tablet nach etwa einer Minute neu und wird nach der Zeitsperre dunkel.
-- **Abmelden:** nur Bildschirm aus. Nach der Anmeldung weckt die Bridge das Tablet.
+## Tablet schläft mit dem PC
+- **Herunterfahren, Neustart, Abmelden:** Der Wächter (bzw. ohne Wächter die Bridge) legt das Tablet über
+  eine vorgehaltene adb-Shell schlafen (Bildschirm aus) - beim Herunterfahren startet Windows keine neuen
+  Programme mehr. Startet der PC wieder, weckt die Bridge es beim Verbinden. Ausgeschaltet wird es nicht:
+  Liefert der PC auch ausgeschaltet USB-Strom (BIOS „ErP“ aus, z. B. für Wake on LAN), startete es mit
+  `off-mode-charge 0` nach etwa einer Minute von selbst wieder.
 - **Rückfall am Tablet:** War es seit dem Einschalten mit dem PC verbunden und ist dann 5 Minuten weder
   per USB noch per WLAN verbunden, fährt es herunter - aber nur bei ausgeschaltetem Bildschirm (in
-  Benutzung bleibt es an). „PC aus“ und „Tablet mitgenommen“ lassen sich nicht unterscheiden: Ohne
-  erreichbaren PC geht das Tablet im Standby also nach spätestens 5 Minuten aus. Solange es wartet, ist
+  Benutzung bleibt es an) und ohne Stromquelle (am Strom schläft es weiter). So geht ein mitgenommenes
+  Tablet im Standby nach spätestens 5 Minuten aus. Solange es wartet, ist
   „Wach bleiben beim Laden“ aus; beim Wiederverbinden setzt die Bridge es wieder.
 - `tablet_sleep_with_pc: false` in `config.json` schaltet das ab.
 
@@ -324,11 +323,8 @@ neu auf dem PC des Empfängers.
   ist und wie lange das Tablet läuft, dazu neue Android-Ereignisse (Neustart `SYSTEM_BOOT`, Abstürze, hängende
   Apps `…_anr`, System-Hänger `system_server_pre_watchdog`). Beim Anstecken stehen dort die letzten drei Starts.
   Suchbegriff: `Tablet <Seriennummer>:`.
-- **Tablet geht mit dem PC nicht aus:** Im Wächter-Log (`supervise.log`) steht „Tablet … ausgeschaltet“. Zeigt
-  `bridge.log` beim nächsten Start einen Android-Start etwa 80 s danach, hat das Tablet ausgeschaltet und ist
-  am weiter stromführenden USB-Anschluss wieder hochgefahren (`fastboot oem off-mode-charge 0` aus der
-  Einrichtung startet es am Ladegerät). Steht dort „kein Tablet per USB/adb gefunden“, war es beim
-  Herunterfahren nicht per adb verbunden.
+- **Tablet wird mit dem PC nicht dunkel:** Im Wächter-Log (`supervise.log`) steht „Tablet … schlafen
+  gelegt“. Steht dort „kein Tablet per USB/adb gefunden“, war es beim Herunterfahren nicht per adb verbunden.
 - **Tablet zeigt Hochformat:** Der Launcher korrigiert das sofort, wenn er vorn ist, die Bridge spätestens nach 30 s. Sonst `tablet_rotation` und `adb shell appops get app.tabletdeck.launcher WRITE_SETTINGS` (muss `allow` sein, sonst `tablet\setup-launcher.ps1` erneut) prüfen.
 - **`config.json`/`launcher.json` fehlen:** `python -m bridge.firstrun` legt sie aus den Beispielen an (die
   Bridge tut das beim Start ebenfalls). Kaputte Dateien: löschen und neu anlegen lassen.
