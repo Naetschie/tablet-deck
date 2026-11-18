@@ -23,15 +23,15 @@ function Update-SessionPath {
     $env:Path = ($new + $keep) -join ";"
 }
 
-# Pfad zu python.exe >= 3.11 oder $null. Der Store-Platzhalter "python" (WindowsApps) startet kein Python und
-# fällt durch die Probe. Reihenfolge: für alle Benutzer installiert (%ProgramFiles%, nur das taugt für den
-# Sensor-Helfer), dann PATH, dann das Benutzerprofil (falls PATH noch alt ist).
 function Find-PythonDirs($pattern) {   # neueste zuerst (Python313 vor Python39)
     @(Get-ChildItem -Path $pattern -ErrorAction SilentlyContinue |
         Sort-Object { $n = 0; [void][int]::TryParse(($_.Directory.Name -replace '^Python3', '' -replace '\D.*$', ''), [ref]$n); $n } -Descending |
         ForEach-Object { $_.FullName })
 }
 
+# Pfad zu python.exe >= 3.11 oder $null. Der Store-Platzhalter "python" (WindowsApps) startet kein Python und
+# fällt durch die Probe. Reihenfolge: für alle Benutzer installiert (%ProgramFiles%, nur das taugt für den
+# Sensor-Helfer), dann PATH, dann das Benutzerprofil (falls PATH noch alt ist).
 function Find-Python {
     $cands = @(Find-PythonDirs (Join-Path $env:ProgramFiles "Python3*\python.exe"))
     $cands += @("python", "py")
@@ -85,9 +85,14 @@ function Install-Python([switch]$Machine) {
             }
             $a = @("/quiet", "InstallAllUsers=$(if ($Machine) { 1 } else { 0 })", "PrependPath=1",
                    "Include_launcher=1", "Include_test=0")
+            # Process statt Start-Process: nur so kommt eine Win32Exception mit Fehlercode (Start-Process meldet
+            # alles als InvalidOperationException)
+            $si = New-Object Diagnostics.ProcessStartInfo $exe, ($a -join " ")
+            $si.UseShellExecute = $true
+            if ($Machine) { $si.Verb = "runas" }
             try {
-                if ($Machine) { $p = Start-Process $exe -Verb RunAs -Wait -PassThru -ArgumentList $a }
-                else { $p = Start-Process $exe -Wait -PassThru -ArgumentList $a }
+                $p = [Diagnostics.Process]::Start($si)
+                $p.WaitForExit()
             } catch [ComponentModel.Win32Exception] {
                 $code = $_.Exception.NativeErrorCode
                 if ($Machine -and $code -eq 1223) {   # ERROR_CANCELLED: UAC-Abfrage abgelehnt
