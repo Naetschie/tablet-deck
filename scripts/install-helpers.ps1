@@ -26,12 +26,16 @@ function Update-SessionPath {
 # Pfad zu python.exe >= 3.11 oder $null. Der Store-Platzhalter "python" (WindowsApps) startet kein Python und
 # fällt durch die Probe. Reihenfolge: für alle Benutzer installiert (%ProgramFiles%, nur das taugt für den
 # Sensor-Helfer), dann PATH, dann das Benutzerprofil (falls PATH noch alt ist).
+function Find-PythonDirs($pattern) {   # neueste zuerst (Python313 vor Python39)
+    @(Get-ChildItem -Path $pattern -ErrorAction SilentlyContinue |
+        Sort-Object { $n = 0; [void][int]::TryParse(($_.Directory.Name -replace '^Python3', '' -replace '\D.*$', ''), [ref]$n); $n } -Descending |
+        ForEach-Object { $_.FullName })
+}
+
 function Find-Python {
-    $cands = @(Get-ChildItem -Path (Join-Path $env:ProgramFiles "Python3*\python.exe") -ErrorAction SilentlyContinue |
-        Sort-Object FullName -Descending | ForEach-Object { $_.FullName })
+    $cands = @(Find-PythonDirs (Join-Path $env:ProgramFiles "Python3*\python.exe"))
     $cands += @("python", "py")
-    $cands += @(Get-ChildItem -Path (Join-Path $env:LOCALAPPDATA "Programs\Python\Python3*\python.exe") `
-        -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | ForEach-Object { $_.FullName })
+    $cands += @(Find-PythonDirs (Join-Path $env:LOCALAPPDATA "Programs\Python\Python3*\python.exe"))
     foreach ($cand in $cands) {
         if (-not (Get-Command $cand -ErrorAction SilentlyContinue)) { continue }
         $r = Invoke-Native $cand -c "import sys; print(sys.executable if sys.version_info >= (3, 11) else '')"
@@ -69,7 +73,9 @@ function Install-Python([switch]$Machine) {
     try {
         Invoke-WebRequest "https://www.python.org/ftp/python/$v/python-$v-amd64.exe" -OutFile $exe -UseBasicParsing
         # Bis der Installer läuft, darf niemand die Datei austauschen (%TEMP% gehört dem Benutzer, gestartet wird
-        # mit Adminrechten): nur Lesen erlauben, erst dann die Signatur prüfen
+        # mit Adminrechten): nur Lesen erlauben, erst dann die Signatur prüfen. Das deckt nur diese erste Stufe;
+        # was der Installer (WiX Burn) danach entpackt, prüft er selbst per Hash. Start mit RunAs unter der Sperre
+        # ist auf echter UAC nicht getestet (Lesen ist freigegeben, mehr braucht der Start nicht).
         $lock = [IO.File]::Open($exe, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
         try {
             $sig = Get-AuthenticodeSignature -LiteralPath $exe
@@ -83,10 +89,19 @@ function Install-Python([switch]$Machine) {
                 if ($Machine) { $p = Start-Process $exe -Verb RunAs -Wait -PassThru -ArgumentList $a }
                 else { $p = Start-Process $exe -Wait -PassThru -ArgumentList $a }
             } catch [ComponentModel.Win32Exception] {
-                throw "Administratorrechte abgelehnt - Python wurde nicht installiert. Ohne Adminrechte: install.ps1 -SkipSensors (Python nur für diesen Benutzer, ohne Sensor-Helfer)"
+                $code = $_.Exception.NativeErrorCode
+                if ($Machine -and $code -eq 1223) {   # ERROR_CANCELLED: UAC-Abfrage abgelehnt
+                    throw "Administratorrechte abgelehnt - Python wurde nicht installiert. Ohne Adminrechte: install.ps1 -SkipSensors (Python nur für diesen Benutzer, ohne Sensor-Helfer)"
+                }
+                if ($code -eq 32) {   # Freigabeverletzung: Start trotz Lesesperre abgelehnt (nicht erwartet)
+                    throw "Python-Installer ließ sich nicht starten (Datei gesperrt). Von Hand: winget install -e --id Python.Python.3.13 --scope machine, dann install.ps1 erneut"
+                }
+                throw
             }
         } finally { $lock.Dispose() }
-        if ($p.ExitCode -ne 0) { throw "Python-Installation fehlgeschlagen (Code $($p.ExitCode))" }
+        if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) {   # 3010 = ok, Neustart empfohlen
+            throw "Python-Installation fehlgeschlagen (Code $($p.ExitCode))"
+        }
     } finally {
         Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
     }

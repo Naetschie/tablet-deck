@@ -55,8 +55,8 @@ Danach: Taskleisten-Symbol am PC, die App „Tablet Deck“ am Tablet. Weiter mi
 
 **PC**
 1. Python ab 3.11 suchen und die Pakete aus `requirements.txt` installieren (`pip --user`).
-   Fehlt Python, wird es installiert: per winget, ohne winget mit dem Installer von python.org (Signatur der
-   Python Software Foundation wird geprüft). Für alle Benutzer (UAC-Abfrage), mit `-SkipSensors` nur für den
+   Fehlt Python, wird es installiert: per winget, ohne winget mit dem Installer von python.org (bis zum Start
+   gegen Austausch gesperrt, Signatur der Python Software Foundation wird geprüft). Für alle Benutzer (UAC-Abfrage), mit `-SkipSensors` nur für den
    aktuellen Benutzer. Ein neues Terminal ist nicht nötig.
 2. adb (Android platform-tools) nach `tools\platform-tools` laden, falls es dort fehlt. Die Google-Signatur
    von `adb.exe` wird geprüft.
@@ -113,7 +113,7 @@ Weitergabe-Paket, Updates lassen sie unberührt (sichern: den Ordner kopieren).
 Liegt Python unter `%LOCALAPPDATA%` (Standard bei „nur für mich“), überspringt `install.ps1` den Sensor-Helfer
 mit einem Hinweis. Dann Python für alle Benutzer installieren:
 `winget install -e --id Python.Python.3.13 --scope machine`, neues Terminal, `install.ps1` erneut. Gefunden wird
-zuerst ein Python unter `%ProgramFiles%`, dann das im PATH.
+zuerst ein Python unter `%ProgramFiles%`, dann das im PATH, zuletzt eines im Benutzerprofil.
 
 Von Hand (PowerShell als Administrator):
 ```
