@@ -92,6 +92,7 @@ function Install-Python([switch]$Machine) {
             if ($Machine) { $si.Verb = "runas" }
             try {
                 $p = [Diagnostics.Process]::Start($si)
+                if (-not $p) { throw "Python-Installer ließ sich nicht starten (kein Prozess zurückgegeben)" }
                 $p.WaitForExit()
             } catch [ComponentModel.Win32Exception] {
                 $code = $_.Exception.NativeErrorCode
