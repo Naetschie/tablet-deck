@@ -8,9 +8,13 @@ Zwei Wege, je nach Tablet:
 
 ## Schnellstart
 Voraussetzungen: Windows 10/11, das Tablet per USB am PC, am Tablet in den Entwickleroptionen
-**USB-Debugging** an (beim ersten Anstecken den Dialog „USB-Debugging zulassen“ bestätigen). Python ab 3.11
-installiert `install.ps1` nicht selbst: Fehlt es, `winget install -e --id Python.Python.3.13`, neues Terminal
-öffnen und das Skript erneut starten.
+**USB-Debugging** an (beim ersten Anstecken den Dialog „USB-Debugging zulassen“ bestätigen). Fehlt Python
+(ab 3.11), installiert `install.ps1` es selbst für den aktuellen Benutzer (winget, sonst python.org).
+
+Die Launcher-App liegt fertig als `tablet-deck.apk` in den
+[GitHub-Releases](https://github.com/Naetschie/tablet-deck/releases). `install.ps1` lädt die zur Version passende
+APK selbst, wenn sie fehlt und keine Build-Werkzeuge da sind. Offline: die Datei nach `android\build\` legen
+oder mit `-Apk <Pfad>` angeben.
 
 Im Projektordner (bzw. im entpackten Zip, siehe [Weitergabe als Zip](#weitergabe-als-zip)):
 
@@ -41,12 +45,15 @@ Danach: Taskleisten-Symbol am PC, die App „Tablet Deck“ am Tablet. Weiter mi
 | `-Check` | nichts ändern, nur prüfen und auflisten, was fehlt (Exit-Code 1, wenn etwas offen ist) |
 | `-Companion` | Begleit-Modus ohne Root: kein Startbildschirm, `tablet_mode` = `companion` (siehe unten) |
 | `-Modules` | zusätzlich die Magisk-Module `chargectl` (Akku 45–55 %) und `hardening`, danach Tablet-Neustart |
+| `-Apk <Pfad>` | diese Launcher-APK installieren (z. B. `tablet-deck.apk` aus den GitHub-Releases), wird nach `android\build\` kopiert |
 
 ## Was das Skript macht
 
 **PC**
 1. Python ab 3.11 suchen und die Pakete aus `requirements.txt` installieren (`pip --user`).
-   Fehlt Python: `winget install -e --id Python.Python.3.13`, neues Terminal öffnen, Skript erneut starten.
+   Fehlt Python, wird es für den aktuellen Benutzer installiert (ohne Adminrechte): per winget, ohne winget mit
+   dem Installer von python.org (Signatur der Python Software Foundation wird geprüft). Ein neues Terminal ist
+   nicht nötig.
 2. adb (Android platform-tools) nach `tools\platform-tools` laden, falls es dort fehlt. Die Google-Signatur
    von `adb.exe` wird geprüft.
 3. spacedesk-Treiber per `winget` installieren und „USB Cable Android“ einschalten. Windows fragt dabei
@@ -62,8 +69,11 @@ Danach: Taskleisten-Symbol am PC, die App „Tablet Deck“ am Tablet. Weiter mi
      meldet `install.ps1 -Check` „veraltet“ – dann `install.ps1` erneut ausführen.
 
 **Tablet** (nur wenn es per USB verbunden und USB-Debugging erlaubt ist)
-6. Launcher-App bauen, falls JDK und Android-SDK in `tools\` liegen, sonst eine vorhandene
-   `android\build\tablet-deck.apk` nehmen. Danach installieren, als Startbildschirm setzen, Overlay-Recht
+6. Launcher-App: die mit `-Apk` angegebene Datei, sonst bauen (falls JDK und Android-SDK in `tools\` liegen),
+   sonst eine vorhandene `android\build\tablet-deck.apk`, sonst die APK aus dem GitHub-Release der passenden
+   Version laden (Prüfsumme aus der GitHub-API). Fehlt sie danach noch, nennt das Skript den Release-Link und
+   `-Apk`. War vorher eine anders signierte App installiert (selbst gebaut gegenüber Release), meldet es das
+   mit dem Befehl zum Entfernen. Danach installieren, als Startbildschirm setzen, Overlay-Recht
    geben, Sperrbildschirm aus, Querformat fest, mit dem PC koppeln (`tablet\setup-launcher.ps1`).
 7. Mit `-Modules`: Magisk-Module installieren.
 8. Smoke-Test gegen die laufende Bridge.

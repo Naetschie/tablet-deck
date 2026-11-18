@@ -20,9 +20,16 @@ function Adb {
     $out
 }
 
-if (-not (Test-Path $apk)) { throw "APK fehlt - erst 'python android/build.py' ausführen" }
+if (-not (Test-Path $apk)) { throw "APK fehlt - 'python android/build.py' ausführen oder tablet-deck.apk aus den GitHub-Releases nach android\build\ legen" }
 Adb wait-for-device | Out-Null
-Adb install -r $apk | Select-Object -Last 1
+try { Adb install -r $apk | Select-Object -Last 1 }
+catch {
+    # anders signiert (selbst gebaut vs. Release-APK): Android lehnt das Update ab
+    if ("$_" -match "INSTALL_FAILED_UPDATE_INCOMPATIBLE|signatures do not match") {
+        throw "Die installierte Launcher-App ist mit einem anderen Schlüssel signiert. Erst entfernen: tools\platform-tools\adb.exe uninstall $pkg - dann erneut ausführen (koppelt neu)."
+    }
+    throw
+}
 if (-not $Companion) { Adb shell cmd package set-home-activity "$pkg/.HomeAlias" | Out-Null }
 Adb shell appops set $pkg SYSTEM_ALERT_WINDOW allow
 # WLAN-Betrieb: Launcher stellt den Android-Proxy um (USB: Bridge-Proxy, WLAN: direkt)

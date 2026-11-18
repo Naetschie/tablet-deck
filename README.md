@@ -20,7 +20,9 @@ PC:     Hub (python -m bridge)  ── SendInput: Tasten, Maus, Text, Medientast
 
 ## Installation
 `powershell -ExecutionPolicy Bypass -File .\install.ps1` richtet PC und (angestecktes) Tablet ein:
-Python-Pakete, adb, spacedesk-Treiber, Autostart, Launcher. Details und Fehlersuche:
+Python (falls es fehlt), Python-Pakete, adb, spacedesk-Treiber, Autostart, Launcher. Die Launcher-App
+(`tablet-deck.apk`) liegt in den [Releases](https://github.com/Naetschie/tablet-deck/releases); das Skript lädt
+sie selbst, wenn sie fehlt, oder nimmt sie mit `-Apk <Pfad>`. Details und Fehlersuche:
 [docs/install.md](docs/install.md).
 
 ## Start

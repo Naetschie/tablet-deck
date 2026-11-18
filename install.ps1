@@ -10,23 +10,29 @@
 #   .\install.ps1 -SkipSensors    ohne Sensor-Helfer (PC-Werte dann nur Grundwerte, keine UAC-Abfrage)
 #   .\install.ps1 -Check          nur prüfen und melden, was fehlt (ändert nichts)
 #   .\install.ps1 -AllowLocalChanges  Sensor-Helfer auch mit nicht eingecheckten Änderungen einrichten
+#   .\install.ps1 -Apk <Pfad>     diese Launcher-APK installieren (z. B. tablet-deck.apk aus den GitHub-Releases)
 #
 # Was passiert (PC):
-#   1. Python prüfen (>= 3.11), Abhängigkeiten installieren (pip --user)
+#   1. Python prüfen (>= 3.11; fehlt es: per winget bzw. python.org für diesen Benutzer installieren),
+#      Abhängigkeiten installieren (pip --user)
 #   2. adb (Android platform-tools) nach tools\platform-tools laden, falls nicht vorhanden
 #   3. spacedesk-Treiber per winget + "USB Cable Android" einschalten (UAC-Abfrage)
 #   4. Autostart (geplante Aufgabe "Tablet Deck Bridge") einrichten und Bridge starten
 #   4b. Sensor-Helfer: PawnIO-Treiber (winget), Kopie nach %ProgramFiles%\TabletDeck\sensors, PresentMon,
 #       geplante Aufgabe "Tablet Deck Sensors" mit höchsten Rechten (UAC, scripts\install-sensors.ps1)
 # Tablet (falls verbunden, USB-Debugging erlaubt):
-#   5. Launcher-App bauen (nur wenn JDK/SDK in tools\ liegen) bzw. vorhandene APK installieren,
+#   5. Launcher-App: -Apk <Pfad>, sonst bauen (nur wenn JDK/SDK in tools\ liegen), sonst vorhandene
+#      android\build\tablet-deck.apk, sonst aus dem GitHub-Release der passenden Version laden; installieren,
 #      als Startbildschirm setzen und mit dem PC koppeln (tablet\setup-launcher.ps1)
 #   6. optional Magisk-Module
 #   7. Smoke-Test gegen die laufende Bridge
 param([switch]$SkipTablet, [switch]$SkipSpacedesk, [switch]$SkipAutostart, [switch]$SkipSensors, [switch]$Modules,
-      [switch]$Companion, [switch]$Check, [switch]$AllowLocalChanges)
+      [switch]$Companion, [switch]$Check, [switch]$AllowLocalChanges, [string]$Apk)
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
+. (Join-Path $root "scripts\install-helpers.ps1")
+# Downloads (adb, Python, APK): TLS 1.2 auch unter Windows PowerShell 5.1
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 # Ausgaben von Python (Smoke-Test) als UTF-8 lesen - sonst "w³rde" statt "würde" (Windows PowerShell 5.1)
 $env:PYTHONIOENCODING = "utf-8"
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { }
@@ -131,15 +137,14 @@ if ($Check) {
 
 # ---------------------------------------------------------------- 1. Python
 Step "Python"
-$python = $null
-foreach ($cand in @("python", "py")) {
-    if (Get-Command $cand -ErrorAction SilentlyContinue) {
-        $r = Run $cand -c "import sys; print(sys.executable if sys.version_info >= (3, 11) else '')"
-        if ($r.Code -eq 0 -and $r.Out) { $python = ($r.Out -split "`r?`n")[-1].Trim(); break }
-    }
-}
+$python = Find-Python
 if (-not $python) {
-    throw "Python 3.11 oder neuer fehlt. Installieren: winget install -e --id Python.Python.3.13 - danach neues Terminal öffnen und install.ps1 erneut starten."
+    Install-Python
+    $python = Find-Python
+    if (-not $python) {
+        throw "Python 3.11 oder neuer nicht gefunden. Von Hand: winget install -e --id Python.Python.3.13 - danach neues Terminal öffnen und install.ps1 erneut starten."
+    }
+    Ok "Python installiert"
 }
 Ok $python
 $r = Run $python -m pip install --user --disable-pip-version-check -q -r (Join-Path $root "requirements.txt")
@@ -150,8 +155,8 @@ Ok "Abhängigkeiten installiert (requirements.txt)"
 Step "adb (Android platform-tools)"
 $adb = Join-Path $root "tools\platform-tools\adb.exe"
 if (-not (Test-Path $adb)) {
-    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
     $zip = Join-Path $env:TEMP "platform-tools-windows.zip"
+    $ProgressPreference = "SilentlyContinue"
     Invoke-WebRequest "https://dl.google.com/android/repository/platform-tools-latest-windows.zip" -OutFile $zip -UseBasicParsing
     New-Item -ItemType Directory -Force (Join-Path $root "tools") | Out-Null
     Expand-Archive $zip -DestinationPath (Join-Path $root "tools") -Force
@@ -293,15 +298,28 @@ if (-not $SkipTablet) {
     } elseif ($dev -match "unauthorized") {
         Warn "USB-Debugging am Tablet erlauben (Dialog am Tablet bestätigen), dann install.ps1 erneut ausführen"
     } else {
-        $apk = Join-Path $root "android\build\tablet-deck.apk"
+        $apkDir = Join-Path $root "android\build"
+        $apkPath = Join-Path $apkDir "tablet-deck.apk"   # setup-launcher.ps1 installiert genau diese Datei
         $canBuild = (Test-Path (Join-Path $root "tools\jdk")) -and (Test-Path (Join-Path $root "tools\android-sdk"))
-        if ($canBuild) {
+        if ($Apk) {
+            if (-not (Test-Path $Apk -PathType Leaf)) { throw "APK nicht gefunden: $Apk" }
+            $src = (Resolve-Path $Apk).Path
+            if ($src -ne $apkPath) {
+                New-Item -ItemType Directory -Force $apkDir | Out-Null
+                Copy-Item -Force $src $apkPath
+            }
+            Ok "Launcher-APK: $src"
+        } elseif ($canBuild) {
             $r = Run $python (Join-Path $root "android\build.py")
             if ($r.Code -ne 0) { throw "APK-Build fehlgeschlagen:`n$($r.Out)" }
             Ok "Launcher gebaut"
+        } elseif (Test-Path $apkPath) {
+            Ok "vorhandene Launcher-APK: android\build\tablet-deck.apk"
+        } elseif (Get-ReleaseApk $root $apkPath) {
+            Ok "Launcher-APK aus den GitHub-Releases geladen (Prüfsumme ok)"
         }
-        if (-not (Test-Path $apk)) {
-            Warn "keine APK und kein JDK/Android-SDK in tools\ - Build-Werkzeuge siehe docs\install.md"
+        if (-not (Test-Path $apkPath)) {
+            Warn "keine Launcher-APK: tablet-deck.apk aus den Releases laden ($ReleasesUrl) und nach android\build\ legen oder angeben: install.ps1 -Apk <Pfad zur tablet-deck.apk>"
         } else {
             # Hashtable: ein Array würde "-Companion" als Wert statt als Schalter übergeben (PS 5.1)
             $setupArgs = @{}; if ($Companion) { $setupArgs.Companion = $true }
