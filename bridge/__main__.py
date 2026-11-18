@@ -577,9 +577,29 @@ class Bridge:
             except Exception:  # noqa: BLE001
                 pass
 
+    async def wake_wlan(self, ws, peer):
+        """Im WLAN beim Herunterfahren des PCs schlafen gelegt -> beim Verbinden wieder wecken (per USB:
+        adb_watch). Nur einmal je IP seit Start bzw. Schlafbefehl, nicht nach jedem WLAN-Aussetzer."""
+        if (is_loopback(ws.remote_address) or not self.cfg.get("tablet_sleep_with_pc", True)
+                or peer in self.wlan_woken):
+            return False
+        # vor dem Senden eintragen: leert wlan_slept() die Menge während des await, gilt das (danach kommt
+        # "sleep", beim nächsten Verbinden wird wieder geweckt)
+        self.wlan_woken.add(peer)
+        try:
+            await ws.send(json.dumps({"t": "power", "action": "wake"}))
+        except Exception:
+            self.wlan_woken.discard(peer)   # nicht angekommen: beim nächsten Verbinden erneut
+            raise
+        return True
+
+    def wlan_slept(self):
+        """PC legt Tablets schlafen: WLAN-Tablets beim nächsten Verbinden wieder wecken (auch gerade getrennte)."""
+        self.wlan_woken.clear()
+
     async def power_wlan(self, action):
         """Tablets, die nur per WLAN verbunden sind (per USB erledigt das adb) schlafen legen ("sleep").
-        Die Menge wlan_woken leert notify() (auch ohne verbundenes WLAN-Tablet)."""
+        wlan_slept() ruft notify() getrennt davon auf (auch ohne verbundenes WLAN-Tablet)."""
         for ws in list(self.ctl_clients):
             if not is_loopback(ws.remote_address):
                 await ws.send(json.dumps({"t": "power", "action": action}))
@@ -632,11 +652,7 @@ class Bridge:
             # WLAN-Adressen für den Launcher (nur über USB/loopback mitteilen - dort ist die Kopplung physisch)
             if self.wlan_tls and is_loopback(ws.remote_address):
                 await ws.send(json.dumps(self.wlan_msg()))
-            # Im WLAN beim Herunterfahren des PCs schlafen gelegt -> wieder wecken (per USB: adb_watch)
-            if (not is_loopback(ws.remote_address) and self.cfg.get("tablet_sleep_with_pc", True)
-                    and peer not in self.wlan_woken):
-                await ws.send(json.dumps({"t": "power", "action": "wake"}))
-                self.wlan_woken.add(peer)   # erst nach dem Senden (bricht es ab, beim nächsten Mal erneut)
+            await self.wake_wlan(ws, peer)
             # Wunsch der Automatik auch für später verbundene Launcher (nur Web-Ansichten, damit eine
             # App-Kachel nicht bei jedem Neuverbinden gestartet wird)
             # Nur nach einer Änderung, die noch kein Launcher bekommen hat - ein Wechsel von Hand bleibt
@@ -1600,7 +1616,7 @@ async def main():
 
                 def notify(action):   # aus einem Hilfs-Thread: Befehl an Tablets im WLAN, max. 1 s
                     if action == "sleep":   # auch gerade getrennte WLAN-Tablets beim Verbinden wieder wecken
-                        loop.call_soon_threadsafe(bridge.wlan_woken.clear)
+                        loop.call_soon_threadsafe(bridge.wlan_slept)
                     if not any(not is_loopback(ws.remote_address) for ws in list(bridge.ctl_clients)):
                         return        # kein Tablet im WLAN - nichts zu tun
                     asyncio.run_coroutine_threadsafe(bridge.power_wlan(action), loop).result(1.0)

@@ -188,8 +188,7 @@ SHA-256 `69572e37…aa8c48`. Beim ersten Verbinden fragt Android einmal nach der
   eine vorgehaltene adb-Shell schlafen (Bildschirm aus) - beim Herunterfahren startet Windows keine neuen
   Programme mehr. Startet der PC wieder, weckt die Bridge es beim Verbinden (im WLAN einmal pro Start bzw.
   Schlafbefehl, nicht nach jedem WLAN-Aussetzer; im WLAN braucht das Root und Modul `hardening` ab 1.7).
-  Ausgeschaltet wird es nicht:
-  Liefert der PC auch ausgeschaltet USB-Strom (BIOS „ErP“ aus, z. B. für Wake on LAN), startete es mit
+  Ausgeschaltet wird es nicht: Liefert der PC auch ausgeschaltet USB-Strom (BIOS „ErP“ aus, z. B. für Wake on LAN), startete es mit
   `off-mode-charge 0` nach etwa einer Minute von selbst wieder.
 - **Rückfall am Tablet:** War es seit dem Einschalten mit dem PC verbunden und ist dann 5 Minuten weder
   per USB noch per WLAN verbunden, fährt es herunter - aber nur bei ausgeschaltetem Bildschirm (in
