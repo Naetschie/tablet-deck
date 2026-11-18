@@ -13,16 +13,17 @@
 #   .\install.ps1 -Apk <Pfad>     diese Launcher-APK installieren (z. B. tablet-deck.apk aus den GitHub-Releases)
 #
 # Was passiert (PC):
-#   1. Python prüfen (>= 3.11; fehlt es: per winget bzw. python.org für diesen Benutzer installieren),
-#      Abhängigkeiten installieren (pip --user)
+#   1. Python prüfen (>= 3.11; fehlt es: per winget bzw. python.org installieren - für alle Benutzer mit
+#      UAC-Abfrage, mit -SkipSensors nur für diesen Benutzer), Abhängigkeiten installieren (pip --user)
 #   2. adb (Android platform-tools) nach tools\platform-tools laden, falls nicht vorhanden
 #   3. spacedesk-Treiber per winget + "USB Cable Android" einschalten (UAC-Abfrage)
 #   4. Autostart (geplante Aufgabe "Tablet Deck Bridge") einrichten und Bridge starten
 #   4b. Sensor-Helfer: PawnIO-Treiber (winget), Kopie nach %ProgramFiles%\TabletDeck\sensors, PresentMon,
 #       geplante Aufgabe "Tablet Deck Sensors" mit höchsten Rechten (UAC, scripts\install-sensors.ps1)
 # Tablet (falls verbunden, USB-Debugging erlaubt):
-#   5. Launcher-App: -Apk <Pfad>, sonst bauen (nur wenn JDK/SDK in tools\ liegen), sonst vorhandene
-#      android\build\tablet-deck.apk, sonst aus dem GitHub-Release der passenden Version laden; installieren,
+#   5. Launcher-App: -Apk <Pfad>, sonst bauen (nur wenn JDK/SDK in tools\ liegen), sonst die schon aus dem
+#      Release geladene, wenn ihre Version passt, sonst aus dem GitHub-Release der Projektversion laden, sonst
+#      (offline) eine vorhandene android\build\tablet-deck.apk mit Warnung; installieren,
 #      als Startbildschirm setzen und mit dem PC koppeln (tablet\setup-launcher.ps1)
 #   6. optional Magisk-Module
 #   7. Smoke-Test gegen die laufende Bridge
@@ -331,7 +332,7 @@ if (-not $SkipTablet) {
         } elseif ((Test-Path -LiteralPath $apkPath) -and $ver -and $haveVer -eq $ver) {
             Ok "Launcher-APK $ver aus den Releases: android\build\tablet-deck.apk"
         } elseif (Get-ReleaseApk $root $apkPath) {
-            Ok "Launcher-APK $ver aus den GitHub-Releases geladen (Prüfsumme und Signatur ok)"
+            Ok "Launcher-APK $ver aus den GitHub-Releases geladen (Prüfsumme ok, Zertifikat passt)"
         } elseif (Test-Path -LiteralPath $apkPath) {
             # z. B. aus dem Weitergabe-Zip oder offline: nehmen, aber sagen, dass die Version ungeprüft ist
             Warn "nehme vorhandene android\build\tablet-deck.apk (Version nicht geprüft, Projekt ist $ver)"

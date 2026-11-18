@@ -24,15 +24,14 @@ function Update-SessionPath {
 }
 
 # Pfad zu python.exe >= 3.11 oder $null. Der Store-Platzhalter "python" (WindowsApps) startet kein Python und
-# fällt durch die Probe; zusätzlich die üblichen Installationsorte (falls PATH noch alt ist), für alle Benutzer
-# installierte zuerst (nur die taugen für den Sensor-Helfer).
+# fällt durch die Probe. Reihenfolge: für alle Benutzer installiert (%ProgramFiles%, nur das taugt für den
+# Sensor-Helfer), dann PATH, dann das Benutzerprofil (falls PATH noch alt ist).
 function Find-Python {
-    $cands = @("python", "py")
-    foreach ($pat in (Join-Path $env:ProgramFiles "Python3*\python.exe"),
-                     (Join-Path $env:LOCALAPPDATA "Programs\Python\Python3*\python.exe")) {
-        $cands += @(Get-ChildItem -Path $pat -ErrorAction SilentlyContinue | Sort-Object FullName -Descending |
-            ForEach-Object { $_.FullName })
-    }
+    $cands = @(Get-ChildItem -Path (Join-Path $env:ProgramFiles "Python3*\python.exe") -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending | ForEach-Object { $_.FullName })
+    $cands += @("python", "py")
+    $cands += @(Get-ChildItem -Path (Join-Path $env:LOCALAPPDATA "Programs\Python\Python3*\python.exe") `
+        -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | ForEach-Object { $_.FullName })
     foreach ($cand in $cands) {
         if (-not (Get-Command $cand -ErrorAction SilentlyContinue)) { continue }
         $r = Invoke-Native $cand -c "import sys; print(sys.executable if sys.version_info >= (3, 11) else '')"
@@ -59,23 +58,38 @@ function Install-Python([switch]$Machine) {
         $r = Invoke-Native winget install -e --id Python.Python.3.13 --scope $scope --silent `
             --accept-package-agreements --accept-source-agreements
         if ($r.Code -eq 0) { Update-SessionPath; return }
-        Write-Host "   winget fehlgeschlagen ($($r.Code)) - Installer von python.org ..."
+        Write-Host ("   winget fehlgeschlagen (Code $($r.Code)) - zweiter Versuch mit dem Installer von python.org" +
+            "$(if ($Machine) { ' (erneute Abfrage der Administratorrechte)' }) ...")
     }
     $v = $PythonFallback
-    $exe = Join-Path $env:TEMP "python-$v-amd64.exe"
+    $dir = Join-Path $env:TEMP ("tabletdeck-python-" + [Guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory $dir | Out-Null
+    $exe = Join-Path $dir "python-$v-amd64.exe"
     $ProgressPreference = "SilentlyContinue"   # PS 5.1: Fortschrittsbalken bremst Downloads stark
-    Invoke-WebRequest "https://www.python.org/ftp/python/$v/python-$v-amd64.exe" -OutFile $exe -UseBasicParsing
-    $sig = Get-AuthenticodeSignature -LiteralPath $exe
-    if ($sig.Status -ne "Valid" -or $sig.SignerCertificate.Subject -notmatch '(^|, )CN=Python Software Foundation(,|$)') {
-        Remove-Item -LiteralPath $exe -Force
-        throw "Python-Installer ist nicht gültig von der Python Software Foundation signiert ($($sig.Status)) - abgebrochen"
+    try {
+        Invoke-WebRequest "https://www.python.org/ftp/python/$v/python-$v-amd64.exe" -OutFile $exe -UseBasicParsing
+        # Bis der Installer läuft, darf niemand die Datei austauschen (%TEMP% gehört dem Benutzer, gestartet wird
+        # mit Adminrechten): nur Lesen erlauben, erst dann die Signatur prüfen
+        $lock = [IO.File]::Open($exe, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+        try {
+            $sig = Get-AuthenticodeSignature -LiteralPath $exe
+            if ($sig.Status -ne "Valid" -or
+                $sig.SignerCertificate.Subject -notmatch '(^|, )CN=Python Software Foundation(,|$)') {
+                throw "Python-Installer ist nicht gültig von der Python Software Foundation signiert ($($sig.Status)) - abgebrochen"
+            }
+            $a = @("/quiet", "InstallAllUsers=$(if ($Machine) { 1 } else { 0 })", "PrependPath=1",
+                   "Include_launcher=1", "Include_test=0")
+            try {
+                if ($Machine) { $p = Start-Process $exe -Verb RunAs -Wait -PassThru -ArgumentList $a }
+                else { $p = Start-Process $exe -Wait -PassThru -ArgumentList $a }
+            } catch [ComponentModel.Win32Exception] {
+                throw "Administratorrechte abgelehnt - Python wurde nicht installiert. Ohne Adminrechte: install.ps1 -SkipSensors (Python nur für diesen Benutzer, ohne Sensor-Helfer)"
+            }
+        } finally { $lock.Dispose() }
+        if ($p.ExitCode -ne 0) { throw "Python-Installation fehlgeschlagen (Code $($p.ExitCode))" }
+    } finally {
+        Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
     }
-    $a = @("/quiet", "InstallAllUsers=$(if ($Machine) { 1 } else { 0 })", "PrependPath=1", "Include_launcher=1",
-           "Include_test=0")
-    if ($Machine) { $p = Start-Process $exe -Verb RunAs -Wait -PassThru -ArgumentList $a }
-    else { $p = Start-Process $exe -Wait -PassThru -ArgumentList $a }
-    Remove-Item -LiteralPath $exe -Force -ErrorAction SilentlyContinue
-    if ($p.ExitCode -ne 0) { throw "Python-Installation fehlgeschlagen (Code $($p.ExitCode))" }
     Update-SessionPath
 }
 
@@ -129,7 +143,9 @@ function Get-ApkCertHashes($path) {
     return $hashes
 }
 
-# Ist die APK mit dem Release-Schlüssel signiert (android\release-cert.sha256)? Jede v2/v3-Signatur muss passen.
+# Trägt die APK das Release-Zertifikat (android\release-cert.sha256)? Jede v2/v3-Signatur muss es nennen. Das
+# prüft nicht die Signatur selbst (das Zertifikat ist öffentlich) - es fängt Releases mit falschem Schlüssel ab,
+# vor Fälschungen schützt die Prüfsumme aus der GitHub-API; Android prüft die Signatur beim Installieren.
 function Test-ApkSigner($root, $path) {
     $pinFile = Join-Path $root "android\release-cert.sha256"
     if (-not (Test-Path -LiteralPath $pinFile)) { return $false }
@@ -162,7 +178,7 @@ function Get-ReleaseApk($root, $dest) {
             Write-Host "   Prüfsumme stimmt nicht - verworfen"; return $false
         }
         if (-not (Test-ApkSigner $root $tmp)) {
-            Write-Host "   APK ist nicht mit dem Release-Schlüssel signiert (android\release-cert.sha256) - verworfen"
+            Write-Host "   APK trägt nicht das Release-Zertifikat (android\release-cert.sha256) - verworfen"
             return $false
         }
         Move-Item -Force -LiteralPath $tmp -Destination $dest

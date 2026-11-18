@@ -15,7 +15,8 @@ UAC-Abfrage, weil der Sensor-Helfer das braucht; mit `-SkipSensors` nur für den
 Die Launcher-App liegt fertig als `tablet-deck.apk` in den
 [GitHub-Releases](https://github.com/Naetschie/tablet-deck/releases). `install.ps1` lädt die zur Version passende
 APK selbst, wenn keine Build-Werkzeuge da sind. Geprüft werden die SHA-256-Prüfsumme aus der GitHub-API und das
-Signaturzertifikat (`android\release-cert.sha256`); man vertraut damit den Releases dieses Repos. Offline, bei
+Zertifikat im Signaturblock (`android\release-cert.sha256`, fängt einen falschen Schlüssel ab); man vertraut
+damit den Releases dieses Repos. Offline, bei
 einer Version ohne Release (z. B. ein Zip vom aktuellen Stand) oder wenn die GitHub-API gerade nicht antwortet
 (Grenze 60 Anfragen pro Stunde): die Datei nach `android\build\` legen oder mit `-Apk <Pfad>` angeben.
 
@@ -112,7 +113,7 @@ Weitergabe-Paket, Updates lassen sie unberührt (sichern: den Ordner kopieren).
 Liegt Python unter `%LOCALAPPDATA%` (Standard bei „nur für mich“), überspringt `install.ps1` den Sensor-Helfer
 mit einem Hinweis. Dann Python für alle Benutzer installieren:
 `winget install -e --id Python.Python.3.13 --scope machine`, neues Terminal, `install.ps1` erneut. Gefunden wird
-zuerst das Python im PATH; ein Python für alle Benutzer steht dort vor dem eigenen.
+zuerst ein Python unter `%ProgramFiles%`, dann das im PATH.
 
 Von Hand (PowerShell als Administrator):
 ```
