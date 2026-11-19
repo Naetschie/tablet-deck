@@ -1,5 +1,38 @@
 # Änderungen
 
+## 4.2 – 19.11.2026
+
+### Panel
+- Tastenkürzel stehen nicht mehr unter jeder Taste. Das Panel drückt die Taste selbst, beim Spielen war das
+  Kürzel nur zusätzlicher Text. Wer sie sehen will: Panel-Kachel in `launcher.json` mit `"path": "/?keys=1"`
+  (wird gemerkt, `?keys=0` schaltet wieder aus). Der Editor zeigt sie wie bisher.
+- Tasten erscheinen so, wie sie beschriftet sind („Flight Ready“ statt „FLIGHT READY“). Großbuchstaben nur
+  noch für Bereichstitel, Reiter und Hinweise; die Editor-Vorschau zeigt es genauso.
+- Gleich große Tasten in einem Bereich haben dieselbe Schriftgröße. Vorher stand z. B. „Entkoppeln“ kleiner
+  direkt neben „Quantum“.
+- Große Hauptknöpfe („Flight Ready“, „Köder-Panik“) waren im feinen Raster nur 13 px groß, jetzt 18 px.
+
+### Star Citizen
+- Schilde: Oben und Unten entfernt (Panel und Vorlagen). Schildgeneratoren haben nur Blase, vorne/hinten oder
+  Quadranten; die beiden Aktionen gibt es in der Belegung, sie wirken aber auf keine Schildseite. Die
+  Schiffsansicht wird dafür größer.
+- Auto-Layout: Ein Schildbereich ohne weitere Tasten füllt seinen Rahmen, auf „Flug & Kampf“ bleibt keine
+  Lücke mehr.
+
+### Installation
+- `install.ps1` läuft auf einem frischen PC durch: Python wird für alle Benutzer installiert (Anfrage nach
+  Administratorrechten; nur mit `-SkipSensors` für den eigenen Benutzer), der python.org-Installer ist bis
+  zum Start gegen Austausch gesperrt.
+- Launcher-APK aus dem Release: Prüfsumme ist Pflicht, dazu wird das Signaturzertifikat gegen
+  `android/release-cert.sha256` geprüft. Eine vorhandene APK wird nur ohne Download genommen, wenn ihre
+  Version passt.
+- Abgelehnte Administratorrechte und andere Installer-Fehler werden klar gemeldet.
+
+### Aktualisieren
+- Launcher-App (nur Versionsnummer neu, keine Funktionsänderung): `python android/build.py`, dann
+  `tools\platform-tools\adb.exe install -r android\build\tablet-deck.apk`, oder `tablet-deck.apk` aus dem Release.
+- Hub neu starten (geplante Aufgabe „Tablet Deck Bridge“ beenden und starten), die Tablet-Seiten laden dann neu.
+
 ## 4.1 – 18.11.2026
 
 ### Tablet schläft mit dem PC
