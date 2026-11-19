@@ -43,7 +43,7 @@ main { flex: 1; min-height: 0; padding: var(--sp-1) var(--sp-4) var(--sp-4); ove
 .btn.accent.down { background: var(--ac); color: var(--acTx); }
 .btn.danger.down { background: var(--warn); border-color: var(--warn); color: var(--warnTx); }
 .btn.nomap { border-style: dashed; opacity: .5; }
-.no-keys .btn .sub { display: none; }
+.no-keys .kc { display: none; }   /* Tastenkürzel (app.js: ?keys=1 zeigt sie) */
 /* Halten: Füllbalken unten */
 .btn .bar { position: absolute; left: 0; bottom: 0; height: 4px; width: 100%; background: var(--warn);
   transform: scaleX(0); transform-origin: left; }
@@ -95,6 +95,7 @@ main.fill { overflow: hidden; }
 /* Feines Raster (mehr als 12 x 8 Zellen): engere Abstände */
 .free.dense { gap: 4px; }
 .free.dense .key { padding: 2px 6px; gap: 2px; font-size: var(--fs-sm); }
+.free.dense .key.look-big { font-size: var(--fs-lg); }   /* Hauptknopf bleibt auch im feinen Raster groß */
 .free.dense .hint { display: none; }
 .free .key, .free .seg { z-index: 1; }
 
@@ -119,22 +120,22 @@ main.fill { overflow: hidden; }
 .ftext.s-l { font: 700 var(--fs-xl)/1.15 var(--fh); }
 
 /* look: big (großer Hauptknopf) */
-.key.look-big { border-width: 2px; font: 700 var(--fs-xl)/1.1 var(--fh); letter-spacing: .05em; text-transform: uppercase; }
+.key.look-big { border-width: 2px; font: 700 var(--fs-xl)/1.1 var(--fh); }
 .key.look-big:not(.accent):not(.danger) { border-color: var(--ac); background: var(--acSoft); }
 .grid .look-big { min-height: 110px; }
 
 /* look: arrow (Richtungs- und Maximum-Pfeile) */
 .key.look-arrow .arrow { width: 34px; height: 34px; stroke-width: 2.6; }
-.key.look-arrow .lbl { font: 700 var(--fs-xs)/1 var(--fb); letter-spacing: .08em; text-transform: uppercase; }
+.key.look-arrow .lbl { font: 600 var(--fs-sm)/1.1 var(--fb); }
 .key.look-arrow:not(.down) .arrow { color: var(--ac); }
 .key.look-arrow.danger:not(.down) .arrow { color: var(--warn); }
 .free.dense .key.look-arrow .arrow { width: 26px; height: 26px; }
 
 /* look: pill (schmale Leiste) */
 .key.look-pill { flex-direction: row; gap: var(--sp-2); padding: 0 var(--sp-4); border-radius: var(--r-pill);
-  color: var(--dim); font: 700 var(--fs-xs)/1 var(--fh); letter-spacing: .1em; text-transform: uppercase; }
+  color: var(--dim); font: 600 var(--fs-sm)/1 var(--fb); }
 .key.look-pill.down { color: var(--acTx); }
-.key.look-pill .sub { margin-left: 6px; letter-spacing: 0; }
+.key.look-pill .sub { margin-left: 6px; }
 .grid .look-pill { min-height: 52px; }
 
 /* Gesicherte Gefahrentasten (hold-confirm / double mit style danger): Warnstreifen links + Schloss */

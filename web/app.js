@@ -287,7 +287,7 @@
       b.states.forEach(function (s) { row.appendChild(h("span", "st", s.label)); });
       e.appendChild(row);
       showState(e, statePos(b.id, b.states.length));
-    } else if (b.key) e.appendChild(h("span", "sub", keyText(b.key)));
+    } else if (b.key) e.appendChild(h("span", "sub kc", keyText(b.key)));
     else if (b.page) e.appendChild(h("span", "sub", "→ Seite"));
     if (b.mode === "hold-confirm") {
       e.appendChild(h("span", "hint", "HALTEN"));
@@ -318,7 +318,7 @@
       part.setAttribute("data-seg", String(i));
       part.setAttribute("data-label", s.label);
       part.appendChild(h("span", "lbl", s.label));
-      part.appendChild(h("span", "sub", keyText(s.key)));
+      part.appendChild(h("span", "sub kc", keyText(s.key)));
       row.appendChild(part);
     });
     e.appendChild(row);
@@ -448,6 +448,16 @@
       e.style.gridRow = (b.y + 1) + " / span " + b.h;
       root.appendChild(e);
     }
+    // Bereich (frame) einer Taste: liegt sie ganz darin, bekommt sie dessen id und ihre Größe
+    // (fitKeys: gleich große Tasten eines Bereichs bekommen dieselbe Schrift)
+    var frames = p.buttons.filter(function (b) { return b.kind === "frame"; });
+    function frameOf(b) {
+      for (var i = 0; i < frames.length; i++) {
+        var f = frames[i];
+        if (b.x >= f.x && b.y >= f.y && b.x + b.w <= f.x + f.w && b.y + b.h <= f.y + f.h) return f.id || "f" + i;
+      }
+      return null;
+    }
     // Bereiche und Beschriftungen zuerst: sie liegen hinter den Tasten
     p.buttons.forEach(function (b) {
       if (b.kind === "frame") {
@@ -472,7 +482,12 @@
         place(t, b);
       }
     });
-    p.buttons.forEach(function (b) { if (!b.kind && !b.zone) place(makeBtn(b), b); });
+    p.buttons.forEach(function (b) {
+      if (b.kind || b.zone) return;
+      var e = makeBtn(b), fr = frameOf(b);
+      if (fr) e.setAttribute("data-frame", fr + ":" + b.w + "x" + b.h);
+      place(e, b);
+    });
     return root;
   }
 
@@ -497,6 +512,20 @@
       todo = todo.filter(overflows);
       todo.forEach(function (e) { e.classList.add("fit" + i); });
     }
+    // Gleich große Tasten eines Rahmens, eine Schriftgröße: braucht eine die kleinere Schrift (fit3), bekommen
+    // sie alle. Sonst steht z. B. „Entkoppeln“ verkleinert direkt neben „Quantum“. Größere Tasten behalten ihre.
+    var small = {};
+    var each = function (list, fn) { Array.prototype.forEach.call(list, fn); };
+    each(pageEl.querySelectorAll(".free .fit3"), function (e) {
+      var k = e.closest("[data-frame]");
+      if (k) small[k.getAttribute("data-frame")] = true;
+    });
+    Object.keys(small).forEach(function (fr) {
+      each(pageEl.querySelectorAll('[data-frame="' + fr + '"]'), function (k) {
+        if (k.classList.contains("key")) k.classList.add("fit3");
+        each(k.querySelectorAll(".segp"), function (s) { s.classList.add("fit3"); });
+      });
+    });
   }
   var fitTimer = 0;
   window.addEventListener("resize", function () { clearTimeout(fitTimer); fitTimer = setTimeout(fitKeys, 100); });
@@ -682,6 +711,12 @@
       document.documentElement.requestFullscreen().catch(function () { fsTried = true; });
     }
   });
+
+  // Tastenkürzel unter den Tasten nur auf Wunsch (Adresse mit ?keys=1, bleibt gespeichert; ?keys=0 aus).
+  // Das Panel drückt die Taste selbst, beim Spielen ist das Kürzel nur Rauschen; der Editor zeigt es immer.
+  var keysParam = /[?&]keys=([01])/.exec(location.search);
+  if (keysParam) store("showKeys", keysParam[1]);
+  document.body.classList.toggle("no-keys", stored("showKeys") !== "1");
 
   setConn(false);
   connect();   // "hello" vom Hub lädt Spiele und Panel
