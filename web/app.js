@@ -485,7 +485,7 @@
     p.buttons.forEach(function (b) {
       if (b.kind || b.zone) return;
       var e = makeBtn(b), fr = frameOf(b);
-      if (fr) e.setAttribute("data-frame", fr + ":" + b.w + "x" + b.h);
+      if (fr) e.setAttribute("data-frame", fr + ":" + b.w + "x" + b.h + ":" + (b.look || ""));
       place(e, b);
     });
     return root;
@@ -513,18 +513,18 @@
       todo.forEach(function (e) { e.classList.add("fit" + i); });
     }
     // Gleich große Tasten eines Rahmens, eine Schriftgröße: braucht eine die kleinere Schrift (fit3), bekommen
-    // sie alle. Sonst steht z. B. „Entkoppeln“ verkleinert direkt neben „Quantum“. Größere Tasten behalten ihre.
+    // sie alle. Sonst steht z. B. „Entkoppeln“ verkleinert direkt neben „Quantum“. Andere Größe oder anderer
+    // Look (z. B. großer Hauptknopf) behält die eigene Schrift.
     var small = {};
     var each = function (list, fn) { Array.prototype.forEach.call(list, fn); };
     each(pageEl.querySelectorAll(".free .fit3"), function (e) {
       var k = e.closest("[data-frame]");
       if (k) small[k.getAttribute("data-frame")] = true;
     });
-    Object.keys(small).forEach(function (fr) {
-      each(pageEl.querySelectorAll('[data-frame="' + fr + '"]'), function (k) {
-        if (k.classList.contains("key")) k.classList.add("fit3");
-        each(k.querySelectorAll(".segp"), function (s) { s.classList.add("fit3"); });
-      });
+    each(pageEl.querySelectorAll("[data-frame]"), function (k) {
+      if (!small[k.getAttribute("data-frame")]) return;
+      if (k.classList.contains("key")) k.classList.add("fit3");
+      each(k.querySelectorAll(".segp"), function (s) { s.classList.add("fit3"); });
     });
   }
   var fitTimer = 0;

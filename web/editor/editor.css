@@ -265,9 +265,9 @@ button.recording { border-color: var(--danger); color: var(--danger); }
 .tv .fshield .ship.hit { pointer-events: auto; cursor: pointer; }
 .tv .free .btn { font-size: var(--fs-sm); padding: 2px 6px; gap: 2px; }
 .tv .btn .arrow { color: var(--ac); font-size: 16px; line-height: 1; }
-.tv .btn.look-arrow .lbl, .tv .btn.look-pill { font: 700 var(--fs-xs)/1.2 var(--fh); letter-spacing: .08em; text-transform: uppercase; }
+.tv .btn.look-arrow .lbl, .tv .btn.look-pill { font: 600 var(--fs-xs)/1.2 var(--fb); }   /* wie am Tablet: wie beschriftet */
 .tv .btn.look-pill { flex-direction: row; border-radius: var(--r-pill); color: var(--dim); }
-.tv .btn.look-big { border-width: 2px; font: 700 var(--fs-lg)/1.1 var(--fh); text-transform: uppercase; }
+.tv .btn.look-big { border-width: 2px; font: 700 var(--fs-lg)/1.1 var(--fh); }
 .tv .btn.look-big:not(.accent):not(.danger) { border-color: var(--ac); background: var(--acSoft); }
 .tv .btn.guarded { padding-left: 14px; }
 .tv .btn.guarded::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 7px;

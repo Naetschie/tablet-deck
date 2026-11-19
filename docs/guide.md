@@ -37,8 +37,9 @@ Tablet von selbst auf dessen Panel (Spiele und Programmnamen in `games.json`).
 
 - Oben stehen das Spiel (Tipp auf den Namen = anderes Spiel, wenn mehrere Panels haben), daneben die Panels
   des Spiels (falls es mehrere gibt) und darunter die Seiten als Reiter.
-- Jede Taste zeigt ihre Funktion und darunter die **echte Taste** am PC, gelesen aus deiner Belegung im Spiel.
-  Ein Tipp schickt genau diese Tastenkombination an den PC; das Spiel merkt keinen Unterschied zur Tastatur.
+- Jede Taste zeigt ihre Funktion. Ein Tipp schickt die **echte Taste** aus deiner Belegung im Spiel an den PC;
+  das Spiel merkt keinen Unterschied zur Tastatur. Die Tastenkombination steht im Editor; am Tablet erscheint sie
+  unter den Tasten nur auf Wunsch: Panel-Kachel in `launcher.json` mit `"path": "/?keys=1"` (gemerkt, `?keys=0` aus).
 - **Bereiche** (Energie, Systeme, Waffen …) fassen zusammengehörige Tasten zusammen.
 - Pfeiltasten (▲ ▼ ◀ ▶) sind Paare für mehr/weniger oder vor/zurück.
 - **Gestreifte Tasten** sind gesichert (z. B. Selbstzerstörung) und lösen erst nach Gedrückthalten oder
