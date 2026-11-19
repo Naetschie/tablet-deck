@@ -39,21 +39,7 @@
        "key": "RCTRL+NUMPAD7",
        "style": "accent"
       }
-     },
-     "items": [
-      {
-       "label": "OBEN",
-       "sc": "v_shield_raise_level_up",
-       "key": "RCTRL+NUMPAD5",
-       "size": "pill"
-      },
-      {
-       "label": "UNTEN",
-       "sc": "v_shield_raise_level_down",
-       "key": "RCTRL+NUMPAD6",
-       "size": "pill"
-      }
-     ]
+     }
     }
    ]
   },

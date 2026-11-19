@@ -206,6 +206,10 @@ def _best_arrangement(areas, first=False):
                 last_h = box[1]
         if not opts:
             return None
+        # nur Schiffsansicht im Bereich: das Schiff wächst mit dem Rahmen, also auch eine Zeile höher planbar
+        # (sonst bleibt z. B. neben einem 9 Zeilen hohen Schildbereich ein Loch, das kein Rahmen füllen kann)
+        if a.get("shield") and not _area_items(a):
+            opts += [(inner, (bw, bh + 1, rows)) for inner, (bw, bh, rows) in opts]
         options.append(opts)
     # passt rechnerisch gar nicht (schon die kleinsten Bereiche zu groß): Suche sparen
     if sum(min(box[0] * box[1] for _, box in opts) for opts in options) > COLS * ROWS:
@@ -276,7 +280,8 @@ def _place_area(area, rows, fx, fy, fw, fh, ids, page_id):
     content_h = fh - 2
     if area.get("shield"):
         sh = area["shield"]
-        out.append({"kind": "shield", "id": ids.take(f"sh-{page_id}"), "x": fx, "y": y, "w": fw, "h": SHIELD_H})
+        sh_h = SHIELD_H if rows else content_h   # ohne weitere Tasten füllt das Schiff den Rahmen
+        out.append({"kind": "shield", "id": ids.take(f"sh-{page_id}"), "x": fx, "y": y, "w": fw, "h": sh_h})
         for zone in ("front", "back", "left", "right", "reset"):
             if zone in sh:
                 out.append(dict(_button(sh[zone], ids, page_id), zone=zone))
