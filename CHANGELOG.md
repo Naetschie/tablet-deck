@@ -27,6 +27,8 @@
   `android/release-cert.sha256` geprüft. Eine vorhandene APK wird nur ohne Download genommen, wenn ihre
   Version passt.
 - Abgelehnte Administratorrechte und andere Installer-Fehler werden klar gemeldet.
+- Wechsel von einer selbst gebauten auf die Release-APK (oder umgekehrt): `tablet/setup-launcher.ps1` meldet
+  die andere Signatur jetzt klar und nennt den nötigen `adb uninstall`.
 
 ### Aktualisieren
 - Launcher-App (nur Versionsnummer neu, keine Funktionsänderung): `python android/build.py`, dann
