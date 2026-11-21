@@ -165,20 +165,20 @@ public class HomeActivity extends Activity {
         // übernimmt die Bridge beim Verbinden (KEYCODE_WAKEUP).
         getSystemService(KeyguardManager.class).requestDismissKeyguard(this, null);
 
+        // Handys mit Notch: Inhalt bis in den Kamera-Ausschnitt (sonst bleibt dort ein schwarzer Balken)
+        WindowManager.LayoutParams wa = getWindow().getAttributes();
+        wa.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        getWindow().setAttributes(wa);
         root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.HORIZONTAL);
         root.setBackgroundColor(BG);
-        // Leiste links (Modi), rechts der Inhalt
+        // Leiste mit den Modi: quer links, hochkant unten (layoutRail); daneben bzw. darüber der Inhalt
         bar = new LinearLayout(this);
-        bar.setOrientation(LinearLayout.VERTICAL);
         bar.setBackgroundColor(PANEL);
-        bar.setPadding(dp(8), dp(14), dp(8), dp(12));
-        root.addView(bar, new LinearLayout.LayoutParams(dp(96), -1));
         railEdge = new View(this);
         railEdge.setBackgroundColor(LINE);
-        root.addView(railEdge, new LinearLayout.LayoutParams(1, -1));
         content = new FrameLayout(this);
-        root.addView(content, new LinearLayout.LayoutParams(0, -1, 1f));
+        bottomBar = isPortrait();
+        layoutRail();
         setContentView(root);
 
         current = this;
@@ -277,9 +277,19 @@ public class HomeActivity extends Activity {
         // Über WLAN nur mit Secure (geht ausschließlich über TLS)
         String attrs = base.startsWith("https:") ? "; Path=/; Secure; HttpOnly; SameSite=Strict"
                 : "; Path=/; HttpOnly; SameSite=Strict";
+        // Gerätekennung (vom Hub per ADB, siehe PairingReceiver) als zweites Cookie: ordnet auch WLAN-
+        // Verbindungen dem Gerät zu (Hauptgerät, Ausrichtung). Ohne Kennung bleibt das Cookie weg.
+        String dev = getSharedPreferences("deck", MODE_PRIVATE).getString("device_id", null);
         cm.setCookie(base, "deck=" + secret + attrs, ok -> {
-            cm.flush();
-            then.run();
+            if (dev == null) {
+                cm.flush();
+                then.run();
+                return;
+            }
+            cm.setCookie(base, "deckdev=" + dev + attrs, ok2 -> {
+                cm.flush();
+                then.run();
+            });
         });
     }
 
@@ -409,7 +419,45 @@ public class HomeActivity extends Activity {
         if (maps != null) maps.setData(json);
     }
 
-    /** Leiste links ein-/ausblenden (Vollbild der Karte). */
+    /** Leiste unten statt links (Hochformat, z. B. Handy)? */
+    boolean bottomBar;
+
+    boolean isPortrait() {
+        android.util.DisplayMetrics m = getResources().getDisplayMetrics();
+        return m.heightPixels > m.widthPixels;
+    }
+
+    /** Leiste, Trennlinie und Inhalt nach Ausrichtung anordnen: quer Leiste links, hochkant unten. */
+    void layoutRail() {
+        root.removeAllViews();
+        if (bottomBar) {
+            root.setOrientation(LinearLayout.VERTICAL);
+            bar.setOrientation(LinearLayout.HORIZONTAL);
+            bar.setPadding(dp(8), dp(6), dp(8), dp(6));
+            root.addView(content, new LinearLayout.LayoutParams(-1, 0, 1f));
+            root.addView(railEdge, new LinearLayout.LayoutParams(-1, 1));
+            root.addView(bar, new LinearLayout.LayoutParams(-1, dp(76)));
+        } else {
+            root.setOrientation(LinearLayout.HORIZONTAL);
+            bar.setOrientation(LinearLayout.VERTICAL);
+            bar.setPadding(dp(8), dp(14), dp(8), dp(12));
+            root.addView(bar, new LinearLayout.LayoutParams(dp(96), -1));
+            root.addView(railEdge, new LinearLayout.LayoutParams(1, -1));
+            root.addView(content, new LinearLayout.LayoutParams(0, -1, 1f));
+        }
+    }
+
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration c) {
+        super.onConfigurationChanged(c);
+        boolean b = isPortrait();
+        if (b == bottomBar) return;
+        bottomBar = b;
+        layoutRail();
+        if (railTiles != null) buildBar();
+    }
+
+    /** Leiste ein-/ausblenden (Vollbild der Karte). */
     void setRailVisible(boolean on) {
         bar.setVisibility(on ? View.VISIBLE : View.GONE);
         railEdge.setVisibility(on ? View.VISIBLE : View.GONE);
@@ -566,13 +614,22 @@ public class HomeActivity extends Activity {
 
     void buildBar() {
         bar.removeAllViews();
-        // Kacheln scrollbar (viele Kacheln), Verbindungsanzeige bleibt unten sichtbar
-        android.widget.ScrollView sv = new android.widget.ScrollView(this);
-        sv.setVerticalScrollBarEnabled(false);
+        // Kacheln scrollbar (viele Kacheln), Verbindungsanzeige bleibt unten bzw. rechts sichtbar
         railTiles = new LinearLayout(this);
-        railTiles.setOrientation(LinearLayout.VERTICAL);
-        sv.addView(railTiles, new FrameLayout.LayoutParams(-1, -2));
-        bar.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1f));
+        if (bottomBar) {
+            android.widget.HorizontalScrollView sv = new android.widget.HorizontalScrollView(this);
+            sv.setHorizontalScrollBarEnabled(false);
+            sv.setFillViewport(true);
+            railTiles.setOrientation(LinearLayout.HORIZONTAL);
+            sv.addView(railTiles, new FrameLayout.LayoutParams(-2, -1));
+            bar.addView(sv, new LinearLayout.LayoutParams(0, -1, 1f));
+        } else {
+            android.widget.ScrollView sv = new android.widget.ScrollView(this);
+            sv.setVerticalScrollBarEnabled(false);
+            railTiles.setOrientation(LinearLayout.VERTICAL);
+            sv.addView(railTiles, new FrameLayout.LayoutParams(-1, -2));
+            bar.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1f));
+        }
         for (Tile t : tiles) {
             LinearLayout b = new LinearLayout(this);
             b.setOrientation(LinearLayout.VERTICAL);
@@ -593,8 +650,14 @@ public class HomeActivity extends Activity {
             lp.topMargin = dp(5);
             b.addView(l, lp);
             b.setOnClickListener(v -> setMode(t.id));
-            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(68));
-            bp.bottomMargin = dp(4);
+            LinearLayout.LayoutParams bp;
+            if (bottomBar) {
+                bp = new LinearLayout.LayoutParams(dp(84), -1);
+                bp.rightMargin = dp(4);
+            } else {
+                bp = new LinearLayout.LayoutParams(-1, dp(68));
+                bp.bottomMargin = dp(4);
+            }
             railTiles.addView(b, bp);
         }
         LinearLayout st = new LinearLayout(this);
@@ -609,8 +672,14 @@ public class HomeActivity extends Activity {
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-2, -2);
         sp.topMargin = dp(6);
         st.addView(statusText, sp);
-        LinearLayout.LayoutParams stp = new LinearLayout.LayoutParams(-1, -2);
-        stp.topMargin = dp(8);
+        LinearLayout.LayoutParams stp;
+        if (bottomBar) {
+            stp = new LinearLayout.LayoutParams(dp(64), -1);
+            stp.leftMargin = dp(8);
+        } else {
+            stp = new LinearLayout.LayoutParams(-1, -2);
+            stp.topMargin = dp(8);
+        }
         bar.addView(st, stp);
         setStatus(connected);
         updateBar();

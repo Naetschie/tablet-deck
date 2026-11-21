@@ -32,6 +32,21 @@ public class PairingReceiver extends BroadcastReceiver {
             setResultCode(ok ? 1 : 2);
             return;
         }
+        String dev = intent.getStringExtra("device_id");
+        if (dev != null) {
+            // Gerätekennung (Seriennummer) vom Hub: nur Bezeichnung, damit er WLAN-Verbindungen zuordnen kann
+            boolean ok = dev.matches("[A-Za-z0-9._-]{1,64}");
+            if (ok) {
+                android.content.SharedPreferences p = ctx.getSharedPreferences("deck", Context.MODE_PRIVATE);
+                boolean changed = !dev.equals(p.getString("device_id", null));
+                p.edit().putString("device_id", dev).commit();
+                Log.i(HomeActivity.TAG, "Kopplung: Gerätekennung übernommen");
+                HomeActivity a = HomeActivity.current;
+                if (changed && a != null) a.ui.post(a::onPaired);   // Cookie setzen, neu verbinden
+            }
+            setResultCode(ok ? 1 : 2);
+            return;
+        }
         String ca = intent.getStringExtra("hub_ca");
         if (ca != null) {
             boolean ok = HubTrust.store(ctx, ca);

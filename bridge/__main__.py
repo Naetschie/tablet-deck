@@ -42,6 +42,7 @@ from .pcinput import PcInput
 from .stats import Stats
 from . import dashboard
 from .tray import Tray
+from .devices import Devices, valid_id
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "web"
@@ -133,6 +134,8 @@ class Bridge:
         self.plugged_serial = None
         self.homes_left = 0        # höchstens so oft zurückholen (kein Hin und Her mit spacedesk)
         self.ctl_clients = {}  # ws -> zuletzt gemeldeter Modus (Launcher-Steuerkanal /ctl)
+        self.ctl_device = {}   # ws -> Gerätekennung (Cookie deckdev, siehe devices.py) oder None
+        self.devices = Devices(ROOT / cfg.get("devices", "devices.json"))
         # WLAN-Tablets (IP), die seit dem Start bzw. dem letzten Schlafbefehl schon geweckt wurden - nicht bei
         # jedem Neuverbinden (WLAN-Aussetzer) wecken, wie bei USB nur bei neuem Gerät bzw. nach Schlafen
         self.wlan_woken = set()
@@ -525,13 +528,29 @@ class Bridge:
         url = url.strip()
         if not re.match(r"(?i)^https?://[^\s/]+", url):
             return "nur http(s)-Adressen"
-        if not self.ctl_clients:
+        targets = self.send_targets()
+        if not targets:
+            if self.devices.multi():
+                return f"{self.devices.name(self.devices.main())} nicht verbunden"
             return "Tablet nicht verbunden"
-        await self.ctl_send({"t": "open", "url": url})
+        data = json.dumps({"t": "open", "url": url})
+        for ws in targets:
+            try:
+                await ws.send(data)
+            except Exception:  # noqa: BLE001
+                pass
         log.info("Webseite ans Tablet: %s", url.split("/")[2])   # nur den Host ins Log
         if from_pc and self.web.add_sent(url):
             await self.broadcast_web()
         return None
+
+    def send_targets(self):
+        """Launcher, die gesendete Webseiten bekommen: nur das Hauptgerät, sobald mehrere Geräte gekoppelt
+        sind (kein Ausweichen auf ein anderes). Ein Gerät: alle Launcher wie bisher (auch ohne Kennung)."""
+        if not self.devices.multi():
+            return list(self.ctl_clients)
+        main = self.devices.main()
+        return [ws for ws in self.ctl_clients if self.ctl_device.get(ws) == main]
 
     async def broadcast_web(self):
         await self.broadcast(dict(self.web.data(), t="web"))
@@ -605,12 +624,14 @@ class Bridge:
                 await ws.send(json.dumps({"t": "power", "action": action}))
                 log.info("Tablet im WLAN: %s", action)
 
-    def rotation_msg(self):
-        rot = tablet_rotation(self.cfg)
+    def rotation_msg(self, dev=None):
+        rot = device_rotation(self.cfg, dev, getattr(self, "devices", None))
         return {"t": "rotation", "r": -1 if rot is None else rot}
 
-    def tablet_mode_msg(self):
-        return {"t": "tablet_mode", "mode": tablet_mode(self.cfg)}
+    def tablet_mode_msg(self, dev=None):
+        devs = getattr(self, "devices", None)
+        mode = device_mode(self.cfg, dev, devs) if dev else tablet_mode(self.cfg)
+        return {"t": "tablet_mode", "mode": mode}
 
     def wlan_msg(self):
         return {"t": "wlan", "hosts": self.wlan_tls.ips, "port": self.wlan_port}
@@ -627,28 +648,42 @@ class Bridge:
             except Exception as e:  # noqa: BLE001
                 log.error("WLAN-Zertifikat: %s", e)
 
+    def tiles_for(self, dev):
+        """Kacheln eines Geräts: devices.json tiles (IDs) filtert launcher.json, sonst alle."""
+        ids = self.devices.tiles(dev) if dev else None
+        return self.tiles if ids is None else [t for t in self.tiles if t.get("id") in ids]
+
     async def ctl_send(self, msg):
-        """Befehl an alle verbundenen Launcher (z. B. {"t":"mode","mode":"panel"})."""
+        """Befehl an alle verbundenen Launcher (z. B. {"t":"mode","mode":"panel"}). Kacheln bekommt jedes Gerät
+        gefiltert (tiles_for); einen Ansichtswechsel nur Geräte, die die Kachel haben."""
         data = json.dumps(msg)
         for ws in list(self.ctl_clients):
+            dev = self.ctl_device.get(ws)
+            out = data
+            if msg.get("t") == "tiles":
+                out = json.dumps(dict(msg, tiles=self.tiles_for(dev)))
+            elif msg.get("t") == "mode" and not any(t.get("id") == msg.get("mode") for t in self.tiles_for(dev)):
+                continue
             try:
-                await ws.send(data)
+                await ws.send(out)
             except Exception:  # noqa: BLE001
                 pass
 
     async def ctl_handler(self, ws):
         peer = ws.remote_address[0] if ws.remote_address else "?"
         self.ctl_clients[ws] = None
-        log.info("Launcher verbunden: %s", peer)
+        dev = device_cookie(ws)
+        self.ctl_device[ws] = dev
+        log.info("Launcher verbunden: %s%s", peer, f" ({self.devices.name(dev)})" if dev else "")
         try:
             if self.tiles:
-                await ws.send(json.dumps({"t": "tiles", "tiles": self.tiles}))
+                await ws.send(json.dumps({"t": "tiles", "tiles": self.tiles_for(dev)}))
             await ws.send(json.dumps(self.maps_msg()))
             # Feste Ausrichtung: der Launcher stellt sie selbst wieder her, sobald er nach vorn kommt
             # (spacedesk schaltet beim Start die automatische Drehung mit Hochformat ein). -1 = nicht anfassen
-            await ws.send(json.dumps(self.rotation_msg()))
+            await ws.send(json.dumps(self.rotation_msg(dev)))
             # Betriebsart: Startbildschirm (Standard) oder Begleit-Modus (ohne Root)
-            await ws.send(json.dumps(self.tablet_mode_msg()))
+            await ws.send(json.dumps(self.tablet_mode_msg(dev)))
             # WLAN-Adressen für den Launcher (nur über USB/loopback mitteilen - dort ist die Kopplung physisch)
             if self.wlan_tls and is_loopback(ws.remote_address):
                 await ws.send(json.dumps(self.wlan_msg()))
@@ -691,6 +726,7 @@ class Bridge:
             log.info("Launcher %s getrennt: %s", peer, e.__class__.__name__)
         finally:
             self.ctl_clients.pop(ws, None)
+            self.ctl_device.pop(ws, None)
 
     # ---------------- Profile ----------------
     def unmapped(self, key):
@@ -1267,16 +1303,36 @@ def hub_ca_bundle(tls_dir):
 LAUNCHER_PKG = "app.tabletdeck.launcher"
 
 
-def device_mode(cfg, serial):
-    """Betriebsart eines Tablets: tablet_modes[serial] aus config.json, sonst tablet_mode (Standard home).
+def device_cookie(ws):
+    """Gerätekennung aus dem Cookie deckdev (setzt der Launcher, siehe devices.py) oder None."""
+    try:
+        v = cookie_value(ws.request.headers.get("Cookie", ""), "deckdev")
+    except AttributeError:
+        return None
+    return v if valid_id(v) else None
+
+
+def device_rotation(cfg, serial, devices=None):
+    """Ausrichtung eines Geräts: devices.json rotation, sonst tablet_rotation aus config.json."""
+    rot = tablet_rotation(cfg)
+    return devices.rotation(serial, rot) if devices is not None and serial else rot
+
+
+def device_mode(cfg, serial, devices=None):
+    """Betriebsart eines Tablets: devices.json mode, sonst tablet_modes[serial] aus config.json, sonst
+    tablet_mode (Standard home).
     So kann ein gerootetes Tablet Startbildschirm sein und ein zweites gleichzeitig im Begleit-Modus laufen."""
+    base = None
     modes = cfg.get("tablet_modes")
     if isinstance(modes, dict) and serial in modes:
         if modes[serial] in ("home", "companion"):
-            return modes[serial]
-        log.error("config tablet_modes[%s]=%r ungültig (home oder companion) - nehme tablet_mode", serial,
-                  modes[serial])
-    return tablet_mode(cfg)
+            base = modes[serial]
+        else:
+            log.error("config tablet_modes[%s]=%r ungültig (home oder companion) - nehme tablet_mode", serial,
+                      modes[serial])
+    if base is None:
+        base = tablet_mode(cfg)
+    return devices.mode(serial, base) if devices is not None and serial else base
 
 
 def tablet_mode(cfg):
@@ -1320,12 +1376,22 @@ async def adb_watch(cfg, port, bridge):
     last_home = -1e9
     proxy_port = int(cfg.get("web_proxy_port", 8766)) if cfg.get("web", True) else 0
     ports = [port] + ([proxy_port] if proxy_port else [])
-    rot = tablet_rotation(cfg)
     def companion(serial):
-        return device_mode(cfg, serial) == "companion"
+        return device_mode(cfg, serial, bridge.devices) == "companion"
     # serial -> [installiert?, Prüfzeit, zuletzt gesehen, keine Antwort seit] - fremde Geräte bleiben unangetastet
     launcher_seen = {}
     mode_sent = set()    # Tablets, die ihre Betriebsart seit dem Anstecken bestätigt haben
+    id_sent = set()      # Tablets, die ihre Gerätekennung (devices.py) seit dem Anstecken bestätigt haben
+
+    async def send_id(serial):
+        """Gerät eintragen (erstes = Hauptgerät) und ihm seine Kennung schicken (Cookie deckdev im Launcher)."""
+        _, model = await run(adb, "-s", serial, "shell", "getprop", "ro.product.model")
+        if bridge.devices.see(serial, model.strip()[:64] or None) and bridge.on_tiles_changed:
+            bridge.on_tiles_changed()   # Taskleisten-Menü: Auswahl des Hauptgeräts
+        rc, o = await run(adb, "-s", serial, "shell", "am", "broadcast", "--include-stopped-packages",
+                          "-n", PAIRING_RECEIVER, "--es", "device_id", serial)
+        if rc == 0 and "result=1" in o:
+            id_sent.add(serial)
     GONE_S = 15  # erst nach so langer Abwesenheit gilt das Tablet als abgesteckt
     while True:
         try:
@@ -1389,6 +1455,7 @@ async def adb_watch(cfg, port, bridge):
                     known.discard(serial)
                     ca_sent.discard(serial)
                     mode_sent.discard(serial)
+                    id_sent.discard(serial)
                     health.forget(serial)
                     usb_switched.discard(serial)
             # Weiterleitung prüfen: geht verloren, wenn der adb-Server neu startet
@@ -1431,8 +1498,10 @@ async def adb_watch(cfg, port, bridge):
                 known.add(serial)
                 # Betriebsart gleich beim Verbinden (sonst setzte der Steuerkanal bis zur 30-s-Runde evtl. den
                 # Standard für alle Tablets); die 30-s-Runde unten wiederholt, falls das hier scheitert
+                await send_id(serial)
                 rc, o = await run(adb, "-s", serial, "shell", "am", "broadcast", "--include-stopped-packages",
-                                  "-n", PAIRING_RECEIVER, "--es", "tablet_mode", device_mode(cfg, serial))
+                                  "-n", PAIRING_RECEIVER, "--es", "tablet_mode",
+                                  device_mode(cfg, serial, bridge.devices))
                 if rc == 0 and "result=1" in o:
                     mode_sent.add(serial)
                 bridge.plugged_until = time.monotonic() + 30
@@ -1477,9 +1546,12 @@ async def adb_watch(cfg, port, bridge):
                                 log.warning("Tablet %s: WLAN-CA nicht übernommen (%s)", serial, o.strip()[-120:])
                     # Betriebsart pro Tablet per ADB (der Steuerkanal kann Tablets per USB nicht unterscheiden -
                     # alle kommen über adb reverse von 127.0.0.1); der Launcher übernimmt sie fest
+                    if serial not in id_sent:
+                        await send_id(serial)
                     if serial not in mode_sent:
                         rc, o = await run(adb, "-s", serial, "shell", "am", "broadcast", "--include-stopped-packages",
-                                          "-n", PAIRING_RECEIVER, "--es", "tablet_mode", device_mode(cfg, serial))
+                                          "-n", PAIRING_RECEIVER, "--es", "tablet_mode",
+                                          device_mode(cfg, serial, bridge.devices))
                         if rc == 0 and "result=1" in o:
                             mode_sent.add(serial)
                     if not companion(serial):
@@ -1491,6 +1563,7 @@ async def adb_watch(cfg, port, bridge):
                             log.warning("Tablet %s: Startbildschirm war %s, setze Launcher", serial, lines[-1].strip())
                             await run(adb, "-s", serial, "shell", "cmd", "package", "set-home-activity", HOME_COMPONENT)
                     # Feste Ausrichtung halten: spacedesk schaltet die automatische Drehung wieder ein
+                    rot = device_rotation(cfg, serial, bridge.devices)
                     if rot is not None:
                         _, auto = await run(adb, "-s", serial, "shell", "settings", "get", "system",
                                             "accelerometer_rotation")

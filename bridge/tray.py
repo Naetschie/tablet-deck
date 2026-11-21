@@ -120,6 +120,14 @@ class Tray:
                                     checked=lambda _: t["id"] in b.ctl_clients.values())
 
         tiles = [t for t in b.tiles if t.get("type") in ("web", "browser")]
+
+        def target_items():
+            """Hauptgerät wählen (bekommt gesendete Webseiten); Liste beim Öffnen des Menüs neu."""
+            def item(dev):
+                return pystray.MenuItem(b.devices.name(dev), lambda: self._set_main(dev), radio=True,
+                                        checked=lambda _: b.devices.main() == dev)
+            return [item(d) for d in list(b.devices.data)]
+
         return pystray.Menu(
             pystray.MenuItem(lambda _: f"Tablet: {'verbunden' if b.ctl_clients else 'nicht verbunden'}",
                              None, enabled=False),
@@ -127,6 +135,8 @@ class Tray:
             *[mode_item(t) for t in tiles],
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("URL aus Zwischenablage ans Tablet", self._send_clipboard),
+            pystray.MenuItem("Webseiten senden an", pystray.Menu(target_items),
+                             visible=lambda _: b.devices.multi()),
             pystray.MenuItem("Schlüssel für Browser-Erweiterung kopieren", self._copy_send_key),
             pystray.MenuItem("Panel-Editor öffnen", lambda: webbrowser.open(b.editor_url), default=True),
             pystray.MenuItem("Tablet-Seiten neu laden", lambda: self._do(lambda: b.ctl_send({"t": "reload"}))),
@@ -141,6 +151,13 @@ class Tray:
             if err and self.icon:
                 self.icon.notify(f"Nicht gesendet: {err}", "Tablet Deck")
         self._do(go)
+
+    def _set_main(self, dev):
+        # im Loop-Thread ändern (Geräteliste gehört dem Hub)
+        def go():
+            self.bridge.devices.set_main(dev)
+            self.refresh()
+        self.loop.call_soon_threadsafe(go)
 
     def _copy_send_key(self):
         ok = set_clipboard_text(self.bridge.send_key)

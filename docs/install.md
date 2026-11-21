@@ -153,6 +153,22 @@ nächsten Anstecken per USB (oder Hub-Neustart), nicht über WLAN. Geräte **ohn
 (Handy zum Laden, neues Tablet vor der Einrichtung) richtet der Hub gar nicht ein - kein Proxy, keine
 Daueranzeige, kein Eingriff in Ausrichtung oder Startbildschirm.
 
+**Geräteliste und Hauptgerät:** Jedes Gerät mit Launcher, das per USB gekoppelt wird, trägt der Hub in
+`devices.json` ein (Seriennummer, Modell; nicht im Git). Das **erste** wird Hauptgerät. Nur das Hauptgerät
+bekommt „An Tablet senden“ (Browser-Erweiterung, Taskleiste, `bridge.send`); ist es nicht verbunden, kommt
+„<Name> nicht verbunden“ - die Seite geht nicht an ein anderes Gerät. Umstellen: Taskleisten-Symbol →
+„Webseiten senden an“ (erscheint ab zwei Geräten). Mit nur einem Gerät ändert sich nichts. Pro Gerät lassen
+sich in `devices.json` außerdem `name`, `mode` (`home`/`companion`, geht `tablet_modes` vor) und `rotation`
+(0-3 wie `tablet_rotation`, `null` = nicht anfassen) und `tiles` (Kachel-IDs aus `launcher.json`, die das Gerät
+zeigt; fehlt das Feld, alle) setzen; wirksam nach Hub-Neustart:
+```
+{"devices": {"<Seriennummer>": {"name": "Handy HOTAS", "main": false, "mode": "companion", "rotation": 0,
+                                "tiles": ["touchpad", "panel"]}}}
+```
+Hochkant steht die Leiste des Launchers unten statt links.
+Die Seriennummer bekommt der Launcher beim Anstecken per USB und meldet sich damit auch im WLAN; ein neues Gerät
+oder eine neue App-Version also einmal per USB anstecken.
+
 **Android 10 und Huawei/EMUI:** Die App läuft ab Android 10 (im Begleit-Modus). EMUI stellt Nachrichten des
 PCs an die App (Kopplung, WLAN-Zertifikat, Betriebsart) erst zu, wenn sie freigegeben ist - sonst bricht
 `setup-launcher.ps1` mit „Kopplung fehlgeschlagen … result=0“ ab. Vorher am Gerät: Einstellungen → Akku →
