@@ -72,6 +72,14 @@ class DevicesTest(unittest.TestCase):
             self.assertFalse(valid_id(bad), bad)
         self.assertFalse(Devices(self.path).see("a;b"))
 
+    def test_kaputte_datei_wird_nicht_ueberschrieben(self):
+        text = '{"devices": {"TAB1": {"name": "Mein Tablet", "rotation": 0},}'   # Tippfehler: Komma
+        self.path.write_text(text, encoding="utf-8")
+        d = Devices(self.path)
+        self.assertTrue(d.broken)
+        d.see("PHONE1")
+        self.assertEqual(self.path.read_text(encoding="utf-8"), text)
+
     def test_name(self):
         d = Devices(self.path)
         d.see("S1", "SNE-LX1")
@@ -229,6 +237,13 @@ class TilesTest(unittest.TestCase):
         self.assertEqual(phone.sent[-1], {"t": "mode", "mode": "panel"})
         asyncio.run(Bridge.ctl_send(b, {"t": "reload"}))
         self.assertEqual(phone.sent[-1], {"t": "reload"})
+
+    def test_ohne_kacheln_wie_bisher(self):
+        phone = FakeWs()
+        b = self.bridge([(phone, "PHONE1")])
+        b.tiles = []   # launcher.json fehlt/leer: Launcher nutzt seine Standards
+        asyncio.run(Bridge.ctl_send(b, {"t": "mode", "mode": "panel"}))
+        self.assertEqual(phone.sent, [{"t": "mode", "mode": "panel"}])
 
 
 if __name__ == "__main__":

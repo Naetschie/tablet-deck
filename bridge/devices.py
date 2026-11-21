@@ -29,6 +29,7 @@ class Devices:
     def __init__(self, path):
         self.path = Path(path)
         self.data = {}
+        self.broken = False   # Datei unlesbar: nicht überschreiben (handgepflegte Felder blieben sonst weg)
         self.load()
 
     def load(self):
@@ -37,14 +38,18 @@ class Devices:
         except FileNotFoundError:
             raw = {}
         except (OSError, ValueError) as e:
-            log.error("%s nicht lesbar (%s) - Geräteliste startet leer, Datei bleibt bis zur nächsten Änderung",
-                      self.path.name, e)
+            log.error("%s nicht lesbar (%s) - Geräteliste leer und schreibgeschützt, bis die Datei repariert "
+                      "und der Hub neu gestartet ist", self.path.name, e)
+            self.broken = True
             raw = {}
         devs = raw.get("devices") if isinstance(raw, dict) else None
         self.data = {k: v for k, v in (devs or {}).items() if valid_id(k) and isinstance(v, dict)}
         self._fix_main()
 
     def save(self):
+        if self.broken:
+            log.warning("%s ist fehlerhaft - Änderung nicht gespeichert", self.path.name)
+            return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=self.path.parent, prefix=".devices-", suffix=".tmp")
         try:

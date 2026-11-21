@@ -662,8 +662,9 @@ class Bridge:
             out = data
             if msg.get("t") == "tiles":
                 out = json.dumps(dict(msg, tiles=self.tiles_for(dev)))
-            elif msg.get("t") == "mode" and not any(t.get("id") == msg.get("mode") for t in self.tiles_for(dev)):
-                continue
+            elif (msg.get("t") == "mode" and self.tiles
+                  and not any(t.get("id") == msg.get("mode") for t in self.tiles_for(dev))):
+                continue   # Gerät ohne diese Kachel (ohne launcher.json-Kacheln: wie bisher an alle)
             try:
                 await ws.send(out)
             except Exception:  # noqa: BLE001
@@ -693,7 +694,7 @@ class Bridge:
             # Nur nach einer Änderung, die noch kein Launcher bekommen hat - ein Wechsel von Hand bleibt
             # sonst über ein Neuverbinden hinweg bestehen.
             if self.auto_pending and any(t.get("id") == self.auto_mode and t.get("type") == "web"
-                                         for t in self.tiles):
+                                         for t in self.tiles_for(dev)):
                 await ws.send(json.dumps({"t": "mode", "mode": self.auto_mode}))
                 self.auto_pending = False
             async for raw in ws:
@@ -1382,6 +1383,7 @@ async def adb_watch(cfg, port, bridge):
     launcher_seen = {}
     mode_sent = set()    # Tablets, die ihre Betriebsart seit dem Anstecken bestätigt haben
     id_sent = set()      # Tablets, die ihre Gerätekennung (devices.py) seit dem Anstecken bestätigt haben
+    id_tries = {}        # Versuche je Anstecken (alte App ohne device_id antwortet nie mit result=1)
 
     async def send_id(serial):
         """Gerät eintragen (erstes = Hauptgerät) und ihm seine Kennung schicken (Cookie deckdev im Launcher)."""
@@ -1392,6 +1394,12 @@ async def adb_watch(cfg, port, bridge):
                           "-n", PAIRING_RECEIVER, "--es", "device_id", serial)
         if rc == 0 and "result=1" in o:
             id_sent.add(serial)
+            return
+        id_tries[serial] = id_tries.get(serial, 0) + 1
+        if id_tries[serial] >= 5:
+            id_sent.add(serial)   # aufgeben bis zum nächsten Anstecken
+            log.warning("Tablet %s: Gerätekennung nicht übernommen - Launcher-App aktualisieren "
+                        "(python android/build.py, adb install -r)", serial)
     GONE_S = 15  # erst nach so langer Abwesenheit gilt das Tablet als abgesteckt
     while True:
         try:
@@ -1456,6 +1464,7 @@ async def adb_watch(cfg, port, bridge):
                     ca_sent.discard(serial)
                     mode_sent.discard(serial)
                     id_sent.discard(serial)
+                    id_tries.pop(serial, None)
                     health.forget(serial)
                     usb_switched.discard(serial)
             # Weiterleitung prüfen: geht verloren, wenn der adb-Server neu startet
