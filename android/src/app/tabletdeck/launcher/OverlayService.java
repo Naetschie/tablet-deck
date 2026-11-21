@@ -35,7 +35,9 @@ public class OverlayService extends Service {
                 .setContentTitle("Tablet Deck")
                 .setContentText("Griff am linken Rand führt zurück")
                 .build();
-        startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        // Typ specialUse gibt es erst ab Android 14; davor ohne Typ starten
+        if (android.os.Build.VERSION.SDK_INT >= 34) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        else startForeground(1, n);
 
         if (!Settings.canDrawOverlays(this)) {
             stopSelf();

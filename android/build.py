@@ -54,7 +54,7 @@ def main():
 
     # 3) class -> dex
     classes = [str(p) for p in (OUT / "classes").rglob("*.class")]
-    run(BT / "d8.bat", "--release", "--min-api", "30", "--lib", ANDROID_JAR, "--output", OUT / "dex", *classes)
+    run(BT / "d8.bat", "--release", "--min-api", "29", "--lib", ANDROID_JAR, "--output", OUT / "dex", *classes)
 
     # 4) dex ins APK
     with zipfile.ZipFile(OUT / "base.apk", "a", zipfile.ZIP_DEFLATED) as z:

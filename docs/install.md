@@ -153,6 +153,12 @@ nächsten Anstecken per USB (oder Hub-Neustart), nicht über WLAN. Geräte **ohn
 (Handy zum Laden, neues Tablet vor der Einrichtung) richtet der Hub gar nicht ein - kein Proxy, keine
 Daueranzeige, kein Eingriff in Ausrichtung oder Startbildschirm.
 
+**Android 10 und Huawei/EMUI:** Die App läuft ab Android 10 (im Begleit-Modus). EMUI stellt Nachrichten des
+PCs an die App (Kopplung, WLAN-Zertifikat, Betriebsart) erst zu, wenn sie freigegeben ist - sonst bricht
+`setup-launcher.ps1` mit „Kopplung fehlgeschlagen … result=0“ ab. Vorher am Gerät: Einstellungen → Akku →
+**App-Start** → Tablet Deck auf „manuell verwalten“, alle drei Schalter an. Ist der eingebaute WebView alt
+(Android 10: oft Version 83), „Android System WebView“ im Play Store aktualisieren.
+
 **Was anders ist:**
 - Die App ist kein Startbildschirm: kein `set-home-activity`, keine Prüfung des Startbildschirms, kein
   Rücksprung-Griff über anderen Apps. Beim Anstecken startet der Hub sie wie einen Tipp auf das App-Symbol.
