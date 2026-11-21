@@ -1,5 +1,37 @@
 # Änderungen
 
+## 4.4 – 21.11.2026
+
+### Mehrere Geräte
+- Der Hub führt eine Geräteliste (`devices.json`, nicht im Git): Jedes per USB gekoppelte Gerät mit Launcher wird
+  eingetragen, das erste wird **Hauptgerät**. Der Launcher bekommt dabei seine Kennung und meldet sich damit auch
+  im WLAN.
+- „An Tablet senden“ geht ab zwei Geräten nur ans Hauptgerät. Ist es nicht verbunden, kommt eine Fehlermeldung,
+  die Seite geht nicht an ein anderes Gerät. Umstellen: Taskleisten-Symbol → „Webseiten senden an“.
+- Pro Gerät in `devices.json` einstellbar: `name`, `mode` (Startbildschirm/Begleit-Modus), `rotation`, `tiles`
+  (welche Kacheln die Leiste zeigt) und `panel` (Start-Panel). Ansichtswechsel bekommen nur Geräte mit der
+  Kachel. Mit nur einem Gerät ändert sich nichts.
+
+### Launcher
+- Läuft ab Android 10 (im Begleit-Modus), getestet mit einem Huawei-Handy (EMUI 10). EMUI braucht dafür die
+  Freigabe unter Akku → App-Start (siehe `docs/install.md`).
+- Hochkant steht die Leiste unten statt links. Handys mit Notch: Inhalt reicht bis in den Kamera-Ausschnitt.
+
+### Panel und Touchpad
+- Neues Star-Citizen-Panel **Handy (hochkant)**: Seite „Schilde“ mit großem Schildfeld, Energieverteilung und
+  Abwehr, Seite „Komfort“ mit Systemen, Schiff und Pilot.
+- Das Schildfeld passt sich der Fläche an, statt fest im Format 3:2 zu zeichnen. Im Cockpit füllt es seinen
+  Rahmen.
+- Welches Panel ein Gerät zeigt: Wahl von Hand an diesem Gerät, sonst sein Start-Panel, sonst das zuletzt
+  gezeigte.
+- Touchpad-Seite hochkant: Touchpad oben, Tasten und Medien darunter, die Seite scrollt.
+
+### Aktualisieren
+- Launcher-App auf **jedem** Gerät: `python android/build.py`, dann
+  `tools\platform-tools\adb.exe -s <Seriennummer> install -r android\build\tablet-deck.apk`, oder `.\install.ps1`
+  (lädt `tablet-deck.apk` aus dem Release v4.4). Danach jedes Gerät einmal per USB anstecken (Kennung).
+- Hub neu starten (Taskleisten-Symbol → Bridge beenden, der Wächter startet ihn neu).
+
 ## 4.3 – 21.11.2026
 
 ### Verbindung
