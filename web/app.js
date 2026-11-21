@@ -9,6 +9,7 @@
   var tabsEl = $("#tabs"), sectionsEl = $("#sections"), pageEl = $("#page"), connEl = $("#conn"), lastEl = $("#last");
   var gameEl = $("#game"), panelsEl = $("#panels"), pickEl = $("#pick");
   function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function unstore(k) { try { localStorage.removeItem(k); } catch (e) {} }
   function stored(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 
   // ---------------- Verbindung ----------------
@@ -623,7 +624,13 @@
   // Panel eines Spiels: von Hand an diesem Gerät gewählt, sonst Start-Panel des Geräts (devices.json),
   // sonst das zuletzt gezeigte
   var devPanels = {};
-  function panelFor(g) { return stored("pick:" + g) || devPanels[g] || stored("panel:" + g); }
+  // Nur Panels, die es (noch) gibt: ein gelöschtes fällt auf den nächsten Kandidaten zurück
+  function panelFor(g) {
+    var gg = gameById(g), ids = gg ? gg.panels.map(function (x) { return x.id; }) : [];
+    var c = [stored("pick:" + g), devPanels[g], stored("panel:" + g)];
+    for (var i = 0; i < c.length; i++) if (c[i] && ids.indexOf(c[i]) >= 0) return c[i];
+    return null;
+  }
 
   function selectPanel(g, p) {
     gameId = g; panelId = p;
@@ -655,7 +662,11 @@
     (g ? g.panels : []).forEach(function (p) {
       var c = h("button", "chip" + (p.id === panelId ? " on" : ""), p.title);
       c.addEventListener("click", function () {
-        if (p.id !== panelId) { cancelAll(); store("pick:" + gameId, p.id); selectPanel(gameId, p.id); }
+        if (p.id === panelId) return;
+        cancelAll();
+        // Start-Panel des Geräts gewählt: Wahl von Hand vergessen (späteres Start-Panel greift wieder)
+        if (devPanels[gameId] === p.id) unstore("pick:" + gameId); else store("pick:" + gameId, p.id);
+        selectPanel(gameId, p.id);
       });
       panelsEl.appendChild(c);
     });

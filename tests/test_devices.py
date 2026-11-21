@@ -238,6 +238,18 @@ class TilesTest(unittest.TestCase):
         asyncio.run(Bridge.ctl_send(b, {"t": "reload"}))
         self.assertEqual(phone.sent[-1], {"t": "reload"})
 
+    def test_start_panel(self):
+        b = SimpleNamespace(devices=self.devs, profiles=SimpleNamespace(panels={"star-citizen/std--handy": {}}))
+        panels = lambda dev: Bridge.device_panels(b, dev)
+        self.assertEqual(panels(None), {})
+        self.assertEqual(panels("PHONE1"), {})                    # kein Start-Panel eingetragen
+        self.devs.data["PHONE1"]["panel"] = "star-citizen/std--handy"
+        self.assertEqual(panels("PHONE1"), {"star-citizen": "std--handy"})
+        self.assertEqual(panels("TAB1"), {})
+        for bad in ("star-citizen/geloescht", "", 5, None):
+            self.devs.data["PHONE1"]["panel"] = bad
+            self.assertEqual(panels("PHONE1"), {}, bad)
+
     def test_ohne_kacheln_wie_bisher(self):
         phone = FakeWs()
         b = self.bridge([(phone, "PHONE1")])

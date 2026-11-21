@@ -161,7 +161,7 @@ bekommt „An Tablet senden“ (Browser-Erweiterung, Taskleiste, `bridge.send`);
 sich in `devices.json` außerdem `name`, `mode` (`home`/`companion`, geht `tablet_modes` vor) und `rotation`
 (0-3 wie `tablet_rotation`, `null` = nicht anfassen), `tiles` (Kachel-IDs aus `launcher.json`, die das Gerät
 zeigt; fehlt das Feld, alle) und `panel` (Start-Panel, z. B. `"star-citizen/std--handy"`; eine Wahl von Hand am
-Gerät geht vor) setzen; wirksam nach Hub-Neustart:
+Gerät geht vor, bis dort wieder das Start-Panel angetippt wird) setzen; wirksam nach Hub-Neustart:
 ```
 {"devices": {"<Seriennummer>": {"name": "Handy HOTAS", "main": false, "mode": "companion", "rotation": 0,
                                 "tiles": ["touchpad", "panel"], "panel": "star-citizen/std--handy"}}}
