@@ -11,8 +11,8 @@
   Sie startet jetzt auch dann.
 - Die USB-Prüfung des Launchers nutzt `127.0.0.1` statt `localhost`. Android konnte `localhost` zeitweise nicht
   auflösen, der PC galt dann als weg und der Launcher wechselte unnötig auf WLAN.
-- Logcat nennt den Grund einer gescheiterten USB-Prüfung. Die Zeile der Seitenprüfung zeigt, ob der Hub
-  erreichbar ist und den wievielten Versuch.
+- Logcat nennt beim ersten Fehlschlag einer USB-Prüfung den Grund. Die Zeile der Seitenprüfung zeigt, ob der
+  Hub erreichbar ist und den wievielten Versuch, bzw. dass die Beendigungen ausgeschöpft sind.
 
 ### Installation
 - `docs/install.md`, Fehlerbehebung: „Tablet zeigt getrennt, obwohl die Bridge verbunden meldet“.
