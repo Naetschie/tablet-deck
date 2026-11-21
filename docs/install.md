@@ -339,6 +339,10 @@ neu auf dem PC des Empfängers.
   ist und wie lange das Tablet läuft, dazu neue Android-Ereignisse (Neustart `SYSTEM_BOOT`, Abstürze, hängende
   Apps `…_anr`, System-Hänger `system_server_pre_watchdog`). Beim Anstecken stehen dort die letzten drei Starts.
   Suchbegriff: `Tablet <Seriennummer>:`.
+- **Tablet zeigt „getrennt“, obwohl `bridge.log` „per USB verbunden“ meldet:** Meist hängt der
+  WebView-Renderer (nach Tagen Laufzeit mit vollem Speicher). Ab 4.3 ersetzt der Launcher ihn nach 60 s selbst
+  (höchstens zweimal je Ausfall, Logcat: „Renderer wird beendet“). Sonst die Launcher-App neu starten oder das
+  Tablet neu starten. Bleibt es dann getrennt, lehnt die Bridge die Steuerverbindung ab: `bridge.log` prüfen.
 - **Tablet wird mit dem PC nicht dunkel:** Im Wächter-Log (`supervise.log`) steht „Tablet … schlafen
   gelegt“. Steht dort „kein Tablet per USB/adb gefunden“, war es beim Herunterfahren nicht per adb verbunden.
 - **Tablet zeigt Hochformat:** Der Launcher korrigiert das sofort, wenn er vorn ist, die Bridge spätestens nach 30 s. Sonst `tablet_rotation` und `adb shell appops get app.tabletdeck.launcher WRITE_SETTINGS` (muss `allow` sein, sonst `tablet\setup-launcher.ps1` erneut) prüfen.

@@ -1,5 +1,27 @@
 # Änderungen
 
+## 4.3 – 21.11.2026
+
+### Verbindung
+- Tablet blieb nach dem PC-Start auf „getrennt“, obwohl die Bridge es per USB erreichte: Der WebView-Renderer
+  hing nach Tagen Laufzeit mit vollem Speicher, das Neuladen der Steuerseite half nicht. Der Launcher erkennt
+  das jetzt (Hub antwortet, Steuerseite bleibt 60 s getrennt) und ersetzt den Renderer selbst, höchstens
+  zweimal je Ausfall. Ohne erreichbaren PC passiert das nie.
+- Die Prüfung der Steuerseite alle 20 s lief nicht, solange die Verbindungsversuche schnell scheiterten.
+  Sie startet jetzt auch dann.
+- Die USB-Prüfung des Launchers nutzt `127.0.0.1` statt `localhost`. Android konnte `localhost` zeitweise nicht
+  auflösen, der PC galt dann als weg und der Launcher wechselte unnötig auf WLAN.
+- Logcat nennt den Grund einer gescheiterten USB-Prüfung. Die Zeile der Seitenprüfung zeigt, ob der Hub
+  erreichbar ist und den wievielten Versuch.
+
+### Installation
+- `docs/install.md`, Fehlerbehebung: „Tablet zeigt getrennt, obwohl die Bridge verbunden meldet“.
+
+### Aktualisieren
+- Launcher-App: `python android/build.py`, dann
+  `tools\platform-tools\adb.exe install -r android\build\tablet-deck.apk`, oder `.\install.ps1` (lädt
+  `tablet-deck.apk` aus dem Release v4.3). Hub und Webseiten sind unverändert.
+
 ## 4.2 – 19.11.2026
 
 ### Panel
