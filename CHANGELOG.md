@@ -21,9 +21,9 @@ senden“. Die Grundlagen kamen mit 4.4, jetzt auch die Einrichtung.
 - `docs/install.md`: Abschnitt „Weiteres Gerät“ (Schritt für Schritt), Schalter-Tabelle ergänzt.
 
 ### Aktualisieren
-- Launcher-App auf jedem Gerät: `.\install.ps1 -Serial <Seriennummer>` (lädt `tablet-deck.apk` aus dem Release
-  v5.0), oder `python android/build.py`, dann
-  `tools\platform-tools\adb.exe -s <Seriennummer> install -r android\build\tablet-deck.apk`. Die App selbst ist
+- Launcher-App auf jedem Gerät: `.\install.ps1 -Serial <Seriennummer>` (baut die APK, wenn `tools\jdk` und
+  `tools\android-sdk` im Projekt liegen, sonst lädt es `tablet-deck.apk` aus dem Release v5.0), oder
+  `python android/build.py`, dann `tools\platform-tools\adb.exe -s <Seriennummer> install -r android\build\tablet-deck.apk`. Die App selbst ist
   gegenüber 4.4 unverändert (nur die Versionsnummer).
 - Hub und Webseiten sind unverändert.
 
