@@ -8,9 +8,12 @@
   im WLAN.
 - „An Tablet senden“ geht ab zwei Geräten nur ans Hauptgerät. Ist es nicht verbunden, kommt eine Fehlermeldung,
   die Seite geht nicht an ein anderes Gerät. Umstellen: Taskleisten-Symbol → „Webseiten senden an“.
-- Pro Gerät in `devices.json` einstellbar: `name`, `mode` (Startbildschirm/Begleit-Modus), `rotation`, `tiles`
-  (welche Kacheln die Leiste zeigt) und `panel` (Start-Panel). Ansichtswechsel bekommen nur Geräte mit der
-  Kachel. Mit nur einem Gerät ändert sich nichts.
+- Pro Gerät in `devices.json` einstellbar: `name`, `mode` (`home` oder `companion`, geht `tablet_modes` vor),
+  `rotation` (0-3, `null` = nicht anfassen), `tiles` (welche Kacheln die Leiste zeigt) und `panel` (Start-Panel).
+  Wirksam nach Hub-Neustart, die Betriebsart beim nächsten Anstecken per USB. Ansichtswechsel bekommen nur Geräte
+  mit der Kachel. Mit nur einem Gerät ändert sich nichts. Details: `docs/install.md`.
+- Ungültige Werte in `devices.json` werden mit Logeintrag ignoriert. Ist die Datei nicht lesbar, überschreibt
+  der Hub sie nicht.
 
 ### Launcher
 - Läuft ab Android 10 (im Begleit-Modus), getestet mit einem Huawei-Handy (EMUI 10). EMUI braucht dafür die
@@ -30,7 +33,8 @@
 - Launcher-App auf **jedem** Gerät: `python android/build.py`, dann
   `tools\platform-tools\adb.exe -s <Seriennummer> install -r android\build\tablet-deck.apk`, oder `.\install.ps1`
   (lädt `tablet-deck.apk` aus dem Release v4.4). Danach jedes Gerät einmal per USB anstecken (Kennung).
-- Hub neu starten (Taskleisten-Symbol → Bridge beenden, der Wächter startet ihn neu).
+  Huawei/EMUI: vorher die App-Start-Freigabe setzen (`docs/install.md`).
+- Hub neu starten (geplante Aufgabe „Tablet Deck Bridge“ beenden und starten).
 
 ## 4.3 – 21.11.2026
 
