@@ -99,7 +99,8 @@ public class HomeActivity extends Activity {
                 }
             }
             Log.w(TAG, "Steuerseite seit 20 s getrennt - lade neu (Hub " + (hubUp ? "erreichbar" : "weg")
-                    + ", Versuch " + ctlReloads + ", Renderer " + (rp != null) + ")");
+                    + (ctlKills >= 2 ? ", Beendigungen ausgeschöpft" : ", Versuch " + ctlReloads)
+                    + ", Renderer " + (rp != null) + ")");
             ctlView.reload();
             ui.postDelayed(ctlWatchdog, 20000);
         }
