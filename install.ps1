@@ -355,7 +355,8 @@ if (-not $SkipTablet) {
         if ([int]::TryParse("$pick".Trim(), [ref]$n) -and $n -ge 1 -and $n -le $all.Count) { $target = $all[$n - 1] }
         else { Warn "kein Gerät gewählt - später: .\install.ps1 -Serial <Seriennummer>" }
     } else { $target = $all | Select-Object -First 1 }
-    if ($target -and $target.Seriennummer -match ':') {
+    $companionDone = $false
+    if ($target -and $target.Seriennummer -match ':|_adb-tls|^adb-') {
         # adb über WLAN (IP:Port): keine feste Kennung fürs Gerät - der Hub koppelt nur per USB
         Warn "$($target.Seriennummer) ist per WLAN-adb verbunden - Gerät per USB anstecken und erneut ausführen"
         $target = $null
@@ -409,6 +410,7 @@ if (-not $SkipTablet) {
             # Begleit-Modus immer für dieses Gerät (tablet_modes); beim allerersten Gerät zusätzlich für alle
             # (tablet_mode, wie bisher). Andere Geräte bleiben unverändert.
             if ($Companion) {
+                $companionDone = $true
                 $r = Run $python (Join-Path $root "scripts\set_config.py") $cfgPath "device" $target.Seriennummer "companion"
                 if ($r.Code -ne 0) { throw "config.json nicht änderbar: $($r.Out)" }
                 if ($soleFirst) {
@@ -436,6 +438,10 @@ if (-not $SkipTablet) {
             Run $adb @adbSel reboot | Out-Null
         }
     }
+}
+
+if ($Companion -and -not $SkipTablet -and -not $companionDone) {
+    Warn "-Companion nicht eingetragen (kein Gerät eingerichtet) - nach Behebung install.ps1 -Companion erneut ausführen"
 }
 
 # ---------------------------------------------------------------- 7. Test

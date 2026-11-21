@@ -151,7 +151,7 @@ die App, die danach ihren HOME-Eintrag selbst abschaltet bzw. wieder einschaltet
    Root). Sind mehrere Geräte angesteckt und fehlt `-Serial`, fragt das Skript, welches. `-Companion` trägt den
    Begleit-Modus für dieses Gerät ein (`tablet_modes` in `config.json`), die anderen bleiben, wie sie sind. Nur
    beim allerersten Gerät (allein angesteckt, ohne `-Serial`, Hub kennt noch keins) wird er zusätzlich Standard
-   für alle (`tablet_mode`). Per WLAN-adb verbundene Geräte (`IP:Port`) richtet das Skript nicht ein.
+   für alle (`tablet_mode`). Per WLAN-adb verbundene Geräte (`IP:Port`, `adb-…`) richtet das Skript nicht ein.
 4. Bridge neu starten (geplante Aufgabe „Tablet Deck Bridge“ beenden und starten) und das Gerät angesteckt lassen,
    bis die App startet: Dabei trägt der Hub es in die Geräteliste ein (siehe unten). Danach geht es auch per WLAN.
 
