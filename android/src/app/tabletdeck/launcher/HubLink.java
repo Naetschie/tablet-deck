@@ -39,6 +39,7 @@ class HubLink {
     private volatile boolean running;
     /** Zeitpunkt (elapsedRealtime), zu dem der Hub zuletzt auf dem aktuellen Weg antwortete. */
     volatile long hubSeen;
+    private String probeError;   // letzter Fehler von probe() (nur fürs Log)
     private Thread thread;
 
     HubLink(Context ctx, Listener listener) {
@@ -119,7 +120,9 @@ class HubLink {
         int usbFails = 0;
         while (running) {
             try {
-                if (probe(USB)) {
+                boolean usbOk = probe(USB);
+                if (!usbOk && usbFails == 0) Log.i(TAG, "HubLink: USB-Probe fehlgeschlagen (" + probeError + ")");
+                if (usbOk) {
                     usbFails = 0;
                     hubSeen = android.os.SystemClock.elapsedRealtime();
                     if (isWlan()) switchTo(USB);
@@ -153,7 +156,10 @@ class HubLink {
     boolean probe(String b) {
         HttpURLConnection c = null;
         try {
-            c = (HttpURLConnection) new URL(b + HomeActivity.CTL_PATH).openConnection(Proxy.NO_PROXY);
+            // USB: 127.0.0.1 statt "localhost" - der Android-Resolver scheitert zeitweise an "localhost"
+            // (UnknownHostException), der WebView (Chromium) löst es immer selbst auf Loopback auf
+            String u = USB.equals(b) ? "http://127.0.0.1:" + HomeActivity.HUB_PORT : b;
+            c = (HttpURLConnection) new URL(u + HomeActivity.CTL_PATH).openConnection(Proxy.NO_PROXY);
             if (c instanceof javax.net.ssl.HttpsURLConnection) {
                 javax.net.ssl.SSLSocketFactory f = HubTrust.socketFactory(ctx);
                 if (f == null) return false;      // noch keine CA vom Hub (Tablet einmal per USB anstecken)
@@ -162,8 +168,11 @@ class HubLink {
             c.setConnectTimeout(1500);
             c.setReadTimeout(1500);
             c.setUseCaches(false);
-            return c.getResponseCode() == 200;
+            int code = c.getResponseCode();
+            probeError = "HTTP " + code;
+            return code == 200;
         } catch (Exception e) {
+            probeError = e.toString();
             return false;   // nicht erreichbar oder Zertifikat passt nicht
         } finally {
             if (c != null) c.disconnect();

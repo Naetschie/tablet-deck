@@ -75,7 +75,7 @@ public class HomeActivity extends Activity {
     boolean noHubPending;
     int noHubLeft;
     final Runnable ctlWatchdog = this::checkCtl;
-    int ctlReloads;   // Neuladeversuche der Steuerseite seit der letzten Verbindung
+    int ctlReloads, ctlKills;   // Neuladeversuche / Renderer-Beendigungen seit der letzten Verbindung
 
     void checkCtl() {
         if (!connected && ctlView != null && !isDestroyed()) {
@@ -85,12 +85,21 @@ public class HomeActivity extends Activity {
             boolean hubUp = link != null
                     && android.os.SystemClock.elapsedRealtime() - link.hubSeen < 10_000;
             android.webkit.WebViewRenderProcess rp = ctlView.getWebViewRenderProcess();
-            if (hubUp && ++ctlReloads >= 3 && rp != null) {
+            // höchstens 2-mal je Ausfall: bleibt die Seite aus anderem Grund getrennt (WebSocket abgelehnt), sonst
+            // alle 60 s Panel, Karten und Web-Kachel mitgerissen (gemeinsamer Renderer)
+            if (hubUp && rp != null && ctlKills < 2 && ++ctlReloads >= 3) {
                 ctlReloads = 0;
+                ctlKills++;
                 Log.w(TAG, "Steuerseite trotz erreichbarem Hub getrennt - Renderer wird beendet");
-                if (rp.terminate()) return;   // onRenderProcessGone -> createCtlView() setzt den Watchdog neu
+                if (rp.terminate()) {
+                    // onRenderProcessGone -> createCtlView() zieht den Watchdog neu auf; falls der Rückruf
+                    // ausbleibt, läuft die Kette trotzdem weiter
+                    ui.postDelayed(ctlWatchdog, 20000);
+                    return;
+                }
             }
-            Log.w(TAG, "Steuerseite seit 20 s getrennt - lade neu");
+            Log.w(TAG, "Steuerseite seit 20 s getrennt - lade neu (Hub " + (hubUp ? "erreichbar" : "weg")
+                    + ", Versuch " + ctlReloads + ", Renderer " + (rp != null) + ")");
             ctlView.reload();
             ui.postDelayed(ctlWatchdog, 20000);
         }
@@ -518,6 +527,7 @@ public class HomeActivity extends Activity {
         // Rückfall-Abschaltung: erst scharf, wenn seit dem Start schon einmal verbunden
         if (ok) {
             ctlReloads = 0;
+            ctlKills = 0;
             everConnected = true;
             AutoOffReceiver.disarm(this);
         } else if (everConnected && !autoOffArmed && !companion) {
