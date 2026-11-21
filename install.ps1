@@ -130,8 +130,9 @@ if ($Check) {
         if (Test-Path $adbExe) {
             $dev = @((Run $adbExe devices).Out -split "`r?`n" | Where-Object { $_ -match '^\S+\tdevice$' })
             if ($dev.Count -eq 1) {
-                Need ((Run $adbExe shell pm list packages app.tabletdeck.launcher).Out -match "app.tabletdeck.launcher") "Launcher auf dem Tablet" "Launcher fehlt auf dem Tablet - install.ps1 ausführen"
-                Need ((Run $adbExe shell appops get app.tabletdeck.launcher WRITE_SETTINGS).Out -match "allow") "Launcher darf die Ausrichtung halten" "WRITE_SETTINGS fehlt - tablet\setup-launcher.ps1 ausführen"
+                $one = @("-s", ($dev[0] -split "`t")[0])   # daneben evtl. ein Gerät "unauthorized"/"offline"
+                Need ((Run $adbExe @one shell pm list packages app.tabletdeck.launcher).Out -match "app.tabletdeck.launcher") "Launcher auf dem Tablet" "Launcher fehlt auf dem Tablet - install.ps1 ausführen"
+                Need ((Run $adbExe @one shell appops get app.tabletdeck.launcher WRITE_SETTINGS).Out -match "allow") "Launcher darf die Ausrichtung halten" "WRITE_SETTINGS fehlt - tablet\setup-launcher.ps1 ausführen"
             } else { Warn "kein (oder mehr als ein) Tablet per USB - Tablet-Prüfung übersprungen" }
         }
     }
@@ -254,10 +255,10 @@ if ($fr.Out) { $fr.Out -split "`r?`n" | ForEach-Object { Ok $_ } }
 $cfgPath = Join-Path $root "config.json"
 $r = Run $python (Join-Path $root "scripts\set_config.py") $cfgPath ($(if ($SkipSpacedesk) { "skip" } else { "use" }))
 if ($r.Code -ne 0) { throw "config.json nicht änderbar: $($r.Out)" }
-# -Companion: Betriebsart für alle Geräte (tablet_mode) nur bei der ersten Einrichtung bzw. ohne Tablet. Ein
-# weiteres Gerät (-Serial oder Auswahl unten) bekommt sie nur für sich (tablet_modes), andere bleiben unverändert.
+# -Companion: ohne Tablet (-SkipTablet) gilt der Begleit-Modus für alle (tablet_mode). Mit Tablet entscheidet der
+# Tablet-Schritt unten, sobald das Zielgerät feststeht (sonst träfe es bei einer Auswahl auch die anderen).
 $firstDevice = -not (Test-Path (Join-Path $root "devices.json"))
-if ($Companion -and ($SkipTablet -or (-not $Serial -and $firstDevice))) {
+if ($Companion -and $SkipTablet) {
     $r = Run $python (Join-Path $root "scripts\set_config.py") $cfgPath "companion"
     if ($r.Code -ne 0) { throw "config.json nicht änderbar: $($r.Out)" }
 }
@@ -350,13 +351,20 @@ if (-not $SkipTablet) {
         Show-AdbDevices $all
         $pick = ""
         try { $pick = Read-Host "   Welches einrichten? Nummer (Enter = keins)" } catch { }
-        if ($pick -match '^\d+$' -and [int]$pick -ge 1 -and [int]$pick -le $all.Count) { $target = $all[[int]$pick - 1] }
+        $n = 0
+        if ([int]::TryParse("$pick".Trim(), [ref]$n) -and $n -ge 1 -and $n -le $all.Count) { $target = $all[$n - 1] }
         else { Warn "kein Gerät gewählt - später: .\install.ps1 -Serial <Seriennummer>" }
     } else { $target = $all | Select-Object -First 1 }
-    $multi = $all.Count -gt 1 -or [bool]$Serial
+    if ($target -and $target.Seriennummer -match ':') {
+        # adb über WLAN (IP:Port): keine feste Kennung fürs Gerät - der Hub koppelt nur per USB
+        Warn "$($target.Seriennummer) ist per WLAN-adb verbunden - Gerät per USB anstecken und erneut ausführen"
+        $target = $null
+    }
+    # Erstes Gerät überhaupt: nur eins angesteckt, kein -Serial, Hub kennt noch keins (devices.json fehlt)
+    $soleFirst = $all.Count -eq 1 -and -not $Serial -and $firstDevice
     $dev = if ($target) { "$($target.Seriennummer)`t$($target.Zustand)" } else { $null }
     $adbSel = if ($target) { @("-s", $target.Seriennummer) } else { @() }
-    if (($Serial -or $all.Count -gt 1) -and -not $target) {
+    if (($Serial -and -not $target) -or ($all -and -not $target)) {
         # schon gemeldet (nicht angesteckt bzw. keins gewählt)
     } elseif ($dev -match "offline") {
         Warn "Tablet 'offline' - Kabel neu stecken, dann install.ps1 erneut ausführen"
@@ -398,12 +406,19 @@ if (-not $SkipTablet) {
             $setupArgs = @{ Serial = $target.Seriennummer }; if ($Companion) { $setupArgs.Companion = $true }
             & (Join-Path $root "tablet\setup-launcher.ps1") @setupArgs | ForEach-Object { "   $_" }
             Ok "Launcher eingerichtet und gekoppelt ($($target.Seriennummer) $($target.Modell))"
-            # Weiteres Gerät: Begleit-Modus nur für dieses (beim ersten gilt tablet_mode von oben)
-            if ($Companion -and ($multi -or -not $firstDevice)) {
+            # Begleit-Modus immer für dieses Gerät (tablet_modes); beim allerersten Gerät zusätzlich für alle
+            # (tablet_mode, wie bisher). Andere Geräte bleiben unverändert.
+            if ($Companion) {
                 $r = Run $python (Join-Path $root "scripts\set_config.py") $cfgPath "device" $target.Seriennummer "companion"
                 if ($r.Code -ne 0) { throw "config.json nicht änderbar: $($r.Out)" }
-                Ok "Begleit-Modus nur für $($target.Seriennummer) (tablet_modes in config.json)"
-                Warn "Bridge neu starten (geplante Aufgabe 'Tablet Deck Bridge' beenden und starten), Gerät angesteckt lassen"
+                if ($soleFirst) {
+                    $r = Run $python (Join-Path $root "scripts\set_config.py") $cfgPath "companion"
+                    if ($r.Code -ne 0) { throw "config.json nicht änderbar: $($r.Out)" }
+                    Ok "Begleit-Modus (erstes Gerät: auch Standard für weitere)"
+                } else {
+                    Ok "Begleit-Modus nur für $($target.Seriennummer) (tablet_modes in config.json)"
+                    Warn "Bridge neu starten (geplante Aufgabe 'Tablet Deck Bridge' beenden und starten), Gerät angesteckt lassen"
+                }
             }
         }
         if (-not $SkipSpacedesk) {

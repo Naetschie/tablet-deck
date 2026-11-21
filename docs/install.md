@@ -47,7 +47,7 @@ Danach: Taskleisten-Symbol am PC, die App „Tablet Deck“ am Tablet. Weiter mi
 | `-SkipSensors` | ohne Sensor-Helfer: keine UAC-Abfrage dafür, PC-Werte zeigen nur die Grundwerte (CPU-Last, RAM, Netz, NVIDIA-GPU) |
 | `-AllowLocalChanges` | Sensor-Helfer auch mit nicht eingecheckten Änderungen an seinen Dateien einrichten |
 | `-Check` | nichts ändern, nur prüfen und auflisten, was fehlt (Exit-Code 1, wenn etwas offen ist) |
-| `-Companion` | Begleit-Modus ohne Root: kein Startbildschirm, `tablet_mode` = `companion`; bei einem weiteren Gerät nur für dieses (siehe unten) |
+| `-Companion` | Begleit-Modus ohne Root: kein Startbildschirm. Gilt für das eingerichtete Gerät (`tablet_modes`); beim allerersten Gerät zusätzlich als Standard für alle (`tablet_mode`), mit `-SkipTablet` nur als Standard (siehe unten) |
 | `-ListDevices` | angesteckte Android-Geräte mit Seriennummer und Modell anzeigen, nichts ändern |
 | `-Serial <Nr>` | nur dieses Gerät einrichten (weiteres Gerät, mehrere angesteckt; ohne den Schalter fragt das Skript) |
 | `-Modules` | zusätzlich die Magisk-Module `chargectl` (Akku 45–55 %) und `hardening`, danach Tablet-Neustart |
@@ -148,9 +148,10 @@ die App, die danach ihren HOME-Eintrag selbst abschaltet bzw. wieder einschaltet
 2. Seriennummer anzeigen: `.\install.ps1 -ListDevices` listet alle angesteckten Geräte mit Seriennummer, Modell
    und ob der Launcher schon drauf ist (ändert nichts).
 3. Einrichten: `.\install.ps1 -Serial <Seriennummer> -Companion` (ohne `-Companion` als Startbildschirm, braucht
-   Root). Sind mehrere Geräte angesteckt und fehlt `-Serial`, fragt das Skript, welches. Bei einem weiteren Gerät
-   trägt `-Companion` den Begleit-Modus nur für dieses ein (`tablet_modes` in `config.json`), die anderen bleiben,
-   wie sie sind. Nur beim allerersten Gerät setzt es `tablet_mode` für alle.
+   Root). Sind mehrere Geräte angesteckt und fehlt `-Serial`, fragt das Skript, welches. `-Companion` trägt den
+   Begleit-Modus für dieses Gerät ein (`tablet_modes` in `config.json`), die anderen bleiben, wie sie sind. Nur
+   beim allerersten Gerät (allein angesteckt, ohne `-Serial`, Hub kennt noch keins) wird er zusätzlich Standard
+   für alle (`tablet_mode`). Per WLAN-adb verbundene Geräte (`IP:Port`) richtet das Skript nicht ein.
 4. Bridge neu starten (geplante Aufgabe „Tablet Deck Bridge“ beenden und starten) und das Gerät angesteckt lassen,
    bis die App startet: Dabei trägt der Hub es in die Geräteliste ein (siehe unten). Danach geht es auch per WLAN.
 
