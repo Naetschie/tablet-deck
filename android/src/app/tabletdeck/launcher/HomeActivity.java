@@ -75,9 +75,21 @@ public class HomeActivity extends Activity {
     boolean noHubPending;
     int noHubLeft;
     final Runnable ctlWatchdog = this::checkCtl;
+    int ctlReloads;   // Neuladeversuche der Steuerseite seit der letzten Verbindung
 
     void checkCtl() {
         if (!connected && ctlView != null && !isDestroyed()) {
+            // Hub antwortet, Steuerseite bleibt trotzdem getrennt: WebView-Renderer hängt (z. B. nach Tagen
+            // Laufzeit mit vollem Speicher) - Neuladen hilft dann nicht, Renderer beenden; onRenderProcessGone
+            // baut die WebViews neu auf
+            boolean hubUp = link != null
+                    && android.os.SystemClock.elapsedRealtime() - link.hubSeen < 10_000;
+            android.webkit.WebViewRenderProcess rp = ctlView.getWebViewRenderProcess();
+            if (hubUp && ++ctlReloads >= 3 && rp != null) {
+                ctlReloads = 0;
+                Log.w(TAG, "Steuerseite trotz erreichbarem Hub getrennt - Renderer wird beendet");
+                if (rp.terminate()) return;   // onRenderProcessGone -> createCtlView() setzt den Watchdog neu
+            }
             Log.w(TAG, "Steuerseite seit 20 s getrennt - lade neu");
             ctlView.reload();
             ui.postDelayed(ctlWatchdog, 20000);
@@ -499,10 +511,13 @@ public class HomeActivity extends Activity {
         // Bildschirm an, solange der PC verbunden ist (unabhängig von stayon/Ladezustand); ohne PC
         // (heruntergefahren, Bridge beendet) greift die normale Zeitsperre.
         // Steuerseite hängt (z. B. halb geladen): nach 20 s ohne Verbindung neu laden
-        ui.removeCallbacks(ctlWatchdog);
-        if (!ok) ui.postDelayed(ctlWatchdog, 20000);
+        // ctl.js meldet "getrennt" bei jedem gescheiterten Versuch (jede Sekunde) - Watchdog nicht jedes Mal
+        // neu aufziehen, sonst feuert er nie
+        if (ok) ui.removeCallbacks(ctlWatchdog);
+        else if (!ui.hasCallbacks(ctlWatchdog)) ui.postDelayed(ctlWatchdog, 20000);
         // Rückfall-Abschaltung: erst scharf, wenn seit dem Start schon einmal verbunden
         if (ok) {
+            ctlReloads = 0;
             everConnected = true;
             AutoOffReceiver.disarm(this);
         } else if (everConnected && !autoOffArmed && !companion) {

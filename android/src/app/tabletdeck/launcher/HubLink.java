@@ -37,6 +37,8 @@ class HubLink {
     private final Listener listener;
     private volatile String base = USB;
     private volatile boolean running;
+    /** Zeitpunkt (elapsedRealtime), zu dem der Hub zuletzt auf dem aktuellen Weg antwortete. */
+    volatile long hubSeen;
     private Thread thread;
 
     HubLink(Context ctx, Listener listener) {
@@ -119,12 +121,14 @@ class HubLink {
             try {
                 if (probe(USB)) {
                     usbFails = 0;
+                    hubSeen = android.os.SystemClock.elapsedRealtime();
                     if (isWlan()) switchTo(USB);
                 } else {
                     usbFails++;
                     // Im WLAN: verbundener Steuerkanal bestätigt den Weg - keine TLS-Probe alle 3 s (Akku,
                     // WLAN-Energiesparen, Verbindungslimit des Hubs)
                     boolean wlanOk = isWlan() && (listener.isConnected() || probe(base));
+                    if (wlanOk) hubSeen = android.os.SystemClock.elapsedRealtime();
                     // erst nach 9 s ohne USB wechseln (kurze Aussetzer, z. B. USB-Neuanmeldung für spacedesk)
                     if (!wlanOk && usbFails >= 3) {
                         for (String b : wlanBases()) {
