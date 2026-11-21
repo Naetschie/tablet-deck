@@ -62,6 +62,25 @@
   .mixer.pick #apps { display: none; }
   #outs .chip { touch-action: pan-y; flex: none; min-height: 44px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
     display: block; line-height: 42px; text-align: left; }
+
+  /* Schmal und hochkant (Handy): Touchpad oben, Medien darunter; die Seite scrollt, das Touchpad bleibt groß */
+  @media (orientation: portrait) and (max-width: 700px) {
+    body { flex-direction: column; overflow-y: auto; touch-action: pan-y; gap: var(--sp-3); padding: var(--sp-3); }
+    #left { flex: none; height: 62vh; min-height: 320px; }
+    #pad { touch-action: none; }   /* nur die Seite drumherum scrollt, nie das Touchpad */
+    .legend span { font-size: 11px; padding: 3px 8px; }
+    .clicks { grid-template-columns: 1fr 1fr 1fr; }
+    .clicks .key { min-height: 52px; }
+    .kb { flex-wrap: wrap; }
+    .kb .field { flex: 1 0 100%; }
+    .kb .key { flex: 1; }
+    .kb .key, .keys .key { min-height: 44px; }
+    #media { width: auto; flex: none; }
+    .transport .key { width: 48px; height: 48px; }
+    .transport .key.primary { width: 60px; height: 60px; }
+    .mixer { flex: none; }
+    #apps, #outs { max-height: 40vh; }
+  }
 </style>
 </head>
 <body>
