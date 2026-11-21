@@ -1,5 +1,32 @@
 # Änderungen
 
+## 5.0 – 21.11.2026
+
+Mit 5.0 ist der Betrieb mit **mehreren Geräten** vollständig: Tablet und Handy (oder zwei Tablets) gleichzeitig,
+jedes mit eigener Betriebsart, eigenen Kacheln und eigenem Start-Panel, eins davon Hauptgerät für „An Tablet
+senden“. Die Grundlagen kamen mit 4.4, jetzt auch die Einrichtung.
+
+### Installation
+- `.\install.ps1 -ListDevices` zeigt alle angesteckten Android-Geräte mit Seriennummer, Modell und ob der
+  Launcher schon installiert ist. Ändert nichts und läuft vor der Python-Einrichtung.
+- `.\install.ps1 -Serial <Seriennummer>` richtet nur dieses Gerät ein. Sind mehrere angesteckt und fehlt
+  `-Serial`, fragt das Skript per Nummer, welches (bisher brach es ab).
+- `-Companion` setzt den Begleit-Modus für das eingerichtete Gerät (`tablet_modes` in `config.json`), andere
+  Geräte bleiben unverändert. Nur beim allerersten Gerät (allein angesteckt, ohne `-Serial`) wird er zusätzlich
+  Standard für alle (`tablet_mode`), mit `-SkipTablet` nur Standard. Wurde kein Gerät eingerichtet, meldet das
+  Skript, dass `-Companion` nicht eingetragen ist.
+- Spacedesk-Prüfung, Magisk-Module (`tablet\install-module.ps1 -Serial`) und Neustart treffen das gewählte Gerät.
+- Per WLAN-adb verbundene Geräte (`IP:Port`, `adb-…`) richtet das Skript nicht ein (der Hub koppelt per USB).
+- `-Check` prüft das eine angesteckte Gerät gezielt, auch wenn daneben ein Gerät `unauthorized`/`offline` hängt.
+- `docs/install.md`: Abschnitt „Weiteres Gerät“ (Schritt für Schritt), Schalter-Tabelle ergänzt.
+
+### Aktualisieren
+- Launcher-App auf jedem Gerät: `.\install.ps1 -Serial <Seriennummer>` (lädt `tablet-deck.apk` aus dem Release
+  v5.0), oder `python android/build.py`, dann
+  `tools\platform-tools\adb.exe -s <Seriennummer> install -r android\build\tablet-deck.apk`. Die App selbst ist
+  gegenüber 4.4 unverändert (nur die Versionsnummer).
+- Hub und Webseiten sind unverändert.
+
 ## 4.4 – 21.11.2026
 
 ### Mehrere Geräte
