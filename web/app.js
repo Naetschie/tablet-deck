@@ -613,11 +613,17 @@
       var g = gameById(prefer) || gameById(gameId) || gameById(stored("game")) ||
         gameById((d.default || "").split("/")[0]) || games[0];
       if (!g) return;
-      var keep = g.id === gameId ? panelId : stored("panel:" + g.id);
+      devPanels = d.device || {};
+      var keep = g.id === gameId ? panelId : panelFor(g.id);
       var p = g.panels.filter(function (x) { return x.id === keep; })[0] || g.panels[0];
       selectPanel(g.id, p.id);
     }).catch(function () { setTimeout(function () { loadGames(prefer); }, 2000); });
   }
+
+  // Panel eines Spiels: von Hand an diesem Gerät gewählt, sonst Start-Panel des Geräts (devices.json),
+  // sonst das zuletzt gezeigte
+  var devPanels = {};
+  function panelFor(g) { return stored("pick:" + g) || devPanels[g] || stored("panel:" + g); }
 
   function selectPanel(g, p) {
     gameId = g; panelId = p;
@@ -648,7 +654,9 @@
     panelsEl.innerHTML = "";
     (g ? g.panels : []).forEach(function (p) {
       var c = h("button", "chip" + (p.id === panelId ? " on" : ""), p.title);
-      c.addEventListener("click", function () { if (p.id !== panelId) { cancelAll(); selectPanel(gameId, p.id); } });
+      c.addEventListener("click", function () {
+        if (p.id !== panelId) { cancelAll(); store("pick:" + gameId, p.id); selectPanel(gameId, p.id); }
+      });
       panelsEl.appendChild(c);
     });
     panelsEl.style.display = g && g.panels.length > 1 ? "" : "none";
@@ -668,7 +676,7 @@
         pickEl.classList.remove("open");
         if (g.id === gameId) return;
         cancelAll();
-        var keep = stored("panel:" + g.id);
+        var keep = panelFor(g.id);
         selectPanel(g.id, (g.panels.filter(function (x) { return x.id === keep; })[0] || g.panels[0]).id);
       });
       pickEl.appendChild(b);

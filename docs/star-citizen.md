@@ -1,5 +1,9 @@
 # Star-Citizen-Belegung für das Panel
 
+Für ein Handy hochkant gibt es zusätzlich **Handy (hochkant)** (`panels/star-citizen/handy.json`): Seite
+„Schilde“ mit großem Schildfeld, Energieverteilung und Abwehr, Seite „Komfort“ mit Systemen, Schiff und Pilot.
+Als Start-Panel eines Geräts: `devices.json` → `"panel": "star-citizen/std--handy"` (siehe docs/install.md).
+
 Mitgeliefert ist das Panel **Cockpit** (`panels/star-citizen/cockpit.json`) mit vier Bereichen: Flug & Kampf,
 Start & Landung, Industrie, Zu Fuß. Es enthält bewusst nur, was nicht ohnehin auf einem HOTAS liegt (Energie,
 Schilde, MFD, Systeme, Abwehr). Die Panel-Tasten verweisen über das Feld `sc` auf die Spielaktion. Die

@@ -648,6 +648,15 @@ class Bridge:
             except Exception as e:  # noqa: BLE001
                 log.error("WLAN-Zertifikat: %s", e)
 
+    def device_panels(self, dev):
+        """Start-Panels eines Geräts je Spiel (devices.json panel, z. B. "star-citizen/handy"): {spiel: panel}.
+        Nur vorhandene Panels; die Seite nimmt sie, solange am Gerät nichts anderes gewählt wurde."""
+        key = self.devices.panel(dev) if dev else None
+        if not key or key not in self.profiles.panels:
+            return {}
+        g, _, p = key.partition("/")
+        return {g: p}
+
     def tiles_for(self, dev):
         """Kacheln eines Geräts: devices.json tiles (IDs) filtert launcher.json, sonst alle."""
         ids = self.devices.tiles(dev) if dev else None
@@ -917,7 +926,9 @@ class Bridge:
                     cookie_value(request.headers.get("Cookie", ""), "deck").encode(), self.secret.encode()):
                 return connection.respond(401, "unauthorized\n")
             if path == "/api/games":
+                dev = cookie_value(request.headers.get("Cookie", ""), "deckdev")
                 body = json.dumps({"current": self.game, "default": self.profiles.default_key(self.game),
+                                   "device": self.device_panels(dev if valid_id(dev) else None),
                                    "games": self.games_info()}).encode()
             else:
                 m = re.fullmatch(r"/profiles/([a-z0-9-]+)/([a-z0-9-]+)\.json", path)

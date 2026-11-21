@@ -159,11 +159,12 @@ bekommt „An Tablet senden“ (Browser-Erweiterung, Taskleiste, `bridge.send`);
 „<Name> nicht verbunden“ - die Seite geht nicht an ein anderes Gerät. Umstellen: Taskleisten-Symbol →
 „Webseiten senden an“ (erscheint ab zwei Geräten). Mit nur einem Gerät ändert sich nichts. Pro Gerät lassen
 sich in `devices.json` außerdem `name`, `mode` (`home`/`companion`, geht `tablet_modes` vor) und `rotation`
-(0-3 wie `tablet_rotation`, `null` = nicht anfassen) und `tiles` (Kachel-IDs aus `launcher.json`, die das Gerät
-zeigt; fehlt das Feld, alle) setzen; wirksam nach Hub-Neustart:
+(0-3 wie `tablet_rotation`, `null` = nicht anfassen), `tiles` (Kachel-IDs aus `launcher.json`, die das Gerät
+zeigt; fehlt das Feld, alle) und `panel` (Start-Panel, z. B. `"star-citizen/std--handy"`; eine Wahl von Hand am
+Gerät geht vor) setzen; wirksam nach Hub-Neustart:
 ```
 {"devices": {"<Seriennummer>": {"name": "Handy HOTAS", "main": false, "mode": "companion", "rotation": 0,
-                                "tiles": ["touchpad", "panel"]}}}
+                                "tiles": ["touchpad", "panel"], "panel": "star-citizen/std--handy"}}}
 ```
 Hochkant steht die Leiste des Launchers unten statt links.
 Die Seriennummer bekommt der Launcher beim Anstecken per USB und meldet sich damit auch im WLAN; ein neues Gerät
