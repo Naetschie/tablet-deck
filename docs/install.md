@@ -47,7 +47,9 @@ Danach: Taskleisten-Symbol am PC, die App „Tablet Deck“ am Tablet. Weiter mi
 | `-SkipSensors` | ohne Sensor-Helfer: keine UAC-Abfrage dafür, PC-Werte zeigen nur die Grundwerte (CPU-Last, RAM, Netz, NVIDIA-GPU) |
 | `-AllowLocalChanges` | Sensor-Helfer auch mit nicht eingecheckten Änderungen an seinen Dateien einrichten |
 | `-Check` | nichts ändern, nur prüfen und auflisten, was fehlt (Exit-Code 1, wenn etwas offen ist) |
-| `-Companion` | Begleit-Modus ohne Root: kein Startbildschirm, `tablet_mode` = `companion` (siehe unten) |
+| `-Companion` | Begleit-Modus ohne Root: kein Startbildschirm, `tablet_mode` = `companion`; bei einem weiteren Gerät nur für dieses (siehe unten) |
+| `-ListDevices` | angesteckte Android-Geräte mit Seriennummer und Modell anzeigen, nichts ändern |
+| `-Serial <Nr>` | nur dieses Gerät einrichten (weiteres Gerät, mehrere angesteckt; ohne den Schalter fragt das Skript) |
 | `-Modules` | zusätzlich die Magisk-Module `chargectl` (Akku 45–55 %) und `hardening`, danach Tablet-Neustart |
 | `-Apk <Pfad>` | diese Launcher-APK installieren (z. B. `tablet-deck.apk` aus den GitHub-Releases), wird nach `android\build\` kopiert |
 
@@ -140,15 +142,23 @@ oder nur das Tablet: `python android\build.py`, dann `tablet\setup-launcher.ps1 
 Ohne `-Companion` bleibt der Wert in `config.json` unverändert. Der Hub schickt die Betriebsart beim Verbinden an
 die App, die danach ihren HOME-Eintrag selbst abschaltet bzw. wieder einschaltet.
 
-**Mehrere Tablets** (z. B. ein gerootetes als Startbildschirm und ein zweites im Begleit-Modus): Betriebsart pro
-Gerät in `config.json` unter `tablet_modes` (Seriennummer aus `tools\platform-tools\adb.exe devices`), alle
-anderen nehmen `tablet_mode`:
+**Weiteres Gerät** (z. B. ein gerootetes Tablet als Startbildschirm und ein Handy im Begleit-Modus):
+1. Gerät vorbereiten: Entwickleroptionen und USB-Debugging an, per USB anstecken, die Debugging-Frage am Gerät
+   bestätigen. Huawei/EMUI: vorher die App-Start-Freigabe (siehe unten).
+2. Seriennummer anzeigen: `.\install.ps1 -ListDevices` listet alle angesteckten Geräte mit Seriennummer, Modell
+   und ob der Launcher schon drauf ist (ändert nichts).
+3. Einrichten: `.\install.ps1 -Serial <Seriennummer> -Companion` (ohne `-Companion` als Startbildschirm, braucht
+   Root). Sind mehrere Geräte angesteckt und fehlt `-Serial`, fragt das Skript, welches. Bei einem weiteren Gerät
+   trägt `-Companion` den Begleit-Modus nur für dieses ein (`tablet_modes` in `config.json`), die anderen bleiben,
+   wie sie sind. Nur beim allerersten Gerät setzt es `tablet_mode` für alle.
+4. Bridge neu starten (geplante Aufgabe „Tablet Deck Bridge“ beenden und starten) und das Gerät angesteckt lassen,
+   bis die App startet: Dabei trägt der Hub es in die Geräteliste ein (siehe unten). Danach geht es auch per WLAN.
+
+Von Hand geht es auch: `tablet\setup-launcher.ps1 -Companion -Serial <Seriennummer>` und in `config.json`
 ```
 "tablet_modes": { "<Seriennummer>": "companion" }
 ```
-Einrichten nur dieses Geräts: `tablet\setup-launcher.ps1 -Companion -Serial <Seriennummer>` (bei mehreren
-angesteckten Geräten ist `-Serial` nötig; `install.ps1 -Companion` würde `tablet_mode` für alle umstellen). Der Hub
-schickt jedem Tablet seine Betriebsart beim Anstecken per ADB; eine geänderte Betriebsart wirkt also beim
+Der Hub schickt jedem Tablet seine Betriebsart beim Anstecken per ADB; eine geänderte Betriebsart wirkt also beim
 nächsten Anstecken per USB (oder Hub-Neustart), nicht über WLAN. Geräte **ohne** installierten Tablet-Deck-Launcher
 (Handy zum Laden, neues Tablet vor der Einrichtung) richtet der Hub gar nicht ein - kein Proxy, keine
 Daueranzeige, kein Eingriff in Ausrichtung oder Startbildschirm.

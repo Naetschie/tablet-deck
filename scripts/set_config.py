@@ -1,13 +1,16 @@
 """config.json für install.ps1 anpassen:  python scripts/set_config.py <config.json> use|skip|companion|home
+                                          python scripts/set_config.py <config.json> device <serial> companion|home
 
 skip: spacedesk_usb und spacedesk_silence aus (ohne Zweitbildschirm).
 use:  spacedesk_usb wieder an; spacedesk_silence bleibt, wie der Benutzer es gesetzt hat.
 companion / home: tablet_mode setzen (Begleit-Modus ohne Root bzw. Startbildschirm-Modus).
 Ohne diese Modi bleibt tablet_mode unverändert.
+device <serial> companion|home: Betriebsart nur dieses Geräts (tablet_modes[serial]); andere bleiben, wie sie sind.
 Schreibt nur bei einer Änderung, atomar (tmp + os.replace).
 """
 import json
 import os
+import re
 import sys
 
 
@@ -16,7 +19,16 @@ def main():
     with open(path, encoding="utf-8") as f:
         cfg = json.load(f)
     new = dict(cfg)
-    if mode == "skip":
+    if mode == "device":
+        if len(sys.argv) != 5 or sys.argv[4] not in ("companion", "home"):
+            sys.exit("Aufruf: device <serial> companion|home")
+        serial = sys.argv[3]
+        if not re.fullmatch(r"[A-Za-z0-9._-]{1,64}", serial):
+            sys.exit(f"ungültige Seriennummer: {serial!r}")
+        modes = dict(cfg.get("tablet_modes") or {}) if isinstance(cfg.get("tablet_modes"), dict) else {}
+        modes[serial] = sys.argv[4]
+        new["tablet_modes"] = modes
+    elif mode == "skip":
         new["spacedesk_usb"] = False
         new["spacedesk_silence"] = False
     elif mode == "use":
@@ -24,7 +36,7 @@ def main():
     elif mode in ("companion", "home"):
         new["tablet_mode"] = mode
     else:
-        sys.exit("Modus: use|skip|companion|home")
+        sys.exit("Modus: use|skip|companion|home|device <serial> companion|home")
     if new == cfg:
         return
     tmp = path + ".tmp"

@@ -75,12 +75,12 @@ class DeviceModeTest(unittest.TestCase):
 
 
 class SetConfigTest(unittest.TestCase):
-    def run_cfg(self, cfg, mode):
+    def run_cfg(self, cfg, mode, *extra):
         with tempfile.TemporaryDirectory() as d:
             p = os.path.join(d, "config.json")
             with open(p, "w", encoding="utf-8") as f:
                 json.dump(cfg, f)
-            r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "set_config.py"), p, mode],
+            r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "set_config.py"), p, mode, *extra],
                                capture_output=True, text=True)
             with open(p, encoding="utf-8") as f:
                 return r.returncode, json.load(f), os.listdir(d)
@@ -98,6 +98,21 @@ class SetConfigTest(unittest.TestCase):
         self.assertEqual(cfg["tablet_mode"], "companion")
         rc, cfg, _ = self.run_cfg({"tablet_mode": "companion"}, "home")
         self.assertEqual(cfg["tablet_mode"], "home")
+
+    def test_device_nur_dieses_geraet(self):
+        rc, cfg, files = self.run_cfg({"tablet_mode": "home", "tablet_modes": {"A1": "home"}},
+                                      "device", "B2", "companion")
+        self.assertEqual(rc, 0)
+        self.assertEqual(cfg, {"tablet_mode": "home", "tablet_modes": {"A1": "home", "B2": "companion"}})
+        self.assertEqual(files, ["config.json"])
+        rc, cfg, _ = self.run_cfg({}, "device", "B2", "companion")
+        self.assertEqual(cfg, {"tablet_modes": {"B2": "companion"}})
+
+    def test_device_ungueltig(self):
+        for extra in (("a;b", "companion"), ("B2", "quer"), ("B2",), ()):
+            rc, cfg, _ = self.run_cfg({"x": 1}, "device", *extra)
+            self.assertNotEqual(rc, 0, extra)
+            self.assertEqual(cfg, {"x": 1})
 
     def test_unbekannter_modus(self):
         rc, _, _ = self.run_cfg({}, "quatsch")

@@ -1,7 +1,7 @@
 ﻿# Installiert ein Magisk-Modul (Ordner mit module.prop) nach /data/adb/modules/<id>.
 # Voraussetzung: Tablet per USB, Magisk aktiv, "Rooted debugging" an. Wirksam nach Neustart (-Reboot).
 # Beispiel: tablet\install-module.ps1 tablet\chargectl\module -Reboot
-param([Parameter(Mandatory)][string]$ModuleDir, [switch]$Reboot)
+param([Parameter(Mandatory)][string]$ModuleDir, [switch]$Reboot, [string]$Serial)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $adb = Join-Path $root "tools\platform-tools\adb.exe"
@@ -9,7 +9,8 @@ $src = (Resolve-Path $ModuleDir).Path
 
 function Adb {
     $ErrorActionPreference = "Continue"   # PS 5.1: stderr-Zeilen ("daemon starting") nicht als Abbruch werten
-    $out = & $adb @args 2>&1
+    $sel = @(); if ($Serial) { $sel = @("-s", $Serial) }   # -Serial: dieses Gerät (mehrere angesteckt)
+    $out = & $adb @sel @args 2>&1
     if ($LASTEXITCODE -ne 0) { throw "adb $($args -join ' ') fehlgeschlagen: $out" }
     $out
 }

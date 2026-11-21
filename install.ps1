@@ -11,6 +11,10 @@
 #   .\install.ps1 -Check          nur prüfen und melden, was fehlt (ändert nichts)
 #   .\install.ps1 -AllowLocalChanges  Sensor-Helfer auch mit nicht eingecheckten Änderungen einrichten
 #   .\install.ps1 -Apk <Pfad>     diese Launcher-APK installieren (z. B. tablet-deck.apk aus den GitHub-Releases)
+#   .\install.ps1 -ListDevices    angesteckte Android-Geräte mit Seriennummer und Modell anzeigen (ändert nichts)
+#   .\install.ps1 -Serial <Nr>    nur dieses Gerät einrichten (weiteres Gerät, mehrere angesteckt). Sind mehrere
+#                                 angesteckt und fehlt -Serial, fragt das Skript, welches. Mit -Companion gilt der
+#                                 Begleit-Modus dann nur für dieses Gerät (tablet_modes in config.json)
 #
 # Was passiert (PC):
 #   1. Python prüfen (>= 3.11; fehlt es: per winget bzw. python.org installieren - für alle Benutzer mit
@@ -28,7 +32,8 @@
 #   6. optional Magisk-Module
 #   7. Smoke-Test gegen die laufende Bridge
 param([switch]$SkipTablet, [switch]$SkipSpacedesk, [switch]$SkipAutostart, [switch]$SkipSensors, [switch]$Modules,
-      [switch]$Companion, [switch]$Check, [switch]$AllowLocalChanges, [string]$Apk)
+      [switch]$Companion, [switch]$Check, [switch]$AllowLocalChanges, [string]$Apk, [string]$Serial,
+      [switch]$ListDevices)
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 . (Join-Path $root "scripts\install-helpers.ps1")
@@ -136,6 +141,37 @@ if ($Check) {
     exit 0
 }
 
+$adb = Join-Path $root "tools\platform-tools\adb.exe"
+# Angesteckte Android-Geräte: Seriennummer, Zustand, Modell, ob der Launcher schon installiert ist
+function Get-AdbDevices {
+    @((Run $adb devices).Out -split "`r?`n" | Where-Object { $_ -match '^\S+\t(device|unauthorized|offline)$' } |
+        ForEach-Object {
+            $s, $st = $_ -split "`t"
+            $model, $has = "", ""
+            if ($st -eq "device") {
+                $model = "$((Run $adb -s $s shell getprop ro.product.model).Out)".Trim()
+                $has = if ((Run $adb -s $s shell pm path app.tabletdeck.launcher).Out -match "package:") { "ja" } else { "nein" }
+            }
+            [pscustomobject]@{ Seriennummer = $s; Zustand = $st; Modell = $model; Launcher = $has }
+        })
+}
+function Show-AdbDevices($list) {
+    $i = 0
+    $list | ForEach-Object {
+        $i++
+        Write-Host ("   {0}) {1,-20} {2,-12} {3,-22} Launcher: {4}" -f $i, $_.Seriennummer, $_.Zustand, $_.Modell, $_.Launcher)
+    }
+}
+if ($ListDevices) {
+    # nur anzeigen: vor Python/Abhängigkeiten, ändert nichts
+    if (-not (Test-Path $adb)) { Warn "adb fehlt noch - erst .\install.ps1 ausführen (lädt die platform-tools)"; exit 1 }
+    Step "Angesteckte Geräte"
+    $list = Get-AdbDevices
+    if (-not $list) { Warn "kein Android-Gerät per USB gefunden (USB-Debugging an? Dialog am Gerät bestätigt?)" }
+    else { Show-AdbDevices $list; Write-Host "`n   Einrichten: .\install.ps1 -Serial <Seriennummer> [-Companion]" }
+    exit 0
+}
+
 # ---------------------------------------------------------------- 1. Python
 Step "Python"
 $python = Find-Python
@@ -218,7 +254,10 @@ if ($fr.Out) { $fr.Out -split "`r?`n" | ForEach-Object { Ok $_ } }
 $cfgPath = Join-Path $root "config.json"
 $r = Run $python (Join-Path $root "scripts\set_config.py") $cfgPath ($(if ($SkipSpacedesk) { "skip" } else { "use" }))
 if ($r.Code -ne 0) { throw "config.json nicht änderbar: $($r.Out)" }
-if ($Companion) {
+# -Companion: Betriebsart für alle Geräte (tablet_mode) nur bei der ersten Einrichtung bzw. ohne Tablet. Ein
+# weiteres Gerät (-Serial oder Auswahl unten) bekommt sie nur für sich (tablet_modes), andere bleiben unverändert.
+$firstDevice = -not (Test-Path (Join-Path $root "devices.json"))
+if ($Companion -and ($SkipTablet -or (-not $Serial -and $firstDevice))) {
     $r = Run $python (Join-Path $root "scripts\set_config.py") $cfgPath "companion"
     if ($r.Code -ne 0) { throw "config.json nicht änderbar: $($r.Out)" }
 }
@@ -300,10 +339,25 @@ if (-not $SkipSensors) {
 # ---------------------------------------------------------------- 5./6. Tablet
 if (-not $SkipTablet) {
     Step "Tablet"
-    # nur echte Gerätezeilen ("<serial>\t<zustand>"), nicht "* daemon started successfully"
-    $dev = @((Run $adb devices).Out -split "`r?`n" | Where-Object { $_ -match '^\S+\t(device|unauthorized|offline)$' })
-    if ($dev.Count -gt 1) {
-        Warn "mehrere Android-Geräte verbunden - nur das Tablet anstecken, dann install.ps1 erneut ausführen"
+    # Zielgerät: -Serial, bei mehreren angesteckten Auswahl per Nummer, sonst das eine
+    $all = @(Get-AdbDevices)
+    $target = $null
+    if ($Serial) {
+        $target = $all | Where-Object { $_.Seriennummer -eq $Serial } | Select-Object -First 1
+        if (-not $target) { Warn "Gerät $Serial nicht angesteckt. Angesteckt:"; Show-AdbDevices $all }
+    } elseif ($all.Count -gt 1) {
+        Write-Host "   Mehrere Android-Geräte angesteckt:"
+        Show-AdbDevices $all
+        $pick = ""
+        try { $pick = Read-Host "   Welches einrichten? Nummer (Enter = keins)" } catch { }
+        if ($pick -match '^\d+$' -and [int]$pick -ge 1 -and [int]$pick -le $all.Count) { $target = $all[[int]$pick - 1] }
+        else { Warn "kein Gerät gewählt - später: .\install.ps1 -Serial <Seriennummer>" }
+    } else { $target = $all | Select-Object -First 1 }
+    $multi = $all.Count -gt 1 -or [bool]$Serial
+    $dev = if ($target) { "$($target.Seriennummer)`t$($target.Zustand)" } else { $null }
+    $adbSel = if ($target) { @("-s", $target.Seriennummer) } else { @() }
+    if (($Serial -or $all.Count -gt 1) -and -not $target) {
+        # schon gemeldet (nicht angesteckt bzw. keins gewählt)
     } elseif ($dev -match "offline") {
         Warn "Tablet 'offline' - Kabel neu stecken, dann install.ps1 erneut ausführen"
     } elseif (-not $dev) {
@@ -341,12 +395,19 @@ if (-not $SkipTablet) {
             Warn "keine Launcher-APK: tablet-deck.apk aus den Releases laden ($ReleasesUrl) und nach android\build\ legen oder angeben: install.ps1 -Apk <Pfad zur tablet-deck.apk>"
         } else {
             # Hashtable: ein Array würde "-Companion" als Wert statt als Schalter übergeben (PS 5.1)
-            $setupArgs = @{}; if ($Companion) { $setupArgs.Companion = $true }
+            $setupArgs = @{ Serial = $target.Seriennummer }; if ($Companion) { $setupArgs.Companion = $true }
             & (Join-Path $root "tablet\setup-launcher.ps1") @setupArgs | ForEach-Object { "   $_" }
-            Ok "Launcher eingerichtet und gekoppelt"
+            Ok "Launcher eingerichtet und gekoppelt ($($target.Seriennummer) $($target.Modell))"
+            # Weiteres Gerät: Begleit-Modus nur für dieses (beim ersten gilt tablet_mode von oben)
+            if ($Companion -and ($multi -or -not $firstDevice)) {
+                $r = Run $python (Join-Path $root "scripts\set_config.py") $cfgPath "device" $target.Seriennummer "companion"
+                if ($r.Code -ne 0) { throw "config.json nicht änderbar: $($r.Out)" }
+                Ok "Begleit-Modus nur für $($target.Seriennummer) (tablet_modes in config.json)"
+                Warn "Bridge neu starten (geplante Aufgabe 'Tablet Deck Bridge' beenden und starten), Gerät angesteckt lassen"
+            }
         }
         if (-not $SkipSpacedesk) {
-            $has = (Run $adb shell pm list packages ph.spacedesk.beta).Out
+            $has = (Run $adb @adbSel shell pm list packages ph.spacedesk.beta).Out
             if ($has -notmatch "ph.spacedesk.beta") { Warn "spacedesk-App fehlt auf dem Tablet - siehe docs\install.md (Abschnitt spacedesk)" }
             else { Ok "spacedesk-App vorhanden" }
         }
@@ -354,10 +415,10 @@ if (-not $SkipTablet) {
             Warn "-Modules im Begleit-Modus übersprungen: Die Magisk-Module (hardening, chargectl) brauchen Root."
         } elseif ($Modules) {
             foreach ($m in "chargectl", "hardening") {
-                & (Join-Path $root "tablet\install-module.ps1") (Join-Path $root "tablet\$m\module") | ForEach-Object { "   $_" }
+                & (Join-Path $root "tablet\install-module.ps1") (Join-Path $root "tablet\$m\module") -Serial $target.Seriennummer | ForEach-Object { "   $_" }
             }
             Write-Host "   Tablet startet neu (Module werden aktiv) ..."
-            Run $adb reboot | Out-Null
+            Run $adb @adbSel reboot | Out-Null
         }
     }
 }
