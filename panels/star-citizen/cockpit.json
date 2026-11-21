@@ -18,7 +18,7 @@
       {"id": "flug_toggle_quantum_mode", "label": "Quantum", "sc": "v_toggle_quantum_mode", "x": 11, "y": 3, "w": 2, "h": 2},
       {"id": "flug_toggle_scan_mode", "label": "Scan-Modus", "sc": "v_toggle_scan_mode", "x": 9, "y": 5, "w": 4, "h": 2},
       {"kind": "frame", "id": "f_flug3", "label": "Schilde", "x": 14, "y": 0, "w": 10, "h": 10},
-      {"kind": "shield", "id": "sh_flug", "x": 14, "y": 1, "w": 10, "h": 8},
+      {"kind": "shield", "id": "sh_flug", "x": 14, "y": 1, "w": 10, "h": 9},
       {"id": "flug_shield_raise_level_forward", "label": "Vorn", "sc": "v_shield_raise_level_forward", "zone": "front"},
       {"id": "flug_shield_raise_level_back", "label": "Hinten", "sc": "v_shield_raise_level_back", "zone": "back"},
       {"id": "flug_shield_raise_level_left", "label": "Links", "sc": "v_shield_raise_level_left", "zone": "left"},

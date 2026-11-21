@@ -375,18 +375,19 @@
     return root;
   }
 
-  // Schiff von oben mit vier Schildzonen; resetOnShip: Zone reset ist das Schiff selbst (shield-Element)
-  function shipSvg(byZone, resetOnShip) {
-    var W = 600, H = 400;
+  // Schiff von oben mit vier Schildzonen; resetOnShip: Zone reset ist das Schiff selbst (shield-Element).
+  // aspect (Höhe/Breite des Elements): Zonen füllen die Fläche, das Schiff wächst mit (sonst 600x400 fest).
+  function shipSvg(byZone, resetOnShip, aspect) {
+    var W = 600, H = aspect ? Math.max(300, Math.min(1200, Math.round(W * aspect))) : 400, cy = H / 2;
     var s = svg("svg", { viewBox: "0 0 " + W + " " + H, preserveAspectRatio: "xMidYMid meet" });
     var zones = {
-      front: { pts: "0,0 600,0 300,200", lx: 300, ly: 45 },
-      back:  { pts: "0,400 600,400 300,200", lx: 300, ly: 360 },
-      left:  { pts: "0,0 0,400 300,200", lx: 70, ly: 200 },
-      right: { pts: "600,0 600,400 300,200", lx: 530, ly: 200 }
+      front: { pts: "0,0 600,0 300," + cy, lx: 300, ly: 45 },
+      back:  { pts: "0," + H + " 600," + H + " 300," + cy, lx: 300, ly: H - 40 },
+      left:  { pts: "0,0 0," + H + " 300," + cy, lx: 70, ly: cy },
+      right: { pts: "600,0 600," + H + " 300," + cy, lx: 530, ly: cy }
     };
     if (resetOnShip) {   // größeres Schiff: Beschriftungen weiter nach außen
-      zones.front.ly = 34; zones.back.ly = 368; zones.left.lx = 64; zones.right.lx = 536;
+      zones.front.ly = 34; zones.back.ly = H - 32; zones.left.lx = 64; zones.right.lx = 536;
     }
     Object.keys(zones).forEach(function (z) {
       var b = byZone[z]; if (!b) return;
@@ -403,12 +404,14 @@
     s.appendChild(ship);
     if (resetOnShip) {   // im Element: Schiff größer, Beschriftungen kräftiger (Fläche ist viel kleiner)
       s.classList.add("compact");
-      ship.setAttribute("transform", "translate(300 200) scale(1.3) translate(-300 -193)");
+      // höhere Fläche: Schiff mitwachsen lassen, aber Platz für „Links“/„Rechts“ lassen
+      var k = 1.3 * Math.min(1.35, Math.max(1, H / 400));
+      ship.setAttribute("transform", "translate(300 " + cy + ") scale(" + k + ") translate(-300 -193)");
     }
     if (resetOnShip && byZone.reset) {
       ship.setAttribute("class", "ship hit");
       ship.setAttribute("data-id", byZone.reset.id);
-      var rl = svg("text", { x: 300, y: 224, "class": "zlabel slabel" });
+      var rl = svg("text", { x: 300, y: cy + 24, "class": "zlabel slabel" });
       rl.textContent = byZone.reset.label;
       s.appendChild(rl);
     }
@@ -474,6 +477,7 @@
         var sh = h("div", "fshield");
         sh.appendChild(shipSvg(byZone, true));
         place(sh, b);
+        fitShield(sh, byZone);
       }
     });
     p.buttons.forEach(function (b) {
@@ -558,6 +562,22 @@
       if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitKeys);   // Schrift nachgeladen
     }
     markUnmapped();
+  }
+
+  // Schildfeld an die echte Fläche anpassen (hochkant viel höher als 600x400); neu bei Größenänderung
+  function fitShield(sh, byZone) {
+    var last = 0;
+    function fit() {
+      var r = sh.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      var a = Math.round(r.height / r.width * 20) / 20;   // in Schritten, kein Neuzeichnen bei jedem Pixel
+      if (a === last) return;
+      last = a;
+      sh.replaceChild(shipSvg(byZone, true, a), sh.firstChild);
+      markUnmapped();
+    }
+    requestAnimationFrame(fit);
+    if (window.ResizeObserver) new ResizeObserver(fit).observe(sh);
   }
 
   function markUnmapped() {
