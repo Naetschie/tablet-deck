@@ -968,6 +968,8 @@ public class HomeActivity extends Activity {
                     if (paused) ui.postDelayed(showHandle, 1000);   // länger: der Launcher selbst kommt sonst zuerst
                 }
             };
+            // RECEIVER_NOT_EXPORTED ist eine API-33-Konstante (als Zahl einkompiliert); Android 10-12
+            // ignorieren das Flag - kein Absturz, SCREEN_ON ist dort ohnehin ein reiner System-Broadcast
             registerReceiver(screenOnReceiver, new android.content.IntentFilter(Intent.ACTION_SCREEN_ON),
                     RECEIVER_NOT_EXPORTED);
         }
