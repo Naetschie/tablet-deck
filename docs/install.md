@@ -366,6 +366,9 @@ neu auf dem PC des Empfängers.
   Eintrag „Shell“ erlauben.
 - **Tablet wird nicht erkannt:** `tools\platform-tools\adb.exe devices`. Bei `unauthorized` den Dialog am
   Tablet bestätigen.
+- **APK-Installation: `splice failed: EINVAL`:** Neuere adb-Versionen übertragen per „Streamed Install“, das
+  scheitert auf manchen Tablets. `setup-launcher.ps1` versucht es dann selbst mit `--no-streaming`; von Hand:
+  `tools\platform-tools\adb.exe install -r --no-streaming android\build\tablet-deck.apk`.
 - **„Bildschirm“ bleibt schwarz:** In der „spacedesk DRIVER Console“ muss unter COMMUNICATION INTERFACES
   „USB Cable Android“ an sein. Das Tablet einmal ab- und wieder anstecken.
 - **PC-Ton kommt aus dem Tablet:** `audio_output.prefer` prüfen, er muss den Gerätenamen exakt enthalten.

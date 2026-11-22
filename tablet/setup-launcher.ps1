@@ -22,7 +22,15 @@ function Adb {
 
 if (-not (Test-Path $apk)) { throw "APK fehlt - 'python android/build.py' ausführen oder tablet-deck.apk aus den GitHub-Releases nach android\build\ legen" }
 Adb wait-for-device | Out-Null
-try { Adb install -r $apk | Select-Object -Last 1 }
+try {
+    try { Adb install -r $apk | Select-Object -Last 1 }
+    catch {
+        # Streamed Install scheitert auf manchen Geräten/Kerneln (neuere adb: "splice failed: EINVAL") - klassisch kopieren
+        if ("$_" -notmatch "splice failed|failed to write") { throw }
+        "Streamed Install fehlgeschlagen - erneut mit --no-streaming"
+        Adb install -r --no-streaming $apk | Select-Object -Last 1
+    }
+}
 catch {
     # anders signiert (selbst gebaut vs. Release-APK): Android lehnt das Update ab
     if ("$_" -match "INSTALL_FAILED_UPDATE_INCOMPATIBLE|signatures do not match") {
