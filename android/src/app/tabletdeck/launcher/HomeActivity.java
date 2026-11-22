@@ -1069,7 +1069,9 @@ public class HomeActivity extends Activity {
     @Override
     @SuppressWarnings("MissingSuperCall")
     public void onBackPressed() {
-        // Zurück-Taste ohne Wirkung: der Launcher ist der Startbildschirm
+        // Startbildschirm-Modus: Zurück-Taste ohne Wirkung. Begleit-Modus (normale App): in den Hintergrund,
+        // wie bei jeder App - sonst kommt man ohne Startbildschirm-Geste nicht mehr heraus.
+        if (companion) moveTaskToBack(true);
     }
 
     @Override
