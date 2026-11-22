@@ -1,5 +1,25 @@
 # Änderungen
 
+## 5.0.1 – 22.11.2026
+
+Fehlerbehebungen aus der ersten Einrichtung auf einem fremden PC.
+
+### Installation
+- APK-Installation brach auf manchen Tablets mit `failed to write; splice failed: EINVAL` ab (neuere adb-Versionen
+  übertragen per „Streamed Install“). `tablet\setup-launcher.ps1` versucht es dann selbst mit `--no-streaming`.
+  Hinweis in `docs/install.md` (Fehlerbehebung).
+
+### Launcher-App
+- Begleit-Modus: Die Zurück-Taste schickt die App jetzt in den Hintergrund. Bisher tat sie nichts (richtig nur für
+  den Startbildschirm-Modus), und weil die App die Systemleisten ausblendet, kam man je nach Gerät nicht mehr aus
+  ihr heraus. Im Startbildschirm-Modus bleibt die Taste ohne Wirkung.
+
+### Aktualisieren
+- Launcher-App: `.\install.ps1` (lädt `tablet-deck.apk` aus dem Release v5.0.1, falls `tools\jdk` und
+  `tools\android-sdk` fehlen), oder `python android/build.py`, dann
+  `tools\platform-tools\adb.exe install -r --no-streaming android\build\tablet-deck.apk`.
+- Hub und Webseiten sind unverändert.
+
 ## 5.0 – 21.11.2026
 
 Mit 5.0 ist der Betrieb mit **mehreren Geräten** vollständig: Tablet und Handy (oder zwei Tablets) gleichzeitig,
