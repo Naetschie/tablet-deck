@@ -253,7 +253,9 @@ class MapFinderTest(unittest.TestCase):
     def test_running_game_first_and_forget(self):
         from bridge.games import MapFinder
         asked = []
-        f = MapFinder(self.b, lookup=lambda n: asked.append(n) or [], cached=lambda n: None, pause=0)
+        clock = [0.0]
+        f = MapFinder(self.b, lookup=lambda n: asked.append(n) or [], cached=lambda n: None, pause=0,
+                      clock=lambda: clock[0])
 
         async def go():
             f.want("enshrouded")
@@ -263,6 +265,9 @@ class MapFinderTest(unittest.TestCase):
             await f.task
         asyncio.run(go())
         self.assertEqual(asked, ["Elden Ring", "Enshrouded", "Anno"])
+        f.forget(["anno"])                      # gerade gefragt (Zwischenspeicher fehlt): nicht erneut
+        self.assertIn("anno", f.checked)
+        clock[0] += mapgenie.TTL_S + 1
         f.forget(["anno"])                      # abgelaufen: darf wieder gefragt werden
 
         async def again():

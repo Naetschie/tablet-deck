@@ -37,6 +37,8 @@ class MapFinder:
         self.queue = []
         self.task = None
         self.backoff = 0.0
+        self.current = None    # wird gerade nachgeschlagen
+        self.done = {}         # gid -> Zeitpunkt der letzten erfolgreichen Abfrage (auch ohne Zwischenspeicher)
 
     def prefill(self):
         """Im Hilfs-Thread nach set_library: ({gid: Karten} aus dem Zwischenspeicher, [unbekannte gids])."""
@@ -62,7 +64,9 @@ class MapFinder:
 
     def forget(self, gids):
         """Abgelaufene bzw. unbekannte Spiele wieder zum Nachschlagen freigeben (nicht die wartenden)."""
-        self.checked -= set(gids) - set(self.queue)
+        now = self.clock()
+        fresh = {g for g, t in self.done.items() if now - t < mapgenie.TTL_S}   # z. B. Datei nicht schreibbar
+        self.checked -= set(gids) - set(self.queue) - {self.current} - fresh
 
     def want(self, gid, front=False):
         if self.clock() < self.backoff:
@@ -90,6 +94,7 @@ class MapFinder:
             g = p.game(gid)
             if not g or not p.is_extra(gid):
                 continue
+            self.current = gid
             try:
                 maps = await loop.run_in_executor(None, self.lookup, g["name"])
             except Exception as e:  # noqa: BLE001
@@ -99,6 +104,9 @@ class MapFinder:
                     self.checked.discard(rest)
                 self.queue.clear()
                 return
+            finally:
+                self.current = None
+            self.done[gid] = self.clock()
             try:
                 if maps and p.set_extra_maps(gid, maps):
                     log.info("Map Genie für %s: %d Karte(n)", gid, len(maps))
