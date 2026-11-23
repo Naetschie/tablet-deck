@@ -19,7 +19,9 @@ PC:     Hub (python -m bridge)  ── SendInput: Tasten, Maus, Text, Medientast
 ```
 
 ## Installation
-`powershell -ExecutionPolicy Bypass -File .\install.ps1` richtet PC und (angestecktes) Tablet ein:
+Am einfachsten: **`einrichten.bat`** doppelklicken - die geführte Einrichtung erklärt jeden Schritt, prüft die
+Verbindung zum Tablet und schlägt Betriebsart und Light-Modus passend zum Gerät vor.
+`powershell -ExecutionPolicy Bypass -File .\install.ps1` richtet PC und (angestecktes) Tablet ohne Fragen ein:
 Python (falls es fehlt), Python-Pakete, adb, spacedesk-Treiber, Autostart, Launcher. Die Launcher-App
 (`tablet-deck.apk`) liegt in den [Releases](https://github.com/Naetschie/tablet-deck/releases); das Skript lädt
 sie selbst, wenn sie fehlt, oder nimmt sie mit `-Apk <Pfad>`. Details und Fehlersuche:

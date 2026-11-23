@@ -15,6 +15,10 @@
 #   .\install.ps1 -Serial <Nr>    nur dieses Gerät einrichten (weiteres Gerät, mehrere angesteckt). Sind mehrere
 #                                 angesteckt und fehlt -Serial, fragt das Skript, welches. Mit -Companion gilt der
 #                                 Begleit-Modus dann nur für dieses Gerät (tablet_modes in config.json)
+#   .\install.ps1 -Interactive    geführte Einrichtung mit Erklärungen: prüft Ordner und Tablet-Verbindung Schritt für
+#                                 Schritt, liest das Tablet aus und schlägt Begleit-/Light-Modus vor, fragt nach
+#                                 Zweitbildschirm und PC-Werten; am Ende Verbindungstest Tablet <-> PC.
+#                                 Doppelklick auf einrichten.bat startet genau das.
 #   .\install.ps1 -Light          Light-Modus für das angesteckte Gerät (schwache Tablets: Karte mit geringerer
 #                                 Auflösung, verdeckte Seiten freigeben, ohne Unschärfe-Effekte); später im Editor
 #                                 unter Einstellungen → Geräte umschaltbar. Standard: aus
@@ -36,7 +40,7 @@
 #   7. Smoke-Test gegen die laufende Bridge
 param([switch]$SkipTablet, [switch]$SkipSpacedesk, [switch]$SkipAutostart, [switch]$SkipSensors, [switch]$Modules,
       [switch]$Companion, [switch]$Check, [switch]$AllowLocalChanges, [string]$Apk, [string]$Serial,
-      [switch]$ListDevices, [switch]$Light)
+      [switch]$ListDevices, [switch]$Light, [switch]$Interactive)
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 . (Join-Path $root "scripts\install-helpers.ps1")
@@ -68,6 +72,53 @@ function Run {
 }
 
 $sensorsDest = Join-Path $env:ProgramFiles "TabletDeck\sensors"
+
+# ---------------------------------------------------------------- Geführte Einrichtung (-Interactive)
+function Note($t) { Write-Host "   $t" -ForegroundColor Gray }
+# Ja/Nein-Frage; ohne Konsole (kein Read-Host möglich) gilt der Vorschlag
+function Ask-YesNo($q, $default) {
+    $hint = if ($default) { "J/n" } else { "j/N" }
+    while ($true) {
+        try { $a = Read-Host "   $q [$hint]" } catch { return $default }
+        if (-not $a) { return $default }
+        if ($a -match '^\s*[jy]') { return $true }
+        if ($a -match '^\s*n') { return $false }
+        Note "Bitte j (ja) oder n (nein) eingeben."
+    }
+}
+function Wait-Enter($q) { try { return (Read-Host "   $q") } catch { return "s" } }
+
+if ($Interactive -and -not $Check -and -not $ListDevices) {
+    Write-Host ""
+    Write-Host "Tablet Deck - geführte Einrichtung" -ForegroundColor Cyan
+    Note "Richtet den PC ein (Python, adb, Hub mit Autostart) und das Tablet (Launcher-App, Kopplung)."
+    Note "Jeder Schritt sagt, was er tut; bei Fragen genügt meist Enter (Vorschlag in Großbuchstaben)."
+    Note "Abbrechen jederzeit mit Strg+C - das Skript lässt sich gefahrlos erneut starten."
+
+    Step "Ordner"
+    $pf = @($env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ }
+    if ($pf | Where-Object { $root.StartsWith($_, [StringComparison]::OrdinalIgnoreCase) }) {
+        Warn "Tablet Deck liegt unter $root."
+        Note "Dort darf der Hub nicht schreiben (Log, Einstellungen, Kopplung) und startet nicht. Bitte den Ordner"
+        Note "z. B. nach C:\TabletDeck oder in die Dokumente verschieben und einrichten.bat von dort starten."
+        exit 1
+    }
+    $dl = Join-Path $env:USERPROFILE "Downloads"
+    if ($root.StartsWith($dl, [StringComparison]::OrdinalIgnoreCase) -or $root -match '\\OneDrive') {
+        Warn "Tablet Deck liegt unter $root."
+        Note "Downloads/OneDrive sind kein guter Dauerort (wird aufgeräumt bzw. synchronisiert). Der Hub startet"
+        Note "später aus genau diesem Ordner. Besser vorher verschieben, z. B. nach C:\TabletDeck."
+        if (-not (Ask-YesNo "Trotzdem hier einrichten?" $false)) { exit 1 }
+    } else { Ok $root }
+
+    Step "Auswahl"
+    Note "Zweitbildschirm: Das Tablet kann per USB zusätzlich als Bildschirm dienen (spacedesk, installiert einen"
+    Note "Treiber, Windows fragt nach Administratorrechten)."
+    if (-not $SkipSpacedesk) { $SkipSpacedesk = -not (Ask-YesNo "Zweitbildschirm einrichten?" $true) }
+    Note "PC-Werte: Temperaturen, Lüfter und Takte brauchen einen kleinen Helfer mit Administratorrechten"
+    Note "(einmalige UAC-Abfrage). Ohne ihn zeigt die Kachel nur CPU-Last, RAM, Netz und NVIDIA-GPU."
+    if (-not $SkipSensors) { $SkipSensors = -not (Ask-YesNo "Alle PC-Werte einrichten?" $true) }
+}
 
 # Sensor-Helfer abfragen (Token aus secrets\sensors.key, nie ausgeben). Ergebnis: Quellen-Status oder $null
 function Get-SensorSources {
@@ -210,6 +261,75 @@ if (-not (Test-Path $adb)) {
     }
 }
 Ok $adb
+
+if ($Interactive -and -not $SkipTablet) {
+    Step "Tablet verbinden"
+    Note "Das Tablet per USB-Datenkabel anstecken (reine Ladekabel gehen nicht) und USB-Debugging einschalten."
+    $target = $null
+    while (-not $target) {
+        $all = @(Get-AdbDevices | Where-Object { $_.Seriennummer -notmatch ':|_adb-tls|^adb-' })
+        $ready = @($all | Where-Object Zustand -eq "device")
+        if ($ready.Count -eq 1) { $target = $ready[0]; break }
+        if ($ready.Count -gt 1) {
+            Write-Host "   Mehrere Geräte angesteckt:"
+            Show-AdbDevices $ready
+            $pick = Wait-Enter "Welches einrichten? Nummer"
+            $n = 0
+            if ([int]::TryParse("$pick".Trim(), [ref]$n) -and $n -ge 1 -and $n -le $ready.Count) { $target = $ready[$n - 1] }
+            continue
+        }
+        if ($all | Where-Object Zustand -eq "unauthorized") {
+            Warn "Das Tablet fragt nach der Erlaubnis für diesen PC."
+            Note "Am Tablet erscheint 'USB-Debugging zulassen?': Haken bei 'Von diesem Computer immer zulassen', dann OK."
+            Note "Kein Dialog zu sehen? Kabel kurz abziehen und wieder anstecken, Bildschirm entsperren."
+        } elseif ($all | Where-Object Zustand -eq "offline") {
+            Warn "Das Tablet ist angesteckt, antwortet aber nicht (offline)."
+            Note "Kabel abziehen und wieder anstecken; hilft das nicht: am Tablet USB-Debugging aus- und wieder einschalten."
+        } else {
+            Warn "Kein Tablet gefunden."
+            Note "1. Am Tablet: Einstellungen → Über das Tablet (Telefoninfo) → 7-mal auf 'Build-Nummer' tippen."
+            Note "   (Samsung: Einstellungen → Telefoninfo → Softwareinformationen → Buildnummer)"
+            Note "2. Einstellungen → System → Entwickleroptionen → 'USB-Debugging' einschalten."
+            Note "3. Per USB-Datenkabel anstecken, Bildschirm entsperren, die Frage am Tablet mit 'Zulassen' bestätigen."
+        }
+        $a = Wait-Enter "Enter = erneut prüfen, s = ohne Tablet weiter"
+        if ("$a".Trim() -match '^s') { $SkipTablet = $true; Warn "Tablet übersprungen - später: einrichten.bat erneut starten"; break }
+    }
+    if ($target) {
+        $s1 = @("-s", $target.Seriennummer)
+        $Serial = $target.Seriennummer
+        $andr = "$((Run $adb @s1 shell getprop ro.build.version.release).Out)".Trim()
+        $memKb = 0
+        if ((Run $adb @s1 shell cat /proc/meminfo).Out -match 'MemTotal:\s+(\d+)') { $memKb = [int64]$Matches[1] }
+        $ramGb = [math]::Round($memKb / 1MB, 1)
+        $gpu = ""
+        if ((Run $adb @s1 shell dumpsys SurfaceFlinger).Out -match 'GLES:\s*([^\r\n]+)') { $gpu = $Matches[1].Trim() }
+        $size = ("$((Run $adb @s1 shell wm size).Out)" -split "`n" | Select-Object -Last 1) -replace '.*:\s*', ''
+        $hasSu = [bool]"$((Run $adb @s1 shell "command -v su").Out)".Trim()
+        Ok "$($target.Modell) (Android $andr, $ramGb GB RAM, $($size.Trim()))"
+        if ($gpu) { Note "Grafik: $gpu" }
+        if ($target.Launcher -eq "ja") { Note "Die Launcher-App ist schon installiert - sie wird aktualisiert, die Kopplung erneuert." }
+
+        Step "Betriebsart"
+        Note "Begleit-Modus: Tablet Deck läuft als normale App (für jedes Tablet, ohne Root). Empfohlen."
+        Note "Startbildschirm-Modus: ersetzt den Android-Startbildschirm, schaltet das Tablet mit dem PC (braucht Root"
+        Note "und ein eigens vorbereitetes Tablet, siehe docs\tablet-setup.md)."
+        if ($hasSu) { Note "Auf dem Tablet gibt es Root (su)." } else { Note "Kein Root gefunden - Startbildschirm-Modus ist hier nicht möglich." }
+        if (-not $Companion) {
+            $Companion = if ($hasSu) { -not (Ask-YesNo "Als Startbildschirm einrichten (Root)?" $false) } else { $true }
+        }
+        if ($Companion) { Ok "Begleit-Modus" } else { Ok "Startbildschirm-Modus" }
+
+        Step "Light-Modus"
+        Note "Für schwache Tablets: Karten in geringerer Auflösung, verdeckte Seiten werden freigegeben, schwere"
+        Note "3D-Karten nicht von selbst gewählt. Später jederzeit im Editor (Einstellungen → Geräte) umschaltbar."
+        $weak = ($ramGb -gt 0 -and $ramGb -le 3) -and ($gpu -notmatch 'Adreno')
+        if ($weak) { Note "Vorschlag: an ($ramGb GB RAM, Grafik $(if ($gpu) { ($gpu -split ',')[1].Trim() } else { 'unbekannt' }))." }
+        else { Note "Vorschlag: aus (genug Leistung erkannt)." }
+        if (-not $Light) { $Light = Ask-YesNo "Light-Modus einschalten?" $weak }
+        if ($Light) { Ok "Light-Modus an" } else { Ok "Light-Modus aus" }
+    }
+}
 
 # ---------------------------------------------------------------- 3. spacedesk
 if (-not $SkipSpacedesk) {
@@ -409,6 +529,10 @@ if (-not $SkipTablet) {
         } else {
             # Hashtable: ein Array würde "-Companion" als Wert statt als Schalter übergeben (PS 5.1)
             $setupArgs = @{ Serial = $target.Seriennummer }; if ($Companion) { $setupArgs.Companion = $true }
+            Note "Fragt das Tablet (z. B. Google Play Protect), ob die App installiert werden darf: am Tablet bestätigen"
+            Note "('Trotzdem installieren' bzw. 'Ohne Scannen installieren') - sonst wartet die Installation."
+            $logFile = Join-Path $root "bridge.log"
+            $logStart = if (Test-Path $logFile) { (Get-Item $logFile).Length } else { 0 }
             & (Join-Path $root "tablet\setup-launcher.ps1") @setupArgs | ForEach-Object { "   $_" }
             Ok "Launcher eingerichtet und gekoppelt ($($target.Seriennummer) $($target.Modell))"
             # Begleit-Modus immer für dieses Gerät (tablet_modes); beim allerersten Gerät zusätzlich für alle
@@ -478,6 +602,32 @@ if ($Companion -and -not $SkipTablet -and -not $companionDone) {
     Warn "-Companion nicht eingetragen (kein Gerät eingerichtet) - nach Behebung install.ps1 -Companion erneut ausführen"
 }
 
+# ---------------------------------------------------------------- 6b. Verbindungstest (geführt)
+if ($Interactive -and $target -and $logStart -ne $null -and -not $SkipTablet) {
+    Step "Verbindung Tablet <-> PC"
+    Note "Warte, bis sich die App am Tablet beim Hub meldet (bis 60 s) ..."
+    Run $adb -s $target.Seriennummer shell monkey -p app.tabletdeck.launcher -c android.intent.category.LAUNCHER 1 | Out-Null
+    $linked = $false
+    for ($i = 0; $i -lt 60 -and -not $linked; $i++) {
+        try {
+            $fs = [IO.File]::Open($logFile, "Open", "Read", "ReadWrite")
+            try {
+                if ($fs.Length -lt $logStart) { $logStart = 0 }   # Log wurde zwischendurch gedreht
+                [void]$fs.Seek($logStart, "Begin")
+                $new = (New-Object IO.StreamReader($fs, [Text.Encoding]::UTF8)).ReadToEnd()
+            } finally { $fs.Dispose() }
+            if ($new -match 'Launcher verbunden') { $linked = $true }
+        } catch { }
+        if (-not $linked) { Start-Sleep 1 }
+    }
+    if ($linked) { Ok "Tablet ist mit dem PC verbunden" }
+    else {
+        Warn "Das Tablet hat sich (noch) nicht gemeldet."
+        Note "Tablet entsperren und die App 'Tablet Deck' öffnen. Kommt keine Verbindung: Kabel neu stecken, dann"
+        Note "einrichten.bat erneut starten. Details stehen in bridge.log."
+    }
+}
+
 # ---------------------------------------------------------------- 7. Test
 Step "Smoke-Test"
 Start-Sleep 2
@@ -485,3 +635,8 @@ $r = Run $python (Join-Path $root "tests\smoke_bridge.py")
 $r.Out -split "`r?`n" | ForEach-Object { "   $_" }
 if ($r.Code -ne 0) { Warn "Smoke-Test meldet Fehler (siehe oben)" } else { Ok "alles grün" }
 Write-Host "`nFertig. Panel-Editor: Taskleisten-Symbol -> 'Panel-Editor öffnen'." -ForegroundColor Cyan
+if ($Interactive) {
+    Note "Der Hub startet ab jetzt mit Windows (Taskleisten-Symbol). Am Tablet die App 'Tablet Deck' öffnen."
+    Note "Spiele, Karten und Panels pflegt der Editor; Light-Modus: Editor → Einstellungen → Geräte."
+    Note "Prüfen, ob alles läuft: einrichten.bat erneut starten oder .\install.ps1 -Check."
+}

@@ -20,7 +20,15 @@ damit den Releases dieses Repos. Offline, bei
 einer Version ohne Release (z. B. ein Zip vom aktuellen Stand) oder wenn die GitHub-API gerade nicht antwortet
 (Grenze 60 Anfragen pro Stunde): die Datei nach `android\build\` legen oder mit `-Apk <Pfad>` angeben.
 
-Im Projektordner (bzw. im entpackten Zip, siehe [Weitergabe als Zip](#weitergabe-als-zip)):
+**Am einfachsten:** den Projektordner an einen festen Ort legen (z. B. `C:\TabletDeck`, nicht unter
+`C:\Program Files` - dort darf der Hub nicht schreiben) und **`einrichten.bat`** doppelklicken. Die geführte
+Einrichtung erklärt jeden Schritt, prüft die Verbindung zum Tablet (Entwickleroptionen, USB-Debugging,
+Freigabe-Dialog), liest das Tablet aus (Android, RAM, Grafik, Root) und schlägt danach Begleit- oder
+Startbildschirm-Modus und den [Light-Modus](#light-modus-schwache-tablets) vor. Sie fragt, ob Zweitbildschirm und
+alle PC-Werte eingerichtet werden sollen, und prüft am Ende, ob sich das Tablet beim PC meldet. Dasselbe in
+PowerShell: `.\install.ps1 -Interactive`.
+
+Ohne Fragen, im Projektordner (bzw. im entpackten Zip, siehe [Weitergabe als Zip](#weitergabe-als-zip)):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -Companion
@@ -48,6 +56,7 @@ Danach: Taskleisten-Symbol am PC, die App „Tablet Deck“ am Tablet. Weiter mi
 | `-AllowLocalChanges` | Sensor-Helfer auch mit nicht eingecheckten Änderungen an seinen Dateien einrichten |
 | `-Check` | nichts ändern, nur prüfen und auflisten, was fehlt (Exit-Code 1, wenn etwas offen ist) |
 | `-Companion` | Begleit-Modus ohne Root: kein Startbildschirm. Gilt für das eingerichtete Gerät (`tablet_modes`); beim allerersten Gerät zusätzlich als Standard für alle (`tablet_mode`), mit `-SkipTablet` nur als Standard (siehe unten) |
+| `-Interactive` | geführte Einrichtung mit Erklärungen und Verbindungstest (wie `einrichten.bat`); vorgegebene Schalter (`-Companion`, `-Light`, `-SkipSpacedesk`, `-SkipSensors`) gelten als schon beantwortet |
 | `-Light` | [Light-Modus](#light-modus-schwache-tablets) für das angesteckte Gerät (schwache Tablets); startet die Bridge neu |
 | `-ListDevices` | angesteckte Android-Geräte mit Seriennummer und Modell anzeigen, nichts ändern |
 | `-Serial <Nr>` | nur dieses Gerät einrichten (weiteres Gerät, mehrere angesteckt; ohne den Schalter fragt das Skript) |
