@@ -1,5 +1,27 @@
 # Änderungen
 
+## 5.2 – 23.11.2026
+
+**Geführte Einrichtung** für Leute, die Tablet Deck zum ersten Mal einrichten.
+
+### Installation
+- **`einrichten.bat` doppelklicken** (oder `.\install.ps1 -Interactive`): erklärt jeden Schritt und umgeht die
+  Ausführungsrichtlinie nur für diesen Aufruf.
+  - Prüft den Ordner: unter `C:\Program Files` bricht sie mit Erklärung ab (dort darf der Hub nicht schreiben),
+    bei Downloads/OneDrive fragt sie nach.
+  - Fragt, ob Zweitbildschirm (spacedesk) und alle PC-Werte (Sensor-Helfer, UAC) eingerichtet werden sollen.
+  - Prüft die Verbindung zum Tablet Schritt für Schritt: kein Gerät (Entwickleroptionen, USB-Debugging,
+    Datenkabel, auch der Samsung-Weg), Freigabe-Dialog am Tablet, „offline“, mehrere Geräte.
+  - Liest das Tablet aus (Modell, Android, RAM, Grafik, Auflösung, Root) und schlägt passend vor: Begleit-Modus
+    ohne Root, Light-Modus bei höchstens 3 GB RAM ohne Adreno-Grafik.
+  - Prüft am Ende, ob sich die App am Tablet beim PC meldet.
+- Vor der APK-Installation weist das Skript auf Rückfragen am Tablet hin (z. B. Google Play Protect: „Trotzdem
+  installieren“) - sonst wartet die Installation scheinbar ohne Grund.
+
+### Aktualisieren
+- Nur Installationsskripte und Doku sind neu; Hub, Webseiten und Launcher-App sind gegenüber 5.1 unverändert
+  (nur die Versionsnummer der App). `.\install.ps1` lädt die APK aus dem Release v5.2.
+
 ## 5.1 – 23.11.2026
 
 Karten für alle installierten Spiele, ein Karten-Reiter im Editor und ein **Light-Modus** für schwache Tablets.
