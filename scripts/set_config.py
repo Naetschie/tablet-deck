@@ -7,13 +7,33 @@ use:  spacedesk_usb wieder an; spacedesk_silence bleibt, wie der Benutzer es ges
 companion / home: tablet_mode setzen (Begleit-Modus ohne Root bzw. Startbildschirm-Modus).
 Ohne diese Modi bleibt tablet_mode unverändert.
 device <serial> companion|home: Betriebsart nur dieses Geräts (tablet_modes[serial]); andere bleiben, wie sie sind.
-device <serial> light on|off: Light-Modus nur dieses Geräts (tablet_lights[serial]; devices.json hat Vorrang).
+device <serial> light on|off: Light-Modus nur dieses Geräts (tablet_lights[serial]). Steht das Gerät schon in
+    devices.json daneben (hat Vorrang), wird es dort ebenso gesetzt - nur bei beendeter Bridge aufrufen.
 Schreibt nur bei einer Änderung, atomar (tmp + os.replace).
 """
 import json
 import os
 import re
 import sys
+
+
+def set_device_light(dev_path, serial, on):
+    """devices.json: light beim bekannten Gerät setzen; fehlt die Datei oder das Gerät, nichts tun."""
+    try:
+        with open(dev_path, encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return
+    except (OSError, ValueError) as e:
+        sys.exit(f"devices.json nicht lesbar ({e}) - Light-Modus nicht gesetzt")
+    devs = data.get("devices") if isinstance(data, dict) else None
+    if not isinstance(devs, dict) or not isinstance(devs.get(serial), dict) or devs[serial].get("light") is on:
+        return
+    devs[serial]["light"] = on
+    tmp = dev_path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, dev_path)
 
 
 def main():
@@ -32,6 +52,9 @@ def main():
         vals = dict(cfg.get(key) or {}) if isinstance(cfg.get(key), dict) else {}
         vals[serial] = sys.argv[5] == "on" if light else sys.argv[4]
         new[key] = vals
+        if light:
+            set_device_light(os.path.join(os.path.dirname(os.path.abspath(path)), "devices.json"), serial,
+                             sys.argv[5] == "on")
     elif mode == "skip":
         new["spacedesk_usb"] = False
         new["spacedesk_silence"] = False

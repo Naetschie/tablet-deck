@@ -147,7 +147,7 @@ class Devices:
 
     def set_light(self, dev, on):
         """Light-Modus eines bekannten Geräts setzen (Editor, Hinweis am Tablet). True bei Erfolg."""
-        if dev not in self.data or not isinstance(on, bool):
+        if dev not in self.data or not isinstance(on, bool) or self.broken:
             return False
         if self.data[dev].get("light") is not on:
             self.data[dev]["light"] = on

@@ -125,6 +125,30 @@ class SetConfigTest(unittest.TestCase):
             self.assertNotEqual(rc, 0, extra)
             self.assertEqual(cfg, {"x": 1})
 
+    def test_device_light_zieht_devices_json_mit(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "config.json")
+            dp = os.path.join(d, "devices.json")
+            with open(p, "w", encoding="utf-8") as f:
+                json.dump({}, f)
+            with open(dp, "w", encoding="utf-8") as f:
+                json.dump({"devices": {"SAM1": {"name": "Samsung", "light": False}, "TAB1": {"name": "T"}}}, f)
+            r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "set_config.py"), p, "device", "SAM1",
+                                "light", "on"], capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            with open(dp, encoding="utf-8") as f:
+                devs = json.load(f)["devices"]
+            self.assertEqual((devs["SAM1"]["light"], "light" in devs["TAB1"]), (True, False))
+            # unbekanntes Gerät: devices.json bleibt, config.json bekommt den Eintrag
+            r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "set_config.py"), p, "device", "NEU1",
+                                "light", "on"], capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            with open(dp, encoding="utf-8") as f:
+                self.assertNotIn("NEU1", json.load(f)["devices"])
+            with open(p, encoding="utf-8") as f:
+                self.assertEqual(json.load(f)["tablet_lights"], {"SAM1": True, "NEU1": True})
+            self.assertEqual(sorted(os.listdir(d)), ["config.json", "devices.json"])
+
     def test_unbekannter_modus(self):
         rc, _, _ = self.run_cfg({}, "quatsch")
         self.assertNotEqual(rc, 0)

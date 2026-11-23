@@ -833,7 +833,7 @@ class Bridge:
                 maps = await asyncio.get_running_loop().run_in_executor(
                     None, lambda: mapgenie.lookup(g["name"], force=True))
             except Exception as e:  # noqa: BLE001 - jeder Netzfehler als Meldung, Editor bleibt verbunden
-                raise ValueError(e.__class__.__name__) from e
+                raise ValueError(f"Map Genie nicht erreichbar ({e.__class__.__name__})") from e
             return {"t": "maps_found", "game": gid, "maps": maps}
         if t == "maps_show":
             url = msg.get("url")

@@ -138,6 +138,12 @@ class DevicesTest(unittest.TestCase):
         d.data["TAB1"]["light"] = "kaputt"
         self.assertFalse(device_light({}, "TAB1", d))
 
+    def test_light_kaputte_datei(self):
+        self.path.write_text("{kaputt", encoding="utf-8")
+        d = Devices(self.path)
+        d.data["SAM1"] = {"name": "S"}
+        self.assertFalse(d.set_light("SAM1", True))   # nicht speicherbar: kein Erfolg melden
+
     def test_light_nachrichten(self):
         d = Devices(self.path)
         d.see("SAM1")

@@ -427,25 +427,26 @@ if (-not $SkipTablet) {
                 }
             }
         }
-        if ($Light -and (Test-Path $apkPath)) {
+        if ($Light) {
+            # Die Bridge liest config.json nur beim Start und schreibt devices.json selbst: erst beenden, dann
+            # eintragen (config.json tablet_lights und - falls das Gerät schon bekannt ist - devices.json, das Vorrang
+            # hat), dann neu starten. Aufgabe beenden/starten setzt auch die Pause des Wächters zurück.
+            $task = Get-ScheduledTask -TaskName "Tablet Deck Bridge" -ErrorAction SilentlyContinue
+            if ($task) { Stop-ScheduledTask -TaskName "Tablet Deck Bridge" }
+            Get-CimInstance Win32_Process -Filter "Name like 'python%'" |
+                Where-Object CommandLine -match '-m bridge(\.supervise)?( |$)' |
+                ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+            for ($i = 0; $i -lt 10 -and (& $bridgeRunning); $i++) { Start-Sleep 1 }
             $r = Run $python (Join-Path $root "scripts\set_config.py") $cfgPath "device" $target.Seriennummer "light" "on"
+            if ($task) { Start-ScheduledTask -TaskName "Tablet Deck Bridge" }
+            else { Start-Process (Join-Path (Split-Path $python) "pythonw.exe") -ArgumentList "-m", "bridge.supervise" -WorkingDirectory $root }
             if ($r.Code -ne 0) { throw "config.json nicht änderbar: $($r.Out)" }
             $lightDone = $true
-            # Die Bridge liest config.json nur beim Start: neu starten (Aufgabe beenden/starten setzt auch die Pause
-            # des Wächters zurück)
-            if (Get-ScheduledTask -TaskName "Tablet Deck Bridge" -ErrorAction SilentlyContinue) {
-                Stop-ScheduledTask -TaskName "Tablet Deck Bridge"
-                Get-CimInstance Win32_Process -Filter "Name like 'python%'" |
-                    Where-Object CommandLine -match '-m bridge(\.supervise)?( |$)' |
-                    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-                Start-ScheduledTask -TaskName "Tablet Deck Bridge"
-                for ($i = 0; $i -lt 30 -and -not (& $bridgeRunning); $i++) { Start-Sleep 1 }
-                Start-Sleep 3
-                Ok "Light-Modus für $($target.Seriennummer) eingeschaltet, Bridge neu gestartet"
-            } else {
-                Ok "Light-Modus für $($target.Seriennummer) eingetragen (tablet_lights in config.json)"
-                Warn "Bridge neu starten, damit der Light-Modus gilt"
+            # warten, bis der Hub wieder antwortet (der Smoke-Test folgt)
+            for ($i = 0; $i -lt 30; $i++) {
+                try { $c = [Net.Sockets.TcpClient]::new("127.0.0.1", 8765); $c.Close(); break } catch { Start-Sleep 1 }
             }
+            Ok "Light-Modus für $($target.Seriennummer) eingeschaltet, Bridge neu gestartet"
         }
         if (-not $SkipSpacedesk) {
             $has = (Run $adb @adbSel shell pm list packages ph.spacedesk.beta).Out
@@ -464,7 +465,9 @@ if (-not $SkipTablet) {
     }
 }
 
-if ($Light -and -not $lightDone) {
+if ($Light -and $SkipTablet) {
+    Warn "-Light braucht das Gerät (ohne -SkipTablet ausführen) - oder im Editor unter Einstellungen → Geräte einschalten"
+} elseif ($Light -and -not $lightDone) {
     Warn "-Light nicht eingetragen (kein Gerät eingerichtet) - Tablet anstecken und install.ps1 -Light erneut ausführen, oder im Editor unter Einstellungen → Geräte einschalten"
 }
 if ($Companion -and -not $SkipTablet -and -not $companionDone) {

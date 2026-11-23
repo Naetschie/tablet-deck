@@ -91,6 +91,8 @@ class UserMapsTest(unittest.TestCase):
         os.utime(f, (1, 1))
         self.assertFalse(self.u.load())
         self.assertIn("wh", self.u.maps)                     # alte Listen bleiben
+        self.u.set("wh", [{"name": "X", "url": "https://x.example"}])   # unverändert, aber Datei kaputt: ersetzen
+        self.assertEqual(json.loads(f.read_text(encoding="utf-8"))["games"]["wh"][0]["name"], "X")
         f.unlink()
         self.assertTrue(self.u.load())
         self.assertEqual(self.u.maps, {})

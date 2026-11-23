@@ -36,6 +36,7 @@ class UserMaps:
         self.path = Path(path)
         self.maps = {}
         self.mtime = None
+        self.broken = False   # letzte Ladung fehlgeschlagen: nächstes Speichern ersetzt die Datei
 
     def load(self):
         """Neu laden, wenn sich die Datei geändert hat; True bei Änderung. Kaputte Datei: alte Listen bleiben."""
@@ -53,7 +54,9 @@ class UserMaps:
             new = validate(json.loads(self.path.read_text(encoding="utf-8")))
         except (OSError, ValueError) as e:
             log.error("maps.json fehlerhaft, bisherige Karten bleiben: %s", e)
+            self.broken = True
             return False
+        self.broken = False
         changed = new != self.maps
         self.maps = new
         if changed:
@@ -70,7 +73,7 @@ class UserMaps:
         else:
             new[gid] = validate_maps(maps, gid)
         validate({"games": new})
-        if new == self.maps and (self.path.exists() or not new):
+        if new == self.maps and not self.broken and (self.path.exists() or not new):
             return new   # unverändert: nicht schreiben
         self.path.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=self.path.parent, prefix=".maps-", suffix=".tmp")
@@ -86,6 +89,7 @@ class UserMaps:
                 pass
             raise
         self.maps = new
+        self.broken = False
         try:
             self.mtime = self.path.stat().st_mtime
         except OSError:
