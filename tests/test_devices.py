@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from bridge.devices import Devices, valid_id
-from bridge.__main__ import Bridge, device_cookie, device_mode, device_rotation
+from bridge.__main__ import Bridge, device_cookie, device_light, device_mode, device_rotation
 
 
 class FakeWs:
@@ -120,6 +120,37 @@ class DevicesTest(unittest.TestCase):
         self.assertEqual(Bridge.rotation_msg(fake), {"t": "rotation", "r": 1})
         self.assertEqual(Bridge.tablet_mode_msg(fake, "PHONE1"), {"t": "tablet_mode", "mode": "companion"})
         self.assertEqual(Bridge.tablet_mode_msg(fake), {"t": "tablet_mode", "mode": "home"})
+
+    def test_light_pro_geraet(self):
+        d = Devices(self.path)
+        d.see("TAB1")
+        d.see("SAM1")
+        self.assertFalse(device_light({}, "SAM1", d))                       # Standard aus
+        self.assertTrue(device_light({"tablet_lights": {"SAM1": True}}, "SAM1", d))   # config.json (install -Light)
+        self.assertFalse(device_light({"tablet_lights": {"SAM1": "ja"}}, "SAM1", d))  # ungültig
+        self.assertTrue(d.set_light("SAM1", True))
+        self.assertFalse(d.set_light("FREMD", True))
+        self.assertFalse(d.set_light("SAM1", "ja"))
+        self.assertTrue(json.loads(self.path.read_text(encoding="utf-8"))["devices"]["SAM1"]["light"])
+        self.assertTrue(device_light({"tablet_lights": {"SAM1": False}}, "SAM1", d))   # devices.json geht vor
+        self.assertFalse(device_light({}, "TAB1", d))
+        self.assertFalse(device_light({}, None, d))
+        d.data["TAB1"]["light"] = "kaputt"
+        self.assertFalse(device_light({}, "TAB1", d))
+
+    def test_light_nachrichten(self):
+        d = Devices(self.path)
+        d.see("SAM1")
+        d.set_light("SAM1", True)
+        ws_sam, ws_other = FakeWs(), FakeWs()
+        fake = SimpleNamespace(cfg={}, devices=d, ctl_device={ws_sam: "SAM1", ws_other: "TAB1"})
+        fake.light_msg = Bridge.light_msg.__get__(fake)
+        self.assertEqual(fake.light_msg("SAM1"), {"t": "light", "on": True})
+        self.assertEqual(fake.light_msg(None), {"t": "light", "on": False})
+        asyncio.run(Bridge.send_light(fake, "SAM1"))
+        self.assertEqual((ws_sam.sent, ws_other.sent), ([{"t": "light", "on": True}], []))
+        info = Bridge.devices_info(fake)
+        self.assertEqual([(x["id"], x["light"], x["connected"]) for x in info["devices"]], [("SAM1", True, True)])
 
     def test_cookie(self):
         self.assertEqual(device_cookie(FakeWs("deck=geheim; deckdev=TAB1")), "TAB1")

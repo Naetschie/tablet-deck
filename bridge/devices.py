@@ -2,8 +2,9 @@
 
 Nichts ist fest verdrahtet: Der Hub trägt ein Gerät beim ersten Koppeln selbst ein (Seriennummer + Modell),
 das erste wird Hauptgerät. Das Hauptgerät bekommt „An Tablet senden“; umstellen per set_main (Taskleiste).
-Pro Gerät optional: name, mode (home/companion), rotation (0-3 oder null), panel ("spiel/panel").
-Fehlt ein Feld, gilt der Wert aus config.json (tablet_modes/tablet_mode, tablet_rotation).
+Pro Gerät optional: name, mode (home/companion), rotation (0-3 oder null), panel ("spiel/panel"),
+light (true/false: Light-Modus für schwache Geräte). Fehlt ein Feld, gilt der Wert aus config.json
+(tablet_modes/tablet_mode, tablet_rotation, tablet_lights).
 
 Die Kennung (Seriennummer) schickt der Hub per ADB an den Launcher; der setzt sie als Cookie "deckdev",
 damit der Hub auch WLAN-Verbindungen dem Gerät zuordnen kann. Sie ist nur eine Bezeichnung, keine
@@ -109,6 +110,15 @@ class Devices:
         p = (self.get(dev) or {}).get("panel")
         return p if isinstance(p, str) and p else None
 
+    def light(self, dev, default=False):
+        d = self.get(dev) or {}
+        if "light" not in d:
+            return default
+        if isinstance(d["light"], bool):
+            return d["light"]
+        log.error("devices.json %s: light=%r ungültig (true oder false) - nehme %r", dev, d["light"], default)
+        return default
+
     def tiles(self, dev):
         """Kachel-IDs, die dieses Gerät zeigt (Reihenfolge aus launcher.json), oder None = alle."""
         t = (self.get(dev) or {}).get("tiles")
@@ -133,6 +143,16 @@ class Devices:
         self.data[dev] = {"name": model or dev, "model": model or "", "main": not self.data}
         self.save()
         log.info("Neues Gerät %s (%s)%s", dev, model or "?", " - Hauptgerät" if self.data[dev]["main"] else "")
+        return True
+
+    def set_light(self, dev, on):
+        """Light-Modus eines bekannten Geräts setzen (Editor, Hinweis am Tablet). True bei Erfolg."""
+        if dev not in self.data or not isinstance(on, bool):
+            return False
+        if self.data[dev].get("light") is not on:
+            self.data[dev]["light"] = on
+            self.save()
+            log.info("Light-Modus %s: %s", self.name(dev), "an" if on else "aus")
         return True
 
     def set_main(self, dev):

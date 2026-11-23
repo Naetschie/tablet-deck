@@ -15,6 +15,9 @@
 #   .\install.ps1 -Serial <Nr>    nur dieses Gerät einrichten (weiteres Gerät, mehrere angesteckt). Sind mehrere
 #                                 angesteckt und fehlt -Serial, fragt das Skript, welches. Mit -Companion gilt der
 #                                 Begleit-Modus dann nur für dieses Gerät (tablet_modes in config.json)
+#   .\install.ps1 -Light          Light-Modus für das angesteckte Gerät (schwache Tablets: Karte mit geringerer
+#                                 Auflösung, verdeckte Seiten freigeben, ohne Unschärfe-Effekte); später im Editor
+#                                 unter Einstellungen → Geräte umschaltbar. Standard: aus
 #
 # Was passiert (PC):
 #   1. Python prüfen (>= 3.11; fehlt es: per winget bzw. python.org installieren - für alle Benutzer mit
@@ -33,7 +36,7 @@
 #   7. Smoke-Test gegen die laufende Bridge
 param([switch]$SkipTablet, [switch]$SkipSpacedesk, [switch]$SkipAutostart, [switch]$SkipSensors, [switch]$Modules,
       [switch]$Companion, [switch]$Check, [switch]$AllowLocalChanges, [string]$Apk, [string]$Serial,
-      [switch]$ListDevices)
+      [switch]$ListDevices, [switch]$Light)
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 . (Join-Path $root "scripts\install-helpers.ps1")
@@ -356,6 +359,7 @@ if (-not $SkipTablet) {
         else { Warn "kein Gerät gewählt - später: .\install.ps1 -Serial <Seriennummer>" }
     } else { $target = $all | Select-Object -First 1 }
     $companionDone = $false
+    $lightDone = $false
     if ($target -and $target.Seriennummer -match ':|_adb-tls|^adb-') {
         # adb über WLAN (IP:Port): keine feste Kennung fürs Gerät - der Hub koppelt nur per USB
         Warn "$($target.Seriennummer) ist per WLAN-adb verbunden - Gerät per USB anstecken und erneut ausführen"
@@ -423,6 +427,26 @@ if (-not $SkipTablet) {
                 }
             }
         }
+        if ($Light -and (Test-Path $apkPath)) {
+            $r = Run $python (Join-Path $root "scripts\set_config.py") $cfgPath "device" $target.Seriennummer "light" "on"
+            if ($r.Code -ne 0) { throw "config.json nicht änderbar: $($r.Out)" }
+            $lightDone = $true
+            # Die Bridge liest config.json nur beim Start: neu starten (Aufgabe beenden/starten setzt auch die Pause
+            # des Wächters zurück)
+            if (Get-ScheduledTask -TaskName "Tablet Deck Bridge" -ErrorAction SilentlyContinue) {
+                Stop-ScheduledTask -TaskName "Tablet Deck Bridge"
+                Get-CimInstance Win32_Process -Filter "Name like 'python%'" |
+                    Where-Object CommandLine -match '-m bridge(\.supervise)?( |$)' |
+                    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+                Start-ScheduledTask -TaskName "Tablet Deck Bridge"
+                for ($i = 0; $i -lt 30 -and -not (& $bridgeRunning); $i++) { Start-Sleep 1 }
+                Start-Sleep 3
+                Ok "Light-Modus für $($target.Seriennummer) eingeschaltet, Bridge neu gestartet"
+            } else {
+                Ok "Light-Modus für $($target.Seriennummer) eingetragen (tablet_lights in config.json)"
+                Warn "Bridge neu starten, damit der Light-Modus gilt"
+            }
+        }
         if (-not $SkipSpacedesk) {
             $has = (Run $adb @adbSel shell pm list packages ph.spacedesk.beta).Out
             if ($has -notmatch "ph.spacedesk.beta") { Warn "spacedesk-App fehlt auf dem Tablet - siehe docs\install.md (Abschnitt spacedesk)" }
@@ -440,6 +464,9 @@ if (-not $SkipTablet) {
     }
 }
 
+if ($Light -and -not $lightDone) {
+    Warn "-Light nicht eingetragen (kein Gerät eingerichtet) - Tablet anstecken und install.ps1 -Light erneut ausführen, oder im Editor unter Einstellungen → Geräte einschalten"
+}
 if ($Companion -and -not $SkipTablet -and -not $companionDone) {
     Warn "-Companion nicht eingetragen (kein Gerät eingerichtet) - nach Behebung install.ps1 -Companion erneut ausführen"
 }

@@ -114,6 +114,17 @@ class SetConfigTest(unittest.TestCase):
             self.assertNotEqual(rc, 0, extra)
             self.assertEqual(cfg, {"x": 1})
 
+    def test_device_light(self):
+        rc, cfg, files = self.run_cfg({"tablet_lights": {"A1": False}}, "device", "B2", "light", "on")
+        self.assertEqual(rc, 0)
+        self.assertEqual(cfg, {"tablet_lights": {"A1": False, "B2": True}})
+        rc, cfg, _ = self.run_cfg({"tablet_modes": {"B2": "companion"}}, "device", "B2", "light", "off")
+        self.assertEqual(cfg, {"tablet_modes": {"B2": "companion"}, "tablet_lights": {"B2": False}})
+        for extra in (("B2", "light"), ("B2", "light", "ja"), ("a;b", "light", "on")):
+            rc, cfg, _ = self.run_cfg({"x": 1}, "device", *extra)
+            self.assertNotEqual(rc, 0, extra)
+            self.assertEqual(cfg, {"x": 1})
+
     def test_unbekannter_modus(self):
         rc, _, _ = self.run_cfg({}, "quatsch")
         self.assertNotEqual(rc, 0)

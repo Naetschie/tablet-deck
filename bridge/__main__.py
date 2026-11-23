@@ -510,6 +510,14 @@ class Bridge:
                         values, meta, sources = await self.stats.sample()
                         await ws.send(json.dumps({"t": "dash_sensors", "sensors": dashboard.sensor_list(values, meta),
                                                   "sources": sources}))
+                    elif t == "devices":
+                        await ws.send(json.dumps(self.devices_info(), ensure_ascii=False))
+                    elif t == "device_light":
+                        dev = msg.get("id")
+                        if not (valid_id(dev) and isinstance(msg.get("on"), bool) and self.devices.set_light(dev, msg["on"])):
+                            raise ValueError("Gerät unbekannt oder Datei devices.json fehlerhaft")
+                        await self.send_light(dev)
+                        await ws.send(json.dumps(self.devices_info(), ensure_ascii=False))
                     elif t in ("maps_list", "maps_save", "maps_reset", "maps_lookup", "maps_show"):
                         await ws.send(json.dumps(await self.maps_edit(msg), ensure_ascii=False))
                     elif isinstance(t, str) and t.startswith("dash_"):
@@ -640,6 +648,26 @@ class Bridge:
         mode = device_mode(self.cfg, dev, devs) if dev else tablet_mode(self.cfg)
         return {"t": "tablet_mode", "mode": mode}
 
+    def light_msg(self, dev=None):
+        return {"t": "light", "on": device_light(self.cfg, dev, getattr(self, "devices", None))}
+
+    async def send_light(self, dev):
+        """Light-Modus an alle verbundenen Launcher dieses Geräts."""
+        for ws, d in list(self.ctl_device.items()):
+            if d == dev:
+                try:
+                    await ws.send(json.dumps(self.light_msg(dev)))
+                except Exception:  # noqa: BLE001
+                    pass
+
+    def devices_info(self):
+        """Editor, Einstellungen → Geräte: gekoppelte Geräte mit Light-Modus und Verbindung."""
+        online = set(self.ctl_device.values())
+        return {"t": "devices", "devices": [
+            {"id": d, "name": self.devices.name(d), "model": v.get("model") or "", "main": bool(v.get("main")),
+             "light": device_light(self.cfg, d, self.devices), "connected": d in online}
+            for d, v in self.devices.data.items()]}
+
     def wlan_msg(self):
         return {"t": "wlan", "hosts": self.wlan_tls.ips, "port": self.wlan_port}
 
@@ -701,6 +729,8 @@ class Bridge:
             await ws.send(json.dumps(self.rotation_msg(dev)))
             # Betriebsart: Startbildschirm (Standard) oder Begleit-Modus (ohne Root)
             await ws.send(json.dumps(self.tablet_mode_msg(dev)))
+            # Light-Modus für schwache Geräte (Standard aus)
+            await ws.send(json.dumps(self.light_msg(dev)))
             # WLAN-Adressen für den Launcher (nur über USB/loopback mitteilen - dort ist die Kopplung physisch)
             if self.wlan_tls and is_loopback(ws.remote_address):
                 await ws.send(json.dumps(self.wlan_msg()))
@@ -720,6 +750,13 @@ class Bridge:
                     continue
                 if msg.get("t") == "ping":
                     await ws.send('{"t":"pong"}')
+                elif msg.get("t") == "light_set" and isinstance(msg.get("on"), bool):
+                    # Hinweis „Karte bremst das Gerät“ am Tablet: Light-Modus für dieses Gerät merken
+                    if dev and self.devices.set_light(dev, msg["on"]):
+                        await self.send_light(dev)
+                    else:
+                        log.warning("Light-Modus: Gerät unbekannt (nicht per USB gekoppelt) - nicht gespeichert")
+                        await ws.send(json.dumps(self.light_msg(dev)))
                 elif msg.get("t") == "visited":
                     # Web-Kachel hat eine Seite geladen -> Verlauf (am PC, auf der Startseite löschbar)
                     if self.web.add_history(msg.get("url"), msg.get("title")):
@@ -1379,6 +1416,18 @@ def device_rotation(cfg, serial, devices=None):
     """Ausrichtung eines Geräts: devices.json rotation, sonst tablet_rotation aus config.json."""
     rot = tablet_rotation(cfg)
     return devices.rotation(serial, rot) if devices is not None and serial else rot
+
+
+def device_light(cfg, serial, devices=None):
+    """Light-Modus eines Geräts: devices.json light, sonst tablet_lights[serial] aus config.json, sonst aus."""
+    lights = cfg.get("tablet_lights")
+    base = False
+    if isinstance(lights, dict) and serial in lights:
+        if isinstance(lights[serial], bool):
+            base = lights[serial]
+        else:
+            log.error("config tablet_lights[%s]=%r ungültig (true oder false) - nehme aus", serial, lights[serial])
+    return devices.light(serial, base) if devices is not None and serial else base
 
 
 def device_mode(cfg, serial, devices=None):
