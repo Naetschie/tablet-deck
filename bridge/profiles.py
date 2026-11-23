@@ -26,7 +26,7 @@ from .layout import save_layout, validate_layout
 log = logging.getLogger("profiles")
 ID = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
 EXE = re.compile(r"[^\\/:*?\"<>|\r\n]{1,100}\.exe", re.I)
-MAP_URL = re.compile(r"(?i)https://[^\s/?#@]+(?:[/?#][^\s]*)?")
+MAP_URL = re.compile(r"(?i)https://[a-z0-9.-]+(?::[0-9]{1,5})?(?:[/?#][^\s\\\x00-\x1f\x7f]*)?")
 MIGRATE_GAME, MIGRATE_PANEL = "star-citizen", "main"
 BUNDLED_PREFIX = "std--"
 COVER_ID = re.compile(r"[a-z0-9-]{1,40}")

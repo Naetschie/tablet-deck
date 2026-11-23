@@ -1074,25 +1074,31 @@ public class HomeActivity extends Activity {
     }
 
     /**
-     * Speicher knapp (ab Android 14 kommen nur noch UI_HIDDEN/BACKGROUND an, ältere melden auch
-     * RUNNING_CRITICAL): verdeckte Ansichten freigeben, bevor Android den gemeinsamen WebView-Renderer beendet
-     * (der nähme Panel, Touchpad und Karte gleichzeitig mit). Die Steuerseite bleibt; was fehlt, wird beim
-     * nächsten Anzeigen neu gebaut.
+     * Speicher knapp: verdeckte Ansichten freigeben, bevor Android den gemeinsamen WebView-Renderer beendet (der
+     * nähme Panel, Touchpad und Karte gleichzeitig mit). Die Steuerseite bleibt; was fehlt, wird beim nächsten
+     * Anzeigen neu gebaut. BACKGROUND kommt schon beim bloßen Wechsel in eine andere App (spacedesk): dann nur die
+     * schweren fremden Seiten (Karte, Web-Kachel), Panel und Touchpad behalten ihren Zustand. Alles Verdeckte erst
+     * bei echter Not - ab Android 14 kommen RUNNING_CRITICAL/MODERATE/COMPLETE nicht mehr an, dort zählt die
+     * Speichermeldung des Systems (MemoryInfo.lowMemory).
      */
     @Override
     public void onTrimMemory(int level) {
         super.onTrimMemory(level);
-        // BACKGROUND kommt schon beim bloßen Wechsel in eine andere App (spacedesk): dann nur die schweren fremden
-        // Seiten (Karte, Web-Kachel) - Panel und Touchpad behalten ihren Zustand. Alles Verdeckte erst bei echter Not.
-        boolean severe = level == TRIM_MEMORY_RUNNING_CRITICAL || level >= TRIM_MEMORY_COMPLETE;
-        if (severe || level >= TRIM_MEMORY_BACKGROUND) {
-            int n = freeHidden(true, severe);
-            if (n > 0) Log.w(TAG, "Speicher knapp (Stufe " + level + "): " + n + " verdeckte Ansicht(en) freigegeben");
-        }
+        if (level != TRIM_MEMORY_RUNNING_CRITICAL && level < TRIM_MEMORY_BACKGROUND) return;
+        boolean severe = level == TRIM_MEMORY_RUNNING_CRITICAL || level >= TRIM_MEMORY_MODERATE || lowMemory();
+        int n = freeHidden(severe);
+        if (n > 0) Log.w(TAG, "Speicher knapp (Stufe " + level + "): " + n + " verdeckte Ansicht(en) freigegeben");
     }
 
-    /** Verdeckte Web-Kachel, (withMaps) Karten-Kachel und (withHub) Web-Kacheln freigeben; gibt die Anzahl zurück. */
-    int freeHidden(boolean withMaps, boolean withHub) {
+    boolean lowMemory() {
+        android.app.ActivityManager.MemoryInfo mi = new android.app.ActivityManager.MemoryInfo();
+        getSystemService(android.app.ActivityManager.class).getMemoryInfo(mi);
+        return mi.lowMemory;
+    }
+
+    /** Verdeckte Web-Kachel und Karten-Kachel, mit withHub auch verdeckte Hub-Seiten (Panel, Touchpad …)
+     *  freigeben; gibt die Anzahl zurück. Die sichtbare Ansicht bleibt immer. */
+    int freeHidden(boolean withHub) {
         int n = 0;
         for (Map.Entry<String, WebView> e : new ArrayList<>(webViews.entrySet())) {
             if (!withHub) break;
@@ -1106,7 +1112,7 @@ public class HomeActivity extends Activity {
             browser = null;
             n++;
         }
-        if (withMaps && maps != null && maps.getVisibility() != View.VISIBLE) {
+        if (maps != null && maps.getVisibility() != View.VISIBLE) {
             dropMaps();
             n++;
         }

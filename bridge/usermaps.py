@@ -70,6 +70,8 @@ class UserMaps:
         else:
             new[gid] = validate_maps(maps, gid)
         validate({"games": new})
+        if new == self.maps and (self.path.exists() or not new):
+            return new   # unverändert: nicht schreiben
         self.path.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=self.path.parent, prefix=".maps-", suffix=".tmp")
         try:

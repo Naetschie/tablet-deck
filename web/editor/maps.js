@@ -32,7 +32,8 @@
   function game() { return games.filter(function (g) { return g.id === sel; })[0] || null; }
   function isDirty() { return !!sel && JSON.stringify(clean(rows)) !== savedJson; }
   function host(u) { try { return new URL(u).host.replace(/^www\./, ""); } catch (e) { return ""; } }
-  function validUrl(u) { return /^https:\/\/[^\s/?#@]+([/?#]\S*)?$/i.test(u.trim()); }
+  var VALID_URL = /^https:\/\/[a-z0-9.-]+(:[0-9]{1,5})?([/?#][^\s\\\x00-\x1f\x7f]*)?$/i;   // wie MAP_URL (bridge/profiles.py)
+  function validUrl(u) { return VALID_URL.test(u.trim()); }
 
   // ---------------------------------------------------------------- Spieleliste
   function renderList() {
@@ -136,8 +137,12 @@
   function save() {
     if (!sel || !isDirty()) return;
     var list = clean(rows);
+    if (list.length > 30) { api.status("Höchstens 30 Karten je Spiel", "err"); return; }
+    var seen = {};
     for (var i = 0; i < list.length; i++) {
       if (!list[i].name || !validUrl(list[i].url)) { api.status("Jede Karte braucht einen Namen und eine https-Adresse", "err"); return; }
+      if (seen[list[i].url]) { api.status("Adresse doppelt: " + list[i].url, "err"); return; }
+      seen[list[i].url] = true;
     }
     var g = game();
     // Gleich der Standardliste: keine eigene Liste anlegen (bzw. die eigene entfernen)
@@ -196,8 +201,8 @@
     };
     renderList();
   }
-  function onOpen() { if (active) api.send({ t: "maps_list" }); else loaded = false; }
-  function activate() { active = true; if (api.isOpen()) api.send({ t: "maps_list" }); dirty(); }
+  function onOpen() { $("mapsLookup").disabled = false; if (active) api.send({ t: "maps_list" }); else loaded = false; }
+  function activate() { active = true; wasDirty = false; if (api.isOpen()) api.send({ t: "maps_list" }); dirty(); }
   function deactivate() { active = false; }
   // Reiterwechsel: bei ungespeicherten Änderungen nachfragen (sie bleiben hier erhalten, wie bei den Dashboards)
   function canLeave() {

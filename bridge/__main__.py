@@ -821,22 +821,34 @@ class Bridge:
         if not g:
             raise ValueError("Spiel unbekannt")
         if t in ("maps_save", "maps_reset"):
-            self.user_maps.set(gid, msg.get("maps") if t == "maps_save" else None)
+            if t == "maps_save" and not isinstance(msg.get("maps"), list):
+                raise ValueError("maps muss eine Liste sein")
+            self.user_maps.set(gid, msg["maps"] if t == "maps_save" else None)
             self.profiles.user_maps = self.user_maps.maps
             log.info("Editor: Karten für %s %s", gid, "gespeichert" if t == "maps_save" else "zurückgesetzt")
             await self.ctl_send(self.maps_msg())
             return dict(self.maps_list(), saved=gid)
         if t == "maps_lookup":
-            maps = await asyncio.get_running_loop().run_in_executor(
-                None, lambda: mapgenie.lookup(g["name"], force=True))
+            try:
+                maps = await asyncio.get_running_loop().run_in_executor(
+                    None, lambda: mapgenie.lookup(g["name"], force=True))
+            except Exception as e:  # noqa: BLE001 - jeder Netzfehler als Meldung, Editor bleibt verbunden
+                raise ValueError(e.__class__.__name__) from e
             return {"t": "maps_found", "game": gid, "maps": maps}
         if t == "maps_show":
             url = msg.get("url")
             if not any(m["url"] == url for m in g["maps"]):
                 raise ValueError("Karte erst speichern, dann zeigen")
-            if not any(t2.get("type") == "maps" for t2 in self.tiles):
-                raise ValueError("Keine Karten-Kachel in launcher.json")
-            await self.ctl_send({"t": "map_show", "game": gid, "url": url})
+            targets = [ws for ws, dev in list(self.ctl_device.items())
+                       if any(t2.get("type") == "maps" for t2 in self.tiles_for(dev))]
+            if not targets:
+                raise ValueError("Kein verbundenes Tablet mit Karten-Kachel")
+            data = json.dumps({"t": "map_show", "game": gid, "url": url})
+            for ws in targets:
+                try:
+                    await ws.send(data)
+                except Exception:  # noqa: BLE001
+                    pass
             return {"t": "maps_shown", "game": gid}
         raise ValueError("unbekannte Anfrage")
 

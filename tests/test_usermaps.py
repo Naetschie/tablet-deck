@@ -26,6 +26,9 @@ class ValidateMapsTest(unittest.TestCase):
             [{"name": "A", "url": "javascript:alert(1)"}],
             [{"name": "A", "url": "https://user@evil.example/"}],
             [{"name": "A", "url": "https://a b"}],
+            [{"name": "A", "url": "https://a.example\\x"}],
+            [{"name": "A", "url": "https://a.example/\x00"}],
+            [{"name": "A", "url": "https://:80/"}],
             [{"name": "A", "url": "https://a.example", "heavy": "ja"}],
             [{"name": "A", "url": "https://a.example"}, {"name": "B", "url": "https://a.example"}],
             [{"name": "A", "url": "https://a%d.example" % i} for i in range(31)],
@@ -98,6 +101,16 @@ class UserMapsTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.u.set("sc", [{"name": "A", "url": "http://a"}])
         self.assertFalse((self.d / "maps.json").exists())   # nichts geschrieben
+        self.u.set("sc", None)                               # nichts zu entfernen: keine Datei anlegen
+        self.assertFalse((self.d / "maps.json").exists())
+
+
+class FakeWs:
+    def __init__(self):
+        self.sent = []
+
+    async def send(self, data):
+        self.sent.append(json.loads(data))
 
 
 class FakeEditBridge:
@@ -108,6 +121,9 @@ class FakeEditBridge:
         self.profiles, self.user_maps, self.game = profiles, user_maps, "sc"
         self.tiles = [{"id": "maps", "type": "maps"}]
         self.sent = []
+        self.tab = FakeWs()
+        self.ctl_device = {self.tab: "TAB1"}
+        self.tiles_for = lambda dev: self.tiles
         self.maps_list = Bridge.maps_list.__get__(self)
         self.maps_edit = Bridge.maps_edit.__get__(self)
         self.maps_msg = Bridge.maps_msg.__get__(self)
@@ -134,7 +150,10 @@ class MapsEditTest(unittest.TestCase):
         self.assertEqual(b.sent[-1]["t"], "maps")
         self.assertEqual(next(g for g in b.sent[-1]["games"] if g["id"] == "sc")["maps"], own)
         run({"t": "maps_show", "game": "sc", "url": own[0]["url"]})
-        self.assertEqual(b.sent[-1], {"t": "map_show", "game": "sc", "url": own[0]["url"]})
+        self.assertEqual(b.tab.sent[-1], {"t": "map_show", "game": "sc", "url": own[0]["url"]})
+        with self.assertRaises(ValueError):                  # maps fehlt: nicht wie Zurücksetzen behandeln
+            run({"t": "maps_save", "game": "sc"})
+        self.assertTrue(self.u.maps.get("sc"))
         with self.assertRaises(ValueError):                  # nicht gespeicherte Adresse
             run({"t": "maps_show", "game": "sc", "url": "https://evil.example/"})
         with self.assertRaises(ValueError):
@@ -144,6 +163,18 @@ class MapsEditTest(unittest.TestCase):
         b.tiles = []
         with self.assertRaises(ValueError):                  # keine Karten-Kachel
             run({"t": "maps_show", "game": "sc", "url": SC[1]["url"]})
+        b.tiles = [{"id": "maps", "type": "maps"}]
+        b.ctl_device = {}
+        with self.assertRaises(ValueError):                  # kein Tablet verbunden
+            run({"t": "maps_show", "game": "sc", "url": SC[1]["url"]})
+
+    def test_lookup_error_is_message(self):
+        import http.client
+        from unittest import mock
+        b = FakeEditBridge(self.p, self.u)
+        with mock.patch("bridge.mapgenie.lookup", side_effect=http.client.IncompleteRead(b"")):
+            with self.assertRaises(ValueError):
+                asyncio.run(b.maps_edit({"t": "maps_lookup", "game": "sc"}))
 
 
 if __name__ == "__main__":
