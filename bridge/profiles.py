@@ -26,7 +26,7 @@ from .layout import save_layout, validate_layout
 log = logging.getLogger("profiles")
 ID = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
 EXE = re.compile(r"[^\\/:*?\"<>|\r\n]{1,100}\.exe", re.I)
-MAP_URL = re.compile(r"(?i)https://[^\s]+")
+MAP_URL = re.compile(r"(?i)https://[^\s/?#@]+(?:[/?#][^\s]*)?")
 MIGRATE_GAME, MIGRATE_PANEL = "star-citizen", "main"
 BUNDLED_PREFIX = "std--"
 COVER_ID = re.compile(r"[a-z0-9-]{1,40}")
@@ -95,13 +95,7 @@ def validate_games(data):
         panels = g.get("panels", [])
         if not isinstance(panels, list) or not all(isinstance(p, str) and ID.fullmatch(p) for p in panels):
             _err(f"{gid}: panels muss eine Liste von Panel-ids sein")
-        maps = g.get("maps", [])
-        if not isinstance(maps, list):
-            _err(f"{gid}: maps muss eine Liste sein")
-        for m in maps:
-            if not (isinstance(m, dict) and isinstance(m.get("name"), str) and 0 < len(m["name"]) <= 60
-                    and isinstance(m.get("url"), str) and len(m["url"]) <= 1024 and MAP_URL.fullmatch(m["url"])):
-                _err(f"{gid}: Karte braucht name und eine https-URL")
+        maps = validate_maps(g.get("maps", []), gid)
         bnd = g.get("bindings")
         if bnd is not None:
             from .bindings import ADAPTERS
@@ -109,8 +103,34 @@ def validate_games(data):
                     isinstance(v, str) and len(v) <= 1024 for v in bnd.values())):
                 _err(f"{gid}: bindings braucht adapter ({', '.join(ADAPTERS)}) und Pfade als Text")
         out.append({"id": gid, "name": name, "exe": [e.lower() for e in exe], "steam": steam,
-                    "panels": panels, "maps": [{"name": m["name"], "url": m["url"]} for m in maps],
-                    "bindings": bnd})
+                    "panels": panels, "maps": maps, "bindings": bnd})
+    return out
+
+
+MAX_MAPS = 30
+
+
+def validate_maps(maps, where):
+    """Kartenliste prüfen (games.json, maps.json, Editor): [{name 1-60, url https, heavy?}]. Gibt eine bereinigte
+    Kopie zurück; heavy (schwere Karte, im Light-Modus nicht Standard) nur, wenn wahr."""
+    if not isinstance(maps, list):
+        _err(f"{where}: maps muss eine Liste sein")
+    if len(maps) > MAX_MAPS:
+        _err(f"{where}: höchstens {MAX_MAPS} Karten")
+    out, seen = [], set()
+    for m in maps:
+        if not (isinstance(m, dict) and isinstance(m.get("name"), str) and 0 < len(m["name"].strip()) <= 60
+                and isinstance(m.get("url"), str) and len(m["url"]) <= 1024 and MAP_URL.fullmatch(m["url"])):
+            _err(f"{where}: Karte braucht einen Namen (1-60 Zeichen) und eine https-Adresse")
+        if "heavy" in m and not isinstance(m["heavy"], bool):
+            _err(f"{where}: heavy muss true oder false sein")
+        if m["url"] in seen:
+            _err(f"{where}: Adresse doppelt: {m['url']}")
+        seen.add(m["url"])
+        e = {"name": m["name"].strip(), "url": m["url"]}
+        if m.get("heavy"):
+            e["heavy"] = True
+        out.append(e)
     return out
 
 
@@ -128,6 +148,7 @@ class Profiles:
         self.failed = {}         # "spiel/panel" -> mtime einer fehlerhaften, nicht geladenen Datei (nur einmal melden)
         self._lib = ({}, {}, {}, [])  # (games.json-id -> Bibliothekseintrag, Bibliotheks-id -> Spiel-id, Spiel-id -> Eintrag)
         self.extra_maps = {}     # Spiel-id (nur Bibliothek) -> Karten (Map Genie)
+        self.user_maps = {}      # Spiel-id -> eigene Kartenliste aus maps.json (ersetzt die Standardliste)
 
     # ---------------- Laden ----------------
     def migrate(self):
@@ -313,11 +334,19 @@ class Profiles:
         return True
 
     def map_games(self):
-        """Spiele für die Karten-Kachel: alle aus games.json, dazu Bibliotheksspiele mit Karten."""
-        out = list(self.games)
-        out += [self.game(g) for g in sorted(self._lib[2]) if self.extra_maps.get(g)
-                and not any(x["id"] == g for x in self.games)]
+        """Spiele für die Karten-Kachel: alle aus games.json, dazu Bibliotheksspiele mit Karten (eigene Listen aus
+        maps.json eingerechnet)."""
+        out = [self.game(g["id"]) for g in self.games]
+        out += [g for g in (self.game(x) for x in sorted(self._lib[2])
+                            if not any(y["id"] == x for y in self.games)) if g and g["maps"]]
         return out
+
+    def default_maps(self, gid):
+        """Kartenliste ohne eigene Änderungen (games.json bzw. Map Genie)."""
+        for g in self.games:
+            if g["id"] == gid:
+                return g["maps"]
+        return self.extra_maps.get(gid, []) if gid in self._lib[2] else []
 
     def cover_file(self, gid):
         """(Pfad, Content-Type) des Coverbilds - Pfad nur aus der Bibliothek, nie aus der Anfrage."""
@@ -332,15 +361,17 @@ class Profiles:
 
     # ---------------- Abfragen ----------------
     def game(self, gid):
+        user = self.user_maps.get(gid)
         for g in self.games:
             if g["id"] == gid:
                 e = self._lib[0].get(gid)
-                return dict(g, cover=e.get("cover"), dir=e["dir"]) if e else g
+                g = dict(g, cover=e.get("cover"), dir=e["dir"]) if e else g
+                return dict(g, maps=user) if user is not None else g
         e = self._lib[2].get(gid)
         if e:
             steam = int(e["steam"]) if str(e.get("steam") or "").isdigit() else None
             return {"id": gid, "name": e["name"], "exe": [], "steam": steam, "panels": [],
-                    "maps": self.extra_maps.get(gid, []), "bindings": None,
+                    "maps": user if user is not None else self.extra_maps.get(gid, []), "bindings": None,
                     "cover": e.get("cover"), "dir": e["dir"]}
         return None
 

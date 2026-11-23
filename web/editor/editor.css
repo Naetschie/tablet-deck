@@ -106,6 +106,7 @@ table.rep tr.weg td { color: var(--dim); text-decoration: line-through; }
 .banner { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid var(--warn); background: var(--warnSoft); border-radius: 8px; font-size: 13px; }
 .banner[hidden] { display: none; }
 #panelBanner { margin: 6px 12px 0; }
+body[data-tab="dash"] #panelBanner, body[data-tab="maps"] #panelBanner { display: none; }
 #panelSel option.bundled { font-style: italic; }
 .banner span { flex: 1; }
 #dashErr:empty { display: none; }
@@ -272,3 +273,20 @@ button.recording { border-color: var(--danger); color: var(--danger); }
 .tv .btn.guarded { padding-left: 14px; }
 .tv .btn.guarded::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 7px;
   background: repeating-linear-gradient(135deg, var(--warn) 0 5px, #1B1105 5px 10px); }
+
+/* Reiter „Karten“ */
+.workspace.mapsview { grid-template-columns: 300px minmax(0, 1fr); }
+@media (max-width: 1100px) { .workspace.mapsview { grid-template-columns: 240px minmax(0, 1fr); } }
+#mapsGames li { cursor: pointer; }
+#mapsGames li .badge.own { border-color: var(--accent); color: var(--accent); }
+#mapsEdit { max-width: 1100px; }
+.maprow { display: grid; grid-template-columns: 70px minmax(120px, 1fr) minmax(200px, 2fr) auto auto auto auto auto;
+  gap: 6px; align-items: center; margin-bottom: 6px; }
+.maprow .num { color: var(--dim); font-size: 12px; }
+.maprow.first .num { color: var(--accent); }
+.maprow input:not([type]), .maprow input.url { width: 100%; min-width: 0; }
+.maprow .heavy { white-space: nowrap; font-size: 13px; }
+#mapsFound { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0; }
+#mapsFound .hint { margin: 0; }
+#viewMaps .gap { margin-top: 12px; }
+#mapsEdit .row.end { justify-content: flex-end; } #mapsEdit .row.end > * { flex: none; }

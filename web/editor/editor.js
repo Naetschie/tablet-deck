@@ -29,10 +29,12 @@
       actionsFor = null;
       ws.send(JSON.stringify({ t: "auth", k: token })); ws.send(JSON.stringify({ t: "games" }));
       DashEditor.onOpen();
+      MapsEditor.onOpen();
     };
     ws.onmessage = function (ev) {
       var m = JSON.parse(ev.data);
       if (DashEditor.onMessage(m)) return;      // dash_* und deren Fehler: Reiter „Dashboards“ (dash.js)
+      if (MapsEditor.onMessage(m)) return;      // maps_* und deren Fehler: Reiter „Karten“ (maps.js)
       if (PanelEditor.onMessage(m)) return;     // actions und dessen Fehler: Palette (panel.js)
       if (m.t === "games") {
         games = m.games;
@@ -165,7 +167,7 @@
     $("holdMs").disabled = $("panelTitle").readOnly = isBundled();
     if (document.activeElement !== $("panelTitle")) $("panelTitle").value = layout ? layout.title || "" : "";
   }
-  window.addEventListener("beforeunload", function (e) { if (isDirty() || DashEditor.isDirty()) { e.preventDefault(); e.returnValue = ""; } });
+  window.addEventListener("beforeunload", function (e) { if (isDirty() || DashEditor.isDirty() || MapsEditor.isDirty()) { e.preventDefault(); e.returnValue = ""; } });
 
   $("save").onclick = function () {
     if (!layout) return;
@@ -530,19 +532,26 @@
   }
   function uniqueId(base, taken) { var i = 1, id = base; while (taken(id)) id = base + "_" + (++i); return id; }
 
-  // ---------------------------------------------------------------- Reiter Panels / Dashboards
+  // ---------------------------------------------------------------- Reiter Panels / Dashboards / Karten
   // Der Panel-Editor bleibt beim Wechsel unverändert (nur ausgeblendet)
-  var dashTab = false;
+  var tab = "panels";
   function showTab(name) {
-    var dash = name === "dash";
-    if (dashTab && !dash && !DashEditor.canLeave()) return;     // ungespeicherte Dashboard-Änderungen: nachfragen
-    dashTab = dash;
-    $("viewPanels").hidden = dash; $("toolbar").hidden = dash; $("panelTools").hidden = dash;
+    if (name === tab) return;
+    if (tab === "dash" && !DashEditor.canLeave()) return;     // ungespeicherte Änderungen: nachfragen
+    if (tab === "maps" && !MapsEditor.canLeave()) return;
+    var dash = name === "dash", maps = name === "maps", panels = !dash && !maps;
+    tab = panels ? "panels" : name;
+    $("viewPanels").hidden = !panels; $("toolbar").hidden = !panels; $("panelTools").hidden = !panels;
     $("viewDash").hidden = !dash; $("dashToolbar").hidden = !dash;
-    $("tabBtnPanels").className = dash ? "" : "on"; $("tabBtnDash").className = dash ? "on" : "";
-    try { sessionStorage.setItem("editorTab", name); } catch (e) { /* ohne Speicher: Panels */ }
-    if (dash) { PanelEditor.deactivate(); DashEditor.activate(); }
-    else { DashEditor.deactivate(); PanelEditor.activate(); if (layout) changed(); else status("", ""); }
+    $("viewMaps").hidden = !maps;
+    $("tabBtnPanels").className = panels ? "on" : ""; $("tabBtnDash").className = dash ? "on" : "";
+    $("tabBtnMaps").className = maps ? "on" : "";
+    document.body.setAttribute("data-tab", tab);   // CSS: Hinweise des Panel-Reiters nur dort zeigen
+    try { sessionStorage.setItem("editorTab", tab); } catch (e) { /* ohne Speicher: Panels */ }
+    PanelEditor.deactivate(); DashEditor.deactivate(); MapsEditor.deactivate();
+    if (dash) DashEditor.activate();
+    else if (maps) { status("", ""); MapsEditor.activate(); }
+    else { PanelEditor.activate(); if (layout) changed(); else status("", ""); }
   }
   Array.prototype.forEach.call($("mainTabs").querySelectorAll("button"), function (bt) {
     bt.onclick = function () { PanelEditor.stopCapture(); showTab(bt.getAttribute("data-tab")); };
@@ -550,11 +559,15 @@
 
   // Strg+S speichert
   document.addEventListener("keydown", function (e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); if (dashTab) DashEditor.save(); else $("save").click(); }
+    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+      e.preventDefault();
+      if (tab === "dash") DashEditor.save(); else if (tab === "maps") MapsEditor.save(); else $("save").click();
+    }
   });
   PanelEditor.init({ send: send, status: status, changed: changed });
   DashEditor.init({ send: send, status: status, isOpen: function () { return !!ws && ws.readyState === 1; } });
+  MapsEditor.init({ send: send, status: status, isOpen: function () { return !!ws && ws.readyState === 1; } });
   PanelEditor.activate();
   connect();
-  try { if (sessionStorage.getItem("editorTab") === "dash") showTab("dash"); } catch (e) { /* egal */ }
+  try { var t0 = sessionStorage.getItem("editorTab"); if (t0 === "dash" || t0 === "maps") showTab(t0); } catch (e) { /* egal */ }
 })();

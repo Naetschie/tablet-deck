@@ -13,6 +13,7 @@ Alltag; Einrichtung und Fehlersuche stehen in [install.md](install.md).
 6. [Panel automatisch erzeugen](#6-panel-automatisch-erzeugen)
 7. [KI (optional)](#7-ki-optional)
 8. [Eigene Panels teilen](#8-eigene-panels-teilen)
+9. [Karten](#9-karten)
 
 ---
 
@@ -25,7 +26,7 @@ Links am Tablet sitzt die Leiste mit den Kacheln (einstellbar in `launcher.json`
 | **Web** | Webseiten im Tablet-Browser; Seiten lassen sich vom PC ans Tablet schicken |
 | **Touchpad** | Maus, Tastatur-Kürzel, Medien, Lautstärke und Mixer |
 | **Panel** | Spiel-Panel des laufenden Spiels |
-| **Karten** | Spielkarten (Map Genie zuerst, wo vorhanden) |
+| **Karten** | Spielkarten (Map Genie zuerst, wo vorhanden), siehe [Karten](#9-karten) |
 | **PC-Werte** | CPU, GPU, Speicher, Lüfter, FPS |
 | **Android** | Android-Einstellungen |
 
@@ -125,3 +126,18 @@ Ohne Schlüssel funktioniert alles andere genauso.
 ## 8. Eigene Panels teilen
 Eigene Panels sind JSON-Dateien in `profiles/<spiel>/`. Wer eins beisteuern möchte: Regeln und Prüfung in
 [CONTRIBUTING.md](../CONTRIBUTING.md) (`python scripts/check_contrib.py <datei>`).
+
+## 9. Karten
+Die Kachel **Karten** zeigt Ingame-Karten fremder Anbieter. Oben links wählst du Spiel und Karte, oben rechts
+geht es zu Neu laden und Vollbild. Läuft ein Spiel, springt die Kachel auf dessen Karte.
+
+- **Woher die Karten kommen:** mitgelieferte Spiele aus `games.json`; für alle anderen installierten Spiele
+  (Steam, Epic, GOG …) sucht der Hub im Hintergrund bei Map Genie und bietet jede Karte direkt an.
+- **Eigene Liste:** Im Editor unter **Karten** ein Spiel wählen, Karten hinzufügen, umbenennen, löschen und
+  mit ↑/↓ sortieren (die erste wird zuerst gezeigt). **Bei Map Genie suchen** schlägt das Spiel neu nach,
+  **Zeigen** öffnet eine gespeicherte Karte sofort am Tablet, **Standard** stellt die mitgelieferte bzw.
+  gefundene Liste wieder her. Gespeichert wird in `maps.json` am PC; `games.json` bleibt unverändert und
+  darf bei einem Update überschrieben werden.
+- **Schwer:** markiert aufwendige 3D-Karten (z. B. die Ark Starmap). Geräte im Light-Modus wählen sie nicht
+  von selbst.
+- Werbung und Messdienste lädt die Karten-Kachel nicht.

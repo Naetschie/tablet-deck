@@ -409,6 +409,18 @@ public class HomeActivity extends Activity {
         ui.post(this::report);
     }
 
+    /** Editor am PC: „Auf dem Tablet zeigen“ - Karten-Kachel mit dieser Karte nach vorn. */
+    void showMap(String game, String url) {
+        Tile t = null;
+        for (Tile x : tiles) if (x.type.equals("maps")) { t = x; break; }
+        if (t == null) return;
+        showMaps(t);
+        maps.select(game, url);
+        if (launchedExternal)
+            startActivity(new Intent(this, HomeActivity.class).addFlags(
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_NEW_TASK));
+    }
+
     void setMaps(String json) {
         mapsData = json;
         if (maps != null) maps.setData(json);

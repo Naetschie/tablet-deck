@@ -43,6 +43,8 @@ from .stats import Stats
 from . import dashboard
 from .tray import Tray
 from .devices import Devices, valid_id
+from .usermaps import UserMaps
+from . import mapgenie
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "web"
@@ -165,6 +167,9 @@ class Bridge:
         # Zugang zum Editor (/edit): nur über das Taskleisten-Symbol bzw. die Konsole - Tablet-Apps
         # erreichen localhost:8765 über adb reverse ebenfalls, kennen dieses Token aber nicht.
         self.editor_token = secrets.token_urlsafe(24)
+        self.user_maps = UserMaps(ROOT / cfg.get("maps", "maps.json"))   # eigene Kartenlisten (Editor)
+        self.user_maps.load()
+        self.profiles.user_maps = self.user_maps.maps
         self.profiles.migrate()
         self.profiles.load_games()
         self.profiles.scan()
@@ -505,6 +510,8 @@ class Bridge:
                         values, meta, sources = await self.stats.sample()
                         await ws.send(json.dumps({"t": "dash_sensors", "sensors": dashboard.sensor_list(values, meta),
                                                   "sources": sources}))
+                    elif t in ("maps_list", "maps_save", "maps_reset", "maps_lookup", "maps_show"):
+                        await ws.send(json.dumps(await self.maps_edit(msg), ensure_ascii=False))
                     elif isinstance(t, str) and t.startswith("dash_"):
                         await ws.send(json.dumps(self.dashboards.handle(msg), ensure_ascii=False))
                     elif t == "delete":
@@ -755,6 +762,47 @@ class Bridge:
         return {"t": "maps", "current": self.game,
                 "games": [{"id": g["id"], "name": g["name"], "maps": g["maps"]} for g in self.profiles.map_games()]}
 
+    def maps_list(self):
+        """Editor, Reiter „Karten“: alle Spiele mit aktueller und Standard-Kartenliste."""
+        p = self.profiles
+        in_json = {g["id"] for g in p.games}
+        out = []
+        for gid in p.game_ids():
+            g = p.game(gid)
+            if not g:
+                continue
+            out.append({"id": gid, "name": g["name"], "maps": g["maps"], "default": p.default_maps(gid),
+                        "custom": gid in self.user_maps.maps, "source": "games" if gid in in_json else "library"})
+        return {"t": "maps_list", "games": out, "current": self.game}
+
+    async def maps_edit(self, msg):
+        """maps_* aus dem Editor; gibt die Antwort zurück."""
+        t, gid = msg.get("t"), msg.get("game")
+        g = self.profiles.game(gid) if isinstance(gid, str) else None
+        if t == "maps_list":
+            return self.maps_list()
+        if not g:
+            raise ValueError("Spiel unbekannt")
+        if t in ("maps_save", "maps_reset"):
+            self.user_maps.set(gid, msg.get("maps") if t == "maps_save" else None)
+            self.profiles.user_maps = self.user_maps.maps
+            log.info("Editor: Karten für %s %s", gid, "gespeichert" if t == "maps_save" else "zurückgesetzt")
+            await self.ctl_send(self.maps_msg())
+            return dict(self.maps_list(), saved=gid)
+        if t == "maps_lookup":
+            maps = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: mapgenie.lookup(g["name"], force=True))
+            return {"t": "maps_found", "game": gid, "maps": maps}
+        if t == "maps_show":
+            url = msg.get("url")
+            if not any(m["url"] == url for m in g["maps"]):
+                raise ValueError("Karte erst speichern, dann zeigen")
+            if not any(t2.get("type") == "maps" for t2 in self.tiles):
+                raise ValueError("Keine Karten-Kachel in launcher.json")
+            await self.ctl_send({"t": "map_show", "game": gid, "url": url})
+            return {"t": "maps_shown", "game": gid}
+        raise ValueError("unbekannte Anfrage")
+
     def games_info(self):
         return [self.profiles.summary(g) for g in self.profiles.game_ids()]
 
@@ -764,6 +812,9 @@ class Bridge:
 
     async def reload_profiles(self):
         games_changed = self.profiles.load_games()
+        if self.user_maps.load():
+            self.profiles.user_maps = self.user_maps.maps
+            games_changed = True
         changed = self.profiles.scan()
         if games_changed:
             await self.ctl_send(self.maps_msg())

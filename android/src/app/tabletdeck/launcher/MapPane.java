@@ -31,7 +31,7 @@ public class MapPane extends FrameLayout {
 
     static class Game {
         String id, name;
-        List<String[]> maps = new ArrayList<>();   // {name, url}
+        List<String[]> maps = new ArrayList<>();   // {name, url, heavy ("1" = schwere Karte, sonst "")}
     }
 
     final HomeActivity a;
@@ -127,7 +127,7 @@ public class MapPane extends FrameLayout {
                 JSONArray m = g.optJSONArray("maps");
                 for (int j = 0; m != null && j < m.length(); j++) {
                     JSONObject e = m.getJSONObject(j);
-                    x.maps.add(new String[]{e.getString("name"), e.getString("url")});
+                    x.maps.add(new String[]{e.getString("name"), e.getString("url"), e.optBoolean("heavy") ? "1" : ""});
                 }
                 next.add(x);
             }

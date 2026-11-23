@@ -37,7 +37,7 @@ class MakeZipTest(unittest.TestCase):
         for rel in ("secrets/sensors.key", "tls/ca.pem", "secret.key", "send.key", "bridge.log", "supervise.log.1",
                     "tools/platform-tools/adb.exe", "dist/a.zip", "debug.keystore", "android/x/debug.keystore",
                     "bookmarks.json", "web_history.json", "mapgenie_cache.json", "mapgenie_cache.json.tmp",
-                    "sensors.json", "config.json", "launcher.json", "profiles/.papierkorb/a/b.json", "dashboards/eigene/x.json",
+                    "sensors.json", "config.json", "launcher.json", "maps.json", "profiles/.papierkorb/a/b.json", "dashboards/eigene/x.json",
                     "bridge/__pycache__/x.pyc"):
             self.assertTrue(make_zip.excluded(rel), rel)
         for rel in ("config.example.json", "launcher.example.json", "sensors.example.json", "games.json",

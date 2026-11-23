@@ -28,7 +28,7 @@ EXCLUDE_DIRS = {"secrets", "tls", "tools", "dist", "__pycache__", ".git", ".grad
                 "eigene"}   # dashboards/eigene/: eigene Dashboards bleiben beim Nutzer
 # Dateinamen-Muster (ohne Ordner, Groß-/Kleinschreibung egal)
 EXCLUDE_NAMES = ["*.key", "*.keystore", "*.log", "*.log.*", "*.pyc", "*.tmp", "bookmarks.json", "web_history.json",
-                 "mapgenie_cache*", "bindings_learned*", "ai_settings.json", "web-*.json", "sensors.json", "config.json", "launcher.json", "thumbs.db",
+                 "mapgenie_cache*", "bindings_learned*", "ai_settings.json", "web-*.json", "sensors.json", "config.json", "launcher.json", "maps.json", "thumbs.db",
                  # interne Entwicklungsnotizen (Arbeitsweise, Stand, Details zum eigenen PC) - nicht weitergeben
                  "claude.md", "plan.md", "handoff-*.md", "weiter.md", "review.md"]
 

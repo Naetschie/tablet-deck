@@ -5,7 +5,7 @@
       "panels": [],
       "bindings": {"adapter": "cryengine", "default": "tools/sc/Data/Libs/Config/defaultProfile.plain.xml"},
       "maps": [
-        {"name": "Ark Starmap", "url": "https://robertsspaceindustries.com/en/starmap"},
+        {"name": "Ark Starmap", "url": "https://robertsspaceindustries.com/en/starmap", "heavy": true},
         {"name": "VerseGuide", "url": "https://verseguide.com/"},
         {"name": "Star Citizen Wiki – Orte", "url": "https://starcitizen.tools/Locations"}
       ]

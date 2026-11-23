@@ -48,6 +48,8 @@ sensors.log*
 # PC-gebundene Einstellungen und Kacheln (Vorlagen: config.example.json, launcher.example.json)
 config.json
 launcher.json
+# Eigene Kartenlisten (Editor, Reiter „Karten“)
+maps.json
 
 # Lokale Entwicklungsnotizen - nicht im öffentlichen Repo
 CLAUDE.md

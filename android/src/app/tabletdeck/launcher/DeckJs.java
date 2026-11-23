@@ -35,6 +35,12 @@ public class DeckJs {
         a.ui.post(() -> a.setMaps(json));
     }
 
+    /** Editor am PC: Karte eines Spiels in der Karten-Kachel zeigen (nur Karten aus der Liste des Hubs). */
+    @JavascriptInterface
+    public void showMap(String game, String url) {
+        a.ui.post(() -> a.showMap(game, url));
+    }
+
     @JavascriptInterface
     public void openUrl(String url) {
         a.ui.post(() -> a.openUrl(url));

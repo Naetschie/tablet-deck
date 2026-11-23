@@ -107,13 +107,14 @@ def cached(name, cache_path=CACHE, now=time.time, data=None):
     return _valid_maps(sl, hit.get("maps"))
 
 
-def lookup(name, cache_path=CACHE, urlopen=urllib.request.urlopen, now=time.time):
+def lookup(name, cache_path=CACHE, urlopen=urllib.request.urlopen, now=time.time, force=False):
     """Karten des Spiels bei Map Genie: [{"name", "url"}] - je Karte ein Direktlink, ohne erkennbare Karten die
-    Spielseite; leer = gibt es nicht. Netzwerkfehler (ausser 404) werfen und werden nicht gemerkt."""
+    Spielseite; leer = gibt es nicht. Netzwerkfehler (ausser 404) werfen und werden nicht gemerkt.
+    force: Zwischenspeicher übergehen (Editor: „Bei Map Genie suchen“)."""
     sl = slug(name)
     if not sl:
         return []
-    hit = cached(name, cache_path, now)
+    hit = None if force else cached(name, cache_path, now)
     if hit is not None:
         return hit
     url = f"https://mapgenie.io/{sl}"

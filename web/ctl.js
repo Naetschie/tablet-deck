@@ -21,6 +21,7 @@
       else if (m.t === "mode" && typeof m.mode === "string") Deck.setMode(m.mode);
       else if (m.t === "open" && typeof m.url === "string") Deck.openUrl(m.url);
       else if (m.t === "maps" && Array.isArray(m.games) && Deck.setMaps) Deck.setMaps(JSON.stringify(m));
+      else if (m.t === "map_show" && typeof m.game === "string" && typeof m.url === "string" && Deck.showMap) Deck.showMap(m.game, m.url);
       else if (m.t === "wlan" && Array.isArray(m.hosts)) Deck.setWlan(JSON.stringify(m));
       else if (m.t === "power" && typeof m.action === "string") Deck.power(m.action);
       else if (m.t === "tablet_mode" && typeof m.mode === "string" && Deck.setTabletMode) Deck.setTabletMode(m.mode);
