@@ -36,6 +36,8 @@ sekundenlang blockierte, bis Android „App reagiert nicht“ meldete.
   leichte Karte statt einer früher gewählten schweren erscheinen.
 
 ### Aktualisieren
+- **Hub und Launcher-App gemeinsam aktualisieren:** Light-Modus, Hänger-Hinweis, Werbesperre und „Zeigen“ aus dem
+  Editor brauchen die neue App; ältere Apps ignorieren die neuen Nachrichten einfach.
 - Launcher-App: `.\install.ps1` (lädt `tablet-deck.apk` aus dem Release v5.1, falls `tools\jdk` und
   `tools\android-sdk` fehlen), oder `python android/build.py`, dann
   `tools\platform-tools\adb.exe install -r --no-streaming android\build\tablet-deck.apk`.
