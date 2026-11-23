@@ -350,12 +350,7 @@ public class HomeActivity extends Activity {
         if (cur != null && cur.type.equals("browser")) showBrowser(cur);
         else if (cur != null && cur.type.equals("maps")) showMaps(cur);
         else showWeb(cur != null && cur.type.equals("web") ? cur : firstWeb);
-        if (find("maps") == null && maps != null) {
-            maps.leave();
-            content.removeView(maps);
-            maps.destroy();
-            maps = null;
-        }
+        if (find("maps") == null) dropMaps();
         if (browserTile() == null && browser != null) {
             content.removeView(browser);
             browser.destroy();
@@ -1066,6 +1061,51 @@ public class HomeActivity extends Activity {
         }
     }
 
+    /**
+     * Speicher knapp (ab Android 14 kommen nur noch UI_HIDDEN/BACKGROUND an, ältere melden auch
+     * RUNNING_CRITICAL): verdeckte Ansichten freigeben, bevor Android den gemeinsamen WebView-Renderer beendet
+     * (der nähme Panel, Touchpad und Karte gleichzeitig mit). Die Steuerseite bleibt; was fehlt, wird beim
+     * nächsten Anzeigen neu gebaut.
+     */
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        if (level == TRIM_MEMORY_RUNNING_CRITICAL || level >= TRIM_MEMORY_BACKGROUND) {
+            int n = freeHidden(true);
+            if (n > 0) Log.w(TAG, "Speicher knapp (Stufe " + level + "): " + n + " verdeckte Ansicht(en) freigegeben");
+        }
+    }
+
+    /** Verdeckte Web-Kacheln, Web-Kachel und (withMaps) Karten-Kachel freigeben; gibt die Anzahl zurück. */
+    int freeHidden(boolean withMaps) {
+        int n = 0;
+        for (Map.Entry<String, WebView> e : new ArrayList<>(webViews.entrySet())) {
+            if (e.getValue().getVisibility() == View.VISIBLE) continue;
+            removeWebView(e.getKey());
+            n++;
+        }
+        if (browser != null && browser.getVisibility() != View.VISIBLE) {
+            content.removeView(browser);
+            browser.destroy();
+            browser = null;
+            n++;
+        }
+        if (withMaps && maps != null && maps.getVisibility() != View.VISIBLE) {
+            dropMaps();
+            n++;
+        }
+        return n;
+    }
+
+    /** Karten-Kachel verwerfen (wird bei showMaps mit den letzten Hub-Daten neu gebaut). */
+    void dropMaps() {
+        if (maps == null) return;
+        maps.leave();
+        content.removeView(maps);
+        maps.destroy();
+        maps = null;
+    }
+
     @Override
     @SuppressWarnings("MissingSuperCall")
     public void onBackPressed() {
@@ -1082,6 +1122,7 @@ public class HomeActivity extends Activity {
         if (screenOnReceiver != null) unregisterReceiver(screenOnReceiver);
         for (String id : new ArrayList<>(webViews.keySet())) removeWebView(id);
         if (browser != null) browser.destroy();
+        if (maps != null) maps.destroy();
         if (ctlView != null) {
             root.removeView(ctlView);
             ctlView.destroy();

@@ -123,6 +123,26 @@ public class BrowserPane extends LinearLayout {
                 || bare.startsWith("::ffff:7f") || bare.startsWith("::ffff:0:"));
     }
 
+    /** Werbe- und Mess-Hosts (samt Unterdomains), die die Karten-Kachel nicht lädt. Nur reine Werbe-/Messdienste,
+     *  keine CDNs oder Einwilligungs-Dialoge - die Kartenseiten sollen unverändert funktionieren. */
+    static final String[] AD_HOSTS = {
+            "doubleclick.net", "googlesyndication.com", "googleadservices.com", "googletagservices.com",
+            "adservice.google.com", "scorecardresearch.com", "amazon-adsystem.com", "adnxs.com", "pubmatic.com",
+            "rubiconproject.com", "openx.net", "criteo.com", "criteo.net", "casalemedia.com", "indexww.com",
+            "moatads.com", "adsafeprotected.com", "doubleverify.com", "3lift.com", "sharethrough.com",
+            "smartadserver.com", "yieldmo.com", "teads.tv", "gumgum.com", "taboola.com", "outbrain.com",
+            "outbrainimg.com", "media.net", "lijit.com", "quantserve.com", "quantcount.com", "clarity.ms",
+            "intergient.com", "nitropay.com", "playwire.com", "adthrive.com", "ezoic.net", "connatix.com",
+            "primis.tech", "vdo.ai", "aniview.com", "33across.com", "sonobi.com", "bidswitch.net", "adform.net",
+            "zdbb.net"};
+
+    static boolean isAdHost(String host) {
+        if (host == null) return false;
+        String h = host.toLowerCase().replaceAll("[.]+$", "");
+        for (String d : AD_HOSTS) if (h.equals(d) || h.endsWith("." + d)) return true;
+        return false;
+    }
+
     void load(String url) {
         Uri u = Uri.parse(url);
         if (!allowed(u)) {
@@ -237,6 +257,9 @@ public class BrowserPane extends LinearLayout {
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
                 Uri u = req.getUrl();
                 String s = u.getScheme();
+                // Karten-Kachel: Werbung und Messdienste weglassen (Speicher, Rechenzeit auf schwachen Geräten)
+                if (!chrome && isAdHost(u.getHost())) return new WebResourceResponse("text/plain", "utf-8", 403,
+                        "Forbidden", null, new ByteArrayInputStream(new byte[0]));
                 if (allowed(u) || "data".equals(s) || "blob".equals(s)) return null;
                 return new WebResourceResponse("text/plain", "utf-8", 403, "Forbidden", null,
                         new ByteArrayInputStream(new byte[0]));
