@@ -156,6 +156,11 @@ class MapGenieTest(unittest.TestCase):
                 "anno": {"maps": [], "t": 1.0}}))
             self.assertIsNone(mapgenie.cached("Elden Ring", cache, lambda: 2.0))
             self.assertIsNone(mapgenie.cached("Zelda", cache, lambda: 2.0))
+            data = json.loads(cache.read_text())
+            data["old-miss"] = {"url": None, "t": 1.0}                                    # altes "gibt es nicht"
+            data["bad"] = {"maps": [{"name": "X", "url": "https://mapgenie.io/bad/maps/a/b"}], "t": 1.0}
+            self.assertEqual(mapgenie.cached("Old Miss", data=data, now=lambda: 2.0), [])
+            self.assertIsNone(mapgenie.cached("Bad", data=data, now=lambda: 2.0))
             self.assertEqual(mapgenie.cached("Anno", cache, lambda: 2.0), [])
             self.assertEqual(mapgenie.lookup("Elden Ring", cache, lambda req, timeout: FakeResp(req.full_url),
                                              lambda: 2.0), ER)
@@ -244,6 +249,28 @@ class MapFinderTest(unittest.TestCase):
         self.assertEqual(asked, ["Elden Ring"])
         self.assertEqual(self.p.game("elden-ring")["maps"][0]["url"], "https://mapgenie.io/elden-ring")
         self.assertEqual(len(self.b.sent), 1)
+
+    def test_running_game_first_and_forget(self):
+        from bridge.games import MapFinder
+        asked = []
+        f = MapFinder(self.b, lookup=lambda n: asked.append(n) or [], cached=lambda n: None, pause=0)
+
+        async def go():
+            f.want("enshrouded")
+            f.want("anno")
+            f.want("elden-ring")
+            f.want("elden-ring", front=True)    # läuft gerade: vor die anderen Wartenden
+            await f.task
+        asyncio.run(go())
+        self.assertEqual(asked, ["Elden Ring", "Enshrouded", "Anno"])
+        f.forget(["anno"])                      # abgelaufen: darf wieder gefragt werden
+
+        async def again():
+            f.want("anno")
+            f.want("enshrouded")                # nicht vergessen: bleibt geprüft
+            await f.task
+        asyncio.run(again())
+        self.assertEqual(asked[3:], ["Anno"])
 
     def test_network_error_backs_off(self):
         from bridge.games import MapFinder, RETRY_S

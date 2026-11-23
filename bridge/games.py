@@ -42,10 +42,11 @@ class MapFinder:
         """Im Hilfs-Thread nach set_library: ({gid: Karten} aus dem Zwischenspeicher, [unbekannte gids])."""
         p = self.bridge.profiles
         known, unknown = {}, []
+        data = mapgenie.load() if self.cached is mapgenie.cached else None   # Datei nur einmal lesen
         for gid, e in p._lib[2].items():
             if not p.is_extra(gid):
                 continue
-            hit = self.cached(e["name"])
+            hit = self.cached(e["name"], data=data) if data is not None else self.cached(e["name"])
             if hit is None:
                 unknown.append(gid)
             else:
@@ -59,8 +60,19 @@ class MapFinder:
             changed = self.bridge.profiles.set_extra_maps(gid, maps) or changed
         return changed
 
+    def forget(self, gids):
+        """Abgelaufene bzw. unbekannte Spiele wieder zum Nachschlagen freigeben (nicht die wartenden)."""
+        self.checked -= set(gids) - set(self.queue)
+
     def want(self, gid, front=False):
-        if gid in self.checked or self.clock() < self.backoff:
+        if self.clock() < self.backoff:
+            return
+        if gid in self.queue:
+            if front and self.queue[0] != gid:   # laufendes Spiel nach vorn holen
+                self.queue.remove(gid)
+                self.queue.insert(0, gid)
+            return
+        if gid in self.checked:
             return
         self.checked.add(gid)
         if front:
@@ -87,9 +99,12 @@ class MapFinder:
                     self.checked.discard(rest)
                 self.queue.clear()
                 return
-            if maps and p.set_extra_maps(gid, maps):
-                log.info("Map Genie für %s: %d Karte(n)", gid, len(maps))
-                await self.bridge.ctl_send(self.bridge.maps_msg())
+            try:
+                if maps and p.set_extra_maps(gid, maps):
+                    log.info("Map Genie für %s: %d Karte(n)", gid, len(maps))
+                    await self.bridge.ctl_send(self.bridge.maps_msg())
+            except Exception as e:  # noqa: BLE001 - die übrigen Spiele trotzdem nachschlagen
+                log.error("Map Genie (%s): %s", gid, e)
             if self.queue:
                 await asyncio.sleep(self.pause)
 
@@ -118,6 +133,7 @@ async def watch_games(bridge, cfg, interval=3):
                                         "game": bridge.profiles.summary(gid) if gid else None})
             if changed or maps_changed:
                 await bridge.ctl_send(bridge.maps_msg())
+            finder.forget(unknown)   # Zwischenspeicher abgelaufen: bei einem lange laufenden Hub neu prüfen
             for gid in unknown:
                 finder.want(gid)
         except Exception as e:  # noqa: BLE001

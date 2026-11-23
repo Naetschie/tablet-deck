@@ -59,7 +59,8 @@ fremde Webseiten. `"start": true` wählt die Kachel beim Start.
 und Kartenanbietern. Läuft ein Spiel, zeigt das Panel dessen erstes Panel (Wechsel per Reiter bleibt bis
 zum nächsten Spielwechsel); `"game_panel": false` in config.json schaltet den Kachelwechsel ab.
 Installierte Spiele ohne Eintrag (Steam, Epic, GOG usw.) schlägt der Hub im Hintergrund bei Map Genie nach und
-bietet deren Karten direkt in der Karten-Kachel an (Ergebnis 30 Tage in `mapgenie_cache.json`).
+bietet deren Karten direkt in der Karten-Kachel an (Ergebnis 30 Tage in `mapgenie_cache.json`). Dabei gehen die
+Namen der installierten Spiele an mapgenie.io (eine Anfrage je Spiel und Monat).
 
 `profiles/<spiel>/<panel>.json`: ein Panel (Titel, Seiten, Tasten), live neu geladen. `key` =
 Tastenkombination (z. B. `"LALT+F"`), `mode: "hold-confirm"` löst erst nach `holdMs` Halten aus. Tasten

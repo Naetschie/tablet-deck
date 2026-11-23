@@ -1,10 +1,12 @@
 """Map Genie fuer Bibliotheksspiele: einmal pruefen, ob https://mapgenie.io/<slug> existiert, und die einzelnen
 Karten der Spielseite auslesen (Links /<slug>/maps/<karte>). Ergebnis 30 Tage im Zwischenspeicher
 mapgenie_cache.json: {"<slug>": {"maps": [{"name", "url"}], "t": Zeitpunkt}}. Leere Liste = gibt es nicht.
-Eintraege im alten Format (nur "url") gelten als abgelaufen und werden neu geprueft.
+Eintraege im alten Format (nur "url"): "gibt es nicht" (url null) wird uebernommen, eine gefundene Spielseite
+neu geprueft (dann mit Direktlinks).
 
 lookup() ist blockierend - im Executor aufrufen; cached() liest nur den Zwischenspeicher (kein Netz)."""
 import json
+import logging
 import os
 import re
 import time
@@ -13,6 +15,7 @@ import urllib.request
 from urllib.parse import urlparse
 from pathlib import Path
 
+log = logging.getLogger("games")
 CACHE = Path(__file__).resolve().parent.parent / "mapgenie_cache.json"
 TTL_S = 30 * 86400
 MAX_MAPS = 20
@@ -78,21 +81,29 @@ def _valid_maps(sl, maps):
                 and isinstance(m.get("url"), str)):
             return None
         u = m["url"]
-        if u != f"https://mapgenie.io/{sl}" and not (u.startswith(f"https://mapgenie.io/{sl}/maps/")
-                                                    and MAP_ID.fullmatch(u.rsplit("/", 1)[1])):
+        if u != f"https://mapgenie.io/{sl}" and not re.fullmatch(
+                re.escape(f"https://mapgenie.io/{sl}/maps/") + MAP_ID.pattern, u):
             return None
         out.append({"name": m["name"], "url": u})
     return out
 
 
-def cached(name, cache_path=CACHE, now=time.time):
-    """Karten aus dem Zwischenspeicher: Liste (leer = gibt es nicht) oder None (unbekannt/abgelaufen)."""
+def load(cache_path=CACHE):
+    """Zwischenspeicher einmal lesen (für viele cached()-Abfragen hintereinander)."""
+    return _load(cache_path)
+
+
+def cached(name, cache_path=CACHE, now=time.time, data=None):
+    """Karten aus dem Zwischenspeicher: Liste (leer = gibt es nicht) oder None (unbekannt/abgelaufen).
+    data: schon gelesener Zwischenspeicher (load()), sonst wird die Datei gelesen."""
     sl = slug(name)
     if not sl:
         return []
-    hit = _load(cache_path).get(sl)
+    hit = (data if data is not None else _load(cache_path)).get(sl)
     if not (isinstance(hit, dict) and isinstance(hit.get("t"), (int, float)) and 0 <= now() - hit["t"] < TTL_S):
         return None
+    if "maps" not in hit and "url" in hit and hit["url"] is None:
+        return []   # altes Format: gibt es nicht (nicht erneut fragen, bis es abläuft)
     return _valid_maps(sl, hit.get("maps"))
 
 
@@ -133,6 +144,7 @@ def lookup(name, cache_path=CACHE, urlopen=urllib.request.urlopen, now=time.time
     cache[sl] = {"maps": found, "t": now()}
     try:
         _save(cache_path, cache)
-    except OSError:
-        pass
+    except OSError as e:
+        log.warning("mapgenie_cache.json nicht gespeichert (%s) - %s wird beim nächsten Start erneut geprüft",
+                    e.__class__.__name__, sl)
     return found
