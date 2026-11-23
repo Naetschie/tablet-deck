@@ -1,5 +1,48 @@
 # Änderungen
 
+## 5.1 – 23.11.2026
+
+Karten für alle installierten Spiele, ein Karten-Reiter im Editor und ein **Light-Modus** für schwache Tablets.
+Anlass war ein Samsung Tab A 10.1 (2 GB, Mali-Grafik) im Begleit-Modus, bei dem die 3D-Sternenkarte die App
+sekundenlang blockierte, bis Android „App reagiert nicht“ meldete.
+
+### Karten
+- Der Hub schlägt **alle installierten Spiele** (Steam, Epic, GOG …) im Hintergrund bei Map Genie nach, nicht erst
+  das laufende. Gefundene Karten stehen sofort im Kartenmenü und bleiben nach einem Hub-Neustart erhalten
+  (`mapgenie_cache.json`, 30 Tage). Eine Anfrage nach der anderen, nach einem Netzfehler 30 Minuten Pause.
+- Map Genie wird **direkt auf die Karte** verlinkt (z. B. Enshrouded → „Embervale“), bei mehreren Karten je ein
+  Eintrag. Bisher landete man auf der Übersichtsseite.
+- Die Karten-Kachel lädt keine Werbe- und Messdienste mehr (spart Speicher und Rechenzeit).
+
+### Editor: Reiter „Karten“
+- Kartenliste je Spiel bearbeiten: hinzufügen, umbenennen, löschen, sortieren (erste = Standard), als „schwer“
+  markieren, **Bei Map Genie suchen**, **Zeigen** (öffnet die Karte sofort am Tablet), **Standard** (eigene Liste
+  verwerfen).
+- Gespeichert wird in `maps.json` (nicht im Git, nicht im Zip). `games.json` bleibt unverändert und darf beim
+  Update überschrieben werden.
+- Kartenadressen werden strenger geprüft (nur `https`, Host aus Buchstaben/Ziffern/Punkt/Minus, keine doppelten,
+  höchstens 30). Eine eigene `games.json`, die dagegen verstößt, meldet der Hub als fehlerhaft.
+- Der Hinweis „Mitgeliefert und schreibgeschützt“ erscheint nur noch im Reiter Panels.
+
+### Light-Modus (schwache Tablets)
+- Pro Gerät, Standard aus: Kartenseiten sehen die Pixeldichte 1 (eine 3D-Karte zeichnet bei Dichte 1,5 nur noch
+  etwa 44 % der Pixel), schwere Karten (z. B. Ark Starmap) werden nicht von selbst gewählt, verdeckte Seiten
+  werden freigegeben, solange die Karte offen ist, Hub-Seiten ohne Schatten und Übergänge.
+- Einschalten: `.\install.ps1 -Light`, im Editor unter **⚙ Einstellungen → Geräte**, oder direkt am Tablet: Hängt
+  die Karte mehrmals, zeigt die Kachel „Die Karte bremst dieses Gerät“ mit **Light-Modus einschalten**.
+- Unabhängig davon gibt die App verdeckte Ansichten frei, wenn Android knappen Speicher meldet.
+- Kartenwahl: Eine im Menü (oder per „Zeigen“) gewählte Karte gilt als bewusste Wahl und bleibt, auch im
+  Light-Modus. Was vor 5.1 gewählt wurde, zählt als „zuletzt gezeigt“ – im Light-Modus kann daher einmalig eine
+  leichte Karte statt einer früher gewählten schweren erscheinen.
+
+### Aktualisieren
+- Launcher-App: `.\install.ps1` (lädt `tablet-deck.apk` aus dem Release v5.1, falls `tools\jdk` und
+  `tools\android-sdk` fehlen), oder `python android/build.py`, dann
+  `tools\platform-tools\adb.exe install -r --no-streaming android\build\tablet-deck.apk`.
+- Hub: Bridge neu starten (Taskleisten-Symbol → Beenden, dann geplante Aufgabe „Tablet Deck Bridge“ starten).
+  Beim ersten Start schlägt er alle installierten Spiele bei Map Genie nach (einige Minuten im Hintergrund).
+- Schwaches Tablet: `.\install.ps1 -Light` (mit angestecktem Tablet; bei Bedarf zusammen mit `-Companion`).
+
 ## 5.0.1 – 22.11.2026
 
 Fehlerbehebungen aus der ersten Einrichtung auf einem fremden PC.
