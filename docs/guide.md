@@ -138,6 +138,6 @@ geht es zu Neu laden und Vollbild. Läuft ein Spiel, springt die Kachel auf dess
   **Zeigen** öffnet eine gespeicherte Karte sofort am Tablet, **Standard** stellt die mitgelieferte bzw.
   gefundene Liste wieder her. Gespeichert wird in `maps.json` am PC; `games.json` bleibt unverändert und
   darf bei einem Update überschrieben werden.
-- **Schwer:** markiert aufwendige 3D-Karten (z. B. die Ark Starmap). Geräte im Light-Modus wählen sie nicht
+- **Schwer:** markiert aufwendige 3D-Karten (z. B. die Ark Starmap). Geräte im [Light-Modus](install.md#light-modus-schwache-tablets) wählen sie nicht
   von selbst.
 - Werbung und Messdienste lädt die Karten-Kachel nicht.

@@ -55,3 +55,8 @@
 /* Status-Punkt */
 .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); }
 .dot.off { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+
+/* Light-Modus (schwache Tablets, setzt der Launcher): keine Schatten und Übergänge */
+.deck-light *, .deck-light *::before, .deck-light *::after {
+  box-shadow: none !important; text-shadow: none !important; transition: none !important;
+}

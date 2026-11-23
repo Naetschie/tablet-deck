@@ -7,6 +7,8 @@
 
   // vom Launcher aufgerufen, wenn sich der Modus ändert
   window.deckState = function (mode) { send({ t: "state", mode: mode }); };
+  // vom Launcher: Light-Modus aus dem Hinweis der Karten-Kachel für dieses Gerät merken lassen
+  window.deckLight = function (on) { send({ t: "light_set", on: !!on }); };
   // vom Launcher: Web-Kachel hat eine Seite geladen (Verlauf am PC)
   window.deckVisited = function (url, title) { send({ t: "visited", url: String(url), title: String(title || "") }); };
 
@@ -26,6 +28,7 @@
       else if (m.t === "power" && typeof m.action === "string") Deck.power(m.action);
       else if (m.t === "tablet_mode" && typeof m.mode === "string" && Deck.setTabletMode) Deck.setTabletMode(m.mode);
       else if (m.t === "rotation" && typeof m.r === "number" && Deck.setRotation) Deck.setRotation(m.r);
+      else if (m.t === "light" && typeof m.on === "boolean" && Deck.setLight) Deck.setLight(m.on);
       else if (m.t === "reload") Deck.reload();
       else if (m.t === "home") Deck.home();
     };

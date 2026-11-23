@@ -69,6 +69,9 @@ public class HomeActivity extends Activity {
     boolean everConnected, autoOffArmed;
     /** Begleit-Modus (ohne Root): normale App statt Startbildschirm, kein Ausschalten, schließt sich ohne PC. */
     boolean companion;
+    /** Light-Modus (schwache Geräte, vom Hub pro Gerät): Karte in geringerer Auflösung, verdeckte Seiten freigeben,
+     *  Hub-Seiten ohne Effekte. Zuletzt bekannter Stand liegt in den Einstellungen (Start ohne Hub). */
+    boolean light;
     static final long NO_HUB_MS = 60_000, NO_HUB_WARN_S = 10;
     View noHubBanner;
     TextView noHubText;
@@ -183,6 +186,7 @@ public class HomeActivity extends Activity {
 
         current = this;
         companion = getSharedPreferences("deck", MODE_PRIVATE).getBoolean("companion", false);
+        light = getSharedPreferences("deck", MODE_PRIVATE).getBoolean("light", false);
         applyTabletMode();
         // Wecker eines früheren Launcher-Prozesses verwerfen (sonst ginge das Tablet aus, bevor die
         // Verbindung wieder steht)
@@ -404,6 +408,10 @@ public class HomeActivity extends Activity {
         if (browser != null) browser.setVisibility(View.GONE);
         maps.setVisibility(View.VISIBLE);
         maps.onShown();
+        if (light) {
+            int n = freeHidden(true);   // Karte offen: Panel, Touchpad usw. brauchen dann keinen Speicher
+            if (n > 0) Log.i(TAG, "Light-Modus: " + n + " verdeckte Ansicht(en) freigegeben");
+        }
         mode = t.id;
         updateBar();
         ui.post(this::report);
@@ -474,6 +482,30 @@ public class HomeActivity extends Activity {
         if (maps == null) return;
         maps.leave();
         maps.setVisibility(View.GONE);
+        if (light) dropMaps();   // Light-Modus: Karte beim Verlassen freigeben (Auswahl bleibt gemerkt)
+    }
+
+    /** Vom Hub (devices.json light): Light-Modus an/aus. */
+    void setLight(boolean on) {
+        if (on == light) return;
+        light = on;
+        getSharedPreferences("deck", MODE_PRIVATE).edit().putBoolean("light", on).apply();
+        Log.i(TAG, "Light-Modus " + (on ? "an" : "aus"));
+        if (maps != null) maps.setLight(on);
+        for (WebView w : webViews.values()) lightClass(w);
+        if (on && maps != null && maps.getVisibility() == View.VISIBLE) freeHidden(true);
+    }
+
+    /** Hinweis in der Karten-Kachel: sofort einschalten und den Hub bitten, es für dieses Gerät zu merken. */
+    void requestLight(boolean on) {
+        setLight(on);
+        if (ctlView != null) ctlView.evaluateJavascript("window.deckLight && deckLight(" + on + ")", null);
+    }
+
+    /** Hub-Seiten: Klasse deck-light (web/lib/ui.css: ohne Schatten und Übergänge). */
+    void lightClass(WebView w) {
+        w.evaluateJavascript("document.documentElement&&document.documentElement.classList.toggle('deck-light',"
+                + light + ")", null);
     }
 
     Tile browserTile() {
@@ -750,6 +782,11 @@ public class HomeActivity extends Activity {
             }
 
             @Override
+            public void onPageFinished(WebView view, String url) {
+                if (onlyPath == null && light) lightClass(view);
+            }
+
+            @Override
             public void onReceivedError(WebView view, WebResourceRequest req, WebResourceError err) {
                 if (!req.isForMainFrame()) {
                     // Skript/Stylesheet fehlt (z. B. USB meldet sich gerade neu an): Seite wäre halb geladen,
@@ -1013,6 +1050,7 @@ public class HomeActivity extends Activity {
         hideSystemBars();
         holdRotation();
         paused = false;
+        if (maps != null && maps.getVisibility() == View.VISIBLE) maps.watch(true);
         ui.removeCallbacks(showHandle);   // noch nicht gestarteten Griff verwerfen
         stopService(new Intent(this, OverlayService.class));
         appState = null;
@@ -1026,6 +1064,7 @@ public class HomeActivity extends Activity {
         // Cookies sofort sichern (auch Bildschirm aus): sonst schreibt WebView nur alle ~30 s, ein
         // Ausschalten des Tablets verliert dann frische Logins.
         android.webkit.CookieManager.getInstance().flush();
+        if (maps != null) maps.watch(false);
         // Andere App im Vordergrund - über die Kachel ODER von selbst (z. B. spacedesk beim Anstecken
         // per USB-Zubehör): Rücksprung-Griff einblenden und dem Hub melden, damit er gehaltene Tasten
         // freigibt. Die WebViews laufen bewusst weiter (WebSocket bleibt verbunden).

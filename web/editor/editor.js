@@ -73,6 +73,10 @@
         saved = pendingSave; pendingSave = null;
         if (isNew) { isNew = false; send({ t: "games" }); }   // neues Panel in der Auswahl zeigen
         if (isDirty()) changed(); else status("Gespeichert – Tablet aktualisiert sich", "ok");
+      } else if (m.t === "devices") {
+        devicesShow(m.devices || []);
+      } else if (m.t === "error" && m.req === "device_light") {
+        status(m.msg, "err"); send({ t: "devices" });   // Haken wieder auf den echten Stand
       } else if (m.t === "ai_key") {
         aiKeyShow(m);
       } else if (m.t === "bind_status") {
@@ -312,7 +316,29 @@
     else if (m.msg) aiKeyMsg(base + " (" + m.msg + ")", aiKeySet ? "ok" : "");
     else aiKeyMsg(base, aiKeySet ? "ok" : "");
   }
+  // ---------------------------------------------------------------- Einstellungen: Geräte (Light-Modus)
+  function devicesShow(list) {
+    var ul = $("devList"); while (ul.firstChild) ul.removeChild(ul.firstChild);
+    list.forEach(function (d) {
+      var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!d.light;
+      cb.onchange = function () { cb.disabled = true; send({ t: "device_light", id: d.id, on: cb.checked }); };
+      var lab = document.createElement("label"); lab.className = "inline"; lab.title = "Light-Modus";
+      lab.appendChild(cb); lab.appendChild(document.createTextNode(" Light"));
+      var name = document.createElement("span"); name.className = "name";
+      name.textContent = d.name + (d.model && d.model !== d.name ? " (" + d.model + ")" : "");
+      var meta = document.createElement("span"); meta.className = "meta";
+      meta.textContent = (d.main ? "Hauptgerät · " : "") + (d.connected ? "verbunden" : "nicht verbunden");
+      var li = document.createElement("li"); li.appendChild(name); li.appendChild(meta); li.appendChild(lab);
+      ul.appendChild(li);
+    });
+    if (!list.length) {
+      var e = document.createElement("li"); e.className = "dim";
+      e.textContent = "Noch kein Gerät gekoppelt (Tablet per USB anstecken)."; ul.appendChild(e);
+    }
+  }
+
   function openSettings() {
+    send({ t: "devices" });
     $("aiKeyIn").value = ""; aiProvTouched = false; aiKeyMsg("Wird geladen …"); send({ t: "ai_key_status" });
     if (!$("setDlg").open) $("setDlg").showModal();
     $("aiKeyIn").focus();

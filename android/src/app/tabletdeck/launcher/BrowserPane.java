@@ -37,6 +37,11 @@ public class BrowserPane extends LinearLayout {
     WebView home;          // Startseite (Hub-Seite /start/: Lesezeichen, gesendet, Verlauf) - nur mit chrome
     final boolean chrome;  // false = Karten-Kachel: keine Adresszeile, keine Startseite, kein Verlauf
     String pending;
+    /** Light-Modus der Karten-Kachel: Seite sieht devicePixelRatio 1 (weniger Pixel für WebGL-Karten). */
+    boolean lowDpr;
+    static final String LOW_DPR_JS = "(function(){try{if(window.devicePixelRatio!==1){"
+            + "Object.defineProperty(window,'devicePixelRatio',{get:function(){return 1},configurable:true});"
+            + "window.dispatchEvent(new Event('resize'));}}catch(e){}})()";
     long lastGone;   // letzter Renderer-Absturz (elapsedRealtime)
 
     BrowserPane(HomeActivity a) {
@@ -141,6 +146,13 @@ public class BrowserPane extends LinearLayout {
         String h = host.toLowerCase(java.util.Locale.ROOT).replaceAll("[.]+$", "");
         for (String d : AD_HOSTS) if (h.equals(d) || h.endsWith("." + d)) return true;
         return false;
+    }
+
+    /** Light-Modus an/aus: geladene Seite neu laden (die Dichte gilt ab dem Seitenaufbau). */
+    void setLowDpr(boolean on) {
+        if (on == lowDpr) return;
+        lowDpr = on;
+        if (!empty()) web.reload();
     }
 
     void load(String url) {
@@ -266,12 +278,20 @@ public class BrowserPane extends LinearLayout {
             }
 
             @Override
+            public void onPageCommitVisible(WebView view, String url) {
+                if (lowDpr) view.evaluateJavascript(LOW_DPR_JS, null);
+            }
+
+            @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                // so früh wie möglich (die Karte liest die Dichte beim Aufbau); später erneut, falls zu früh
+                if (lowDpr) view.evaluateJavascript(LOW_DPR_JS, null);
                 if (!address.hasFocus() && url != null && !url.equals("about:blank")) address.setText(url);
             }
 
             @Override
             public void onPageFinished(WebView view, String url) {
+                if (lowDpr) view.evaluateJavascript(LOW_DPR_JS, null);
                 HomeActivity.flushCookies();   // frischer Login übersteht auch ein sofortiges Ausschalten
                 // Verlauf (am PC): nur echte Seiten der Web-Kachel, nicht die Karten-Kachel
                 // nicht melden, wenn inzwischen die Startseite gezeigt wird (⌂ während des Ladens)

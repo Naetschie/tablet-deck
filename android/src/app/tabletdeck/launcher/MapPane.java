@@ -51,6 +51,28 @@ public class MapPane extends FrameLayout {
     boolean wakeOnUp;         // Geste begann bei ausgeblendeten Knöpfen: gehört ganz der Karte
     final Runnable hide = () -> setControls(false);
 
+    // Light-Modus: Karte in geringerer Auflösung zeichnen (BrowserPane.lowDpr: die Seite sieht Pixeldichte 1, eine
+    // WebGL-Fläche hat dann bei Dichte 1,5 nur ~44 % der Pixel); schwere Karten nicht von selbst wählen
+    boolean light;
+    // Hänger-Erkennung: Bildlücken > STALL_MS, während die Karte sichtbar ist (die WebView-Grafik blockiert dann den
+    // UI-Thread) - nach STALL_COUNT in STALL_WINDOW_MS den Hinweis zeigen (einmal je Start; schaltet nichts selbst)
+    static final long STALL_MS = 1500, STALL_WINDOW_MS = 60_000;
+    static final int STALL_COUNT = 3;
+    long lastFrame, firstStall;
+    int stalls;
+    boolean watching, hintShown;
+    final LinearLayout hint;
+    final android.view.Choreographer.FrameCallback frame = new android.view.Choreographer.FrameCallback() {
+        @Override
+        public void doFrame(long nanos) {
+            if (!watching) return;
+            long now = android.os.SystemClock.uptimeMillis();
+            if (lastFrame > 0 && now - lastFrame > STALL_MS) stalled(now, now - lastFrame);
+            lastFrame = now;
+            android.view.Choreographer.getInstance().postFrameCallback(this);
+        }
+    };
+
     MapPane(HomeActivity a) {
         super(a);
         this.a = a;
@@ -108,6 +130,45 @@ public class MapPane extends FrameLayout {
         LayoutParams dp = new LayoutParams(a.dp(380), -1, Gravity.START);
         dp.setMargins(a.dp(16), a.dp(16), 0, a.dp(16));
         addView(drawer, dp);
+
+        // Hinweis bei Hängern (unten mittig)
+        hint = new LinearLayout(a);
+        hint.setOrientation(LinearLayout.VERTICAL);
+        hint.setPadding(a.dp(18), a.dp(14), a.dp(18), a.dp(14));
+        hint.setBackground(glass(18));
+        hint.setVisibility(GONE);
+        hint.setClickable(true);   // Berührungen nicht an die Karte durchreichen
+        TextView ht = text(15, HomeActivity.TEXT, true);
+        ht.setSingleLine(false);
+        ht.setText("Die Karte bremst dieses Gerät.");
+        hint.addView(ht);
+        TextView hs = text(13, HomeActivity.DIM, false);
+        hs.setSingleLine(false);
+        hs.setText("Der Light-Modus zeichnet Karten in geringerer Auflösung und gibt verdeckte Seiten frei.");
+        hs.setPadding(0, a.dp(4), 0, a.dp(10));
+        hint.addView(hs);
+        LinearLayout hb = new LinearLayout(a);
+        hb.setGravity(Gravity.END);
+        TextView no = text(14, HomeActivity.DIM, true);
+        no.setText("Nicht jetzt");
+        no.setPadding(a.dp(14), a.dp(10), a.dp(14), a.dp(10));
+        no.setOnClickListener(v -> hint.setVisibility(GONE));
+        TextView yes = text(14, HomeActivity.ACCENT, true);
+        yes.setText("Light-Modus einschalten");
+        yes.setPadding(a.dp(14), a.dp(10), a.dp(14), a.dp(10));
+        yes.setOnClickListener(v -> {
+            hint.setVisibility(GONE);
+            a.requestLight(true);
+        });
+        hb.addView(no);
+        hb.addView(yes);
+        hint.addView(hb);
+        LayoutParams hp = new LayoutParams(a.dp(440), -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        hp.bottomMargin = a.dp(24);
+        addView(hint, hp);
+
+        light = a.light;
+        browser.setLowDpr(light);
         render();
     }
 
@@ -161,8 +222,11 @@ public class MapPane extends FrameLayout {
         Game g = find(gid);
         if (g == null || g.maps.isEmpty()) return;
         String[] pick = g.maps.get(0);
+        if (url == null && light) {   // Light-Modus: von selbst nur leichte Karten (gewählt werden kann jede)
+            for (String[] m : g.maps) if (!"1".equals(m[2])) { pick = m; break; }
+        }
         String want = url != null ? url : prefs.getString("url:" + gid, null);
-        for (String[] m : g.maps) if (m[1].equals(want)) pick = m;
+        for (String[] m : g.maps) if (m[1].equals(want) && (url != null || !light || !"1".equals(m[2]))) pick = m;
         gameId = gid;
         if (!pick[1].equals(mapUrl) || browser.empty()) {   // leer z. B. nach einem Renderer-Absturz
             mapUrl = pick[1];
@@ -273,7 +337,8 @@ public class MapPane extends FrameLayout {
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
         int act = ev.getActionMasked();
-        if (drawer.getVisibility() != VISIBLE) {
+        // Hinweis (Hänger) sichtbar: normal verteilen, damit seine Knöpfe ankommen
+        if (drawer.getVisibility() != VISIBLE && hint.getVisibility() != VISIBLE) {
             if (act == MotionEvent.ACTION_DOWN) {
                 if (shown) poke();
                 else wakeOnUp = true;
@@ -316,11 +381,45 @@ public class MapPane extends FrameLayout {
     void onShown() {
         if (browser.web != null) browser.web.onResume();
         poke();
+        watch(true);
     }
 
     void onHidden() {
         if (browser.web != null) browser.web.onPause();
         removeCallbacks(hide);
+        watch(false);
+    }
+
+    // ------------------------------------------------------------------ Light-Modus und Hänger
+
+    void setLight(boolean on) {
+        if (on == light) return;
+        light = on;
+        if (on) hint.setVisibility(GONE);
+        browser.setLowDpr(on);
+    }
+
+    void watch(boolean on) {
+        if (on == watching) return;
+        watching = on;
+        lastFrame = 0;
+        if (on) android.view.Choreographer.getInstance().postFrameCallback(frame);
+        else android.view.Choreographer.getInstance().removeFrameCallback(frame);
+    }
+
+    void stalled(long now, long gap) {
+        if (now - firstStall > STALL_WINDOW_MS) {
+            firstStall = now;
+            stalls = 0;
+        }
+        stalls++;
+        android.util.Log.w(HomeActivity.TAG, "Karte: Bild hing " + gap + " ms (" + stalls + ". in "
+                + (STALL_WINDOW_MS / 1000) + " s)" + (light ? ", Light-Modus an" : ""));
+        if (stalls >= STALL_COUNT && !light && !hintShown) {
+            hintShown = true;
+            hint.setVisibility(VISIBLE);
+            hint.bringToFront();
+        }
     }
 
     // ------------------------------------------------------------------ Bausteine
@@ -412,6 +511,7 @@ public class MapPane extends FrameLayout {
 
     void destroy() {
         removeCallbacks(hide);
+        watch(false);
         browser.destroy();
     }
 }

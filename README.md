@@ -45,6 +45,7 @@ Hubs (Origin-Prüfung, CSP) dürfen Eingaben senden.
 | `output` | `keyboard` (Panel-Tasten per SendInput) |
 | `tablet_autostart` | beim Anstecken den Launcher in den Vordergrund holen |
 | `tablet_mode` | `home` (Standard: Launcher ist der Startbildschirm, Root) oder `companion` (normale App ohne Root, `install.ps1 -Companion`; siehe [docs/install.md](docs/install.md#begleit-modus-ohne-root)) |
+| `tablet_lights` | Light-Modus für schwache Tablets je Seriennummer (`install.ps1 -Light` oder Editor → Einstellungen; siehe [docs/install.md](docs/install.md#light-modus-schwache-tablets)) |
 | `tablet_timezone` | Zeitzone für das Tablet (z. B. `Europe/Berlin`) |
 | `tray` | Taskleisten-Symbol an/aus |
 | `auto_modes` / `auto_default` | z. B. `[{"process": "StarCitizen.exe", "mode": "panel"}]` |

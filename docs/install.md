@@ -48,6 +48,7 @@ Danach: Taskleisten-Symbol am PC, die App „Tablet Deck“ am Tablet. Weiter mi
 | `-AllowLocalChanges` | Sensor-Helfer auch mit nicht eingecheckten Änderungen an seinen Dateien einrichten |
 | `-Check` | nichts ändern, nur prüfen und auflisten, was fehlt (Exit-Code 1, wenn etwas offen ist) |
 | `-Companion` | Begleit-Modus ohne Root: kein Startbildschirm. Gilt für das eingerichtete Gerät (`tablet_modes`); beim allerersten Gerät zusätzlich als Standard für alle (`tablet_mode`), mit `-SkipTablet` nur als Standard (siehe unten) |
+| `-Light` | [Light-Modus](#light-modus-schwache-tablets) für das angesteckte Gerät (schwache Tablets); startet die Bridge neu |
 | `-ListDevices` | angesteckte Android-Geräte mit Seriennummer und Modell anzeigen, nichts ändern |
 | `-Serial <Nr>` | nur dieses Gerät einrichten (weiteres Gerät, mehrere angesteckt; ohne den Schalter fragt das Skript) |
 | `-Modules` | zusätzlich die Magisk-Module `chargectl` (Akku 45–55 %) und `hardening`, danach Tablet-Neustart |
@@ -203,6 +204,24 @@ PCs an die App (Kopplung, WLAN-Zertifikat, Betriebsart) erst zu, wenn sie freige
   nur mit Root (Modul `hardening`), ohne Root bleibt die Anfrage des PCs wirkungslos (nur Logeintrag). Auch
   der Rückfall „nach 5 min ohne PC herunterfahren“ entfällt.
 - Der Startbildschirm: HOME-Taste führt zum normalen Android-Launcher, die App startet man über ihr Symbol.
+
+## Light-Modus (schwache Tablets)
+Für Tablets mit schwacher Grafik oder wenig Speicher (z. B. 2 GB RAM und Mali-Grafik). Erkennbar daran, dass die
+Karten-Kachel bei aufwendigen Karten hängt oder Android „App reagiert nicht“ meldet; die App zeigt dann selbst den
+Hinweis „Die Karte bremst dieses Gerät“ mit einem Knopf zum Einschalten. Standard ist aus.
+
+Was er ändert (nur auf diesem Gerät):
+- Kartenseiten sehen die Pixeldichte 1: Eine 3D-Karte zeichnet bei Dichte 1,5 nur noch etwa 44 % der Pixel.
+- Als schwer markierte Karten (z. B. die Ark Starmap) wählt die Kachel nicht von selbst; auswählen geht weiter.
+- Solange die Karte offen ist, werden verdeckte Seiten (Panel, Touchpad) freigegeben, beim Verlassen die Karte
+  selbst. Dafür laden sie beim nächsten Öffnen neu.
+- Die Hub-Seiten verzichten auf Schatten und Übergänge.
+
+Einschalten:
+- beim Einrichten: `.\install.ps1 -Light` (bzw. zusammen mit `-Companion`), für das angesteckte Gerät;
+- später: Editor → **⚙ Einstellungen** → Geräte → Haken „Light“ (wirkt sofort);
+- von Hand: `devices.json` → `"light": true` beim Gerät, oder in `config.json`
+  `"tablet_lights": { "<Seriennummer>": true }` (`devices.json` geht vor).
 
 ## Tablet als Startbildschirm / Root (optional)
 Nur für den Startbildschirm-Modus (`tablet_mode` = `home`, Standard ohne `-Companion`). Das Tablet (Lenovo

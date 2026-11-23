@@ -58,6 +58,12 @@ public class DeckJs {
         a.ui.post(() -> a.setTabletMode(m));
     }
 
+    /** Light-Modus für schwache Geräte (devices.json light am Hub). */
+    @JavascriptInterface
+    public void setLight(boolean on) {
+        a.ui.post(() -> a.setLight(on));
+    }
+
     /** WLAN-Adressen des Hubs (kommt nur über USB, siehe Bridge ctl_handler). */
     @JavascriptInterface
     public void setWlan(String json) {
