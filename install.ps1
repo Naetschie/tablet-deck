@@ -72,6 +72,7 @@ function Run {
 }
 
 $sensorsDest = Join-Path $env:ProgramFiles "TabletDeck\sensors"
+$callerSerial = $Serial   # -Serial vom Aufruf (der Assistent setzt $Serial später selbst)
 
 # ---------------------------------------------------------------- Geführte Einrichtung (-Interactive)
 function Note($t) { Write-Host "   $t" -ForegroundColor Gray }
@@ -108,7 +109,12 @@ if ($Interactive -and -not $Check -and -not $ListDevices) {
     if (Test-Under @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:ProgramW6432)) {
         Warn "Tablet Deck liegt unter $root."
         Note "Dort darf der Hub nicht schreiben (Log, Einstellungen, Kopplung) und startet nicht. Bitte den Ordner"
-        Note "z. B. nach C:\TabletDeck oder in die Dokumente verschieben und einrichten.bat von dort starten."
+        Note "z. B. nach C:\TabletDeck verschieben und einrichten.bat von dort starten."
+        exit 1
+    }
+    if ($root -match '^\\\\') {
+        Warn "Tablet Deck liegt auf einem Netzlaufwerk ($root)."
+        Note "Hub und Autostart brauchen einen lokalen Ordner. Bitte z. B. nach C:\TabletDeck kopieren."
         exit 1
     }
     if (Test-Under @((Join-Path $env:USERPROFILE "Downloads"), $env:OneDrive, $env:OneDriveConsumer, $env:OneDriveCommercial)) {
@@ -308,7 +314,6 @@ if ($Interactive -and -not $SkipTablet) {
     }
     if ($target) {
         $s1 = @("-s", $target.Seriennummer)
-        $wizardSerial = $target.Seriennummer   # nur für den Tablet-Schritt, nicht wie ein -Serial vom Aufrufer
         $Serial = $target.Seriennummer
         $andr = "$((Run $adb @s1 shell getprop ro.build.version.release).Out)".Trim()
         $memKb = 0
@@ -317,7 +322,7 @@ if ($Interactive -and -not $SkipTablet) {
         $gpu = ""
         if ((Run $adb @s1 shell dumpsys SurfaceFlinger).Out -match 'GLES:\s*([^\r\n]+)') { $gpu = $Matches[1].Trim() }
         $size = ("$((Run $adb @s1 shell wm size).Out)" -split "`n" | Select-Object -Last 1) -replace '.*:\s*', ''
-        $hasSu = "$((Run $adb @s1 shell "command -v su").Out)".Trim() -match '^/'
+        $hasSu = "$((Run $adb @s1 shell "command -v su").Out)".Trim() -match '^/\S+$'
         Ok "$($target.Modell) (Android $andr, $ramGb GB RAM, $($size.Trim()))"
         if ($gpu) { Note "Grafik: $gpu" }
         if ($target.Launcher -eq "ja") { Note "Die Launcher-App ist schon installiert - sie wird aktualisiert, die Kopplung erneuert." }
@@ -339,7 +344,7 @@ if ($Interactive -and -not $SkipTablet) {
         $gpuName = if ($parts.Count -gt 1) { $parts[1].Trim() } else { $gpu.Trim() }
         $weak = $gpu -and ($ramGb -gt 0 -and $ramGb -le 3) -and ($gpu -notmatch 'Adreno')
         if ($weak) { Note "Vorschlag: an ($ramGb GB RAM, Grafik $gpuName)." }
-        elseif (-not $gpu) { Note "Grafik nicht lesbar - Vorschlag: aus. Hängt die Karten-Kachel später, im Editor einschalten." }
+        elseif (-not $gpu -or $ramGb -eq 0) { Note "Gerät nicht ganz lesbar - Vorschlag: aus. Hängt die Karten-Kachel später, im Editor einschalten." }
         else { Note "Vorschlag: aus (genug Leistung erkannt)." }
         if (-not $Light) { $Light = Ask-YesNo "Light-Modus einschalten?" $weak }
         if ($Light) { Ok "Light-Modus an" } else { Ok "Light-Modus aus" }
@@ -501,7 +506,7 @@ if (-not $SkipTablet) {
         $target = $null
     }
     # Erstes Gerät überhaupt: nur eins angesteckt, kein -Serial, Hub kennt noch keins (devices.json fehlt)
-    $soleFirst = $all.Count -eq 1 -and (-not $Serial -or $Serial -eq $wizardSerial) -and $firstDevice
+    $soleFirst = $all.Count -eq 1 -and -not $callerSerial -and $firstDevice
     $dev = if ($target) { "$($target.Seriennummer)`t$($target.Zustand)" } else { $null }
     $adbSel = if ($target) { @("-s", $target.Seriennummer) } else { @() }
     if (($Serial -and -not $target) -or ($all -and -not $target)) {
@@ -579,6 +584,7 @@ if (-not $SkipTablet) {
             }
             for ($i = 0; $i -lt 10 -and (& $bridgeRunning); $i++) { Start-Sleep 1 }
             $r = Run $python (Join-Path $root "scripts\set_config.py") $cfgPath "device" $target.Seriennummer "light" "on"
+            if ($logFile -and (Test-Path $logFile)) { $logStart = (Get-Item $logFile).Length }   # nur Meldungen danach
             if ($task) { Start-ScheduledTask -TaskName "Tablet Deck Bridge" }
             else { Start-Process (Join-Path (Split-Path $python) "pythonw.exe") -ArgumentList "-m", "bridge.supervise" -WorkingDirectory $root }
             if ($r.Code -ne 0) { throw "config.json nicht änderbar: $($r.Out)" }
@@ -588,7 +594,6 @@ if (-not $SkipTablet) {
             for ($i = 0; $i -lt 30 -and -not $up; $i++) {
                 try { $c = [Net.Sockets.TcpClient]::new("127.0.0.1", 8765); $c.Close(); $up = $true } catch { Start-Sleep 1 }
             }
-            if ($logFile -and (Test-Path $logFile)) { $logStart = (Get-Item $logFile).Length }   # nur Meldungen danach
             if ($up) { Ok "Light-Modus für $($target.Seriennummer) eingeschaltet, Bridge neu gestartet" }
             else { Warn "Light-Modus eingetragen, aber die Bridge antwortet nach 30 s nicht - siehe bridge.log / supervise.log" }
         }
