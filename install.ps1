@@ -80,13 +80,18 @@ function Ask-YesNo($q, $default) {
     $hint = if ($default) { "J/n" } else { "j/N" }
     while ($true) {
         try { $a = Read-Host "   $q [$hint]" } catch { return $default }
-        if (-not $a) { return $default }
+        if ($null -eq $a -or -not "$a".Trim()) { return $default }
         if ($a -match '^\s*[jy]') { return $true }
         if ($a -match '^\s*n') { return $false }
         Note "Bitte j (ja) oder n (nein) eingeben."
     }
 }
-function Wait-Enter($q) { try { return (Read-Host "   $q") } catch { return "s" } }
+# Ende der Eingabe (umgeleitet und leergelesen) bzw. keine Konsole: "s" (überspringen), nie endlos warten
+function Wait-Enter($q) {
+    try { $a = Read-Host "   $q" } catch { return "s" }
+    if ($null -eq $a) { return "s" }
+    return $a
+}
 
 if ($Interactive -and -not $Check -and -not $ListDevices) {
     Write-Host ""
@@ -96,15 +101,17 @@ if ($Interactive -and -not $Check -and -not $ListDevices) {
     Note "Abbrechen jederzeit mit Strg+C - das Skript lässt sich gefahrlos erneut starten."
 
     Step "Ordner"
-    $pf = @($env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ }
-    if ($pf | Where-Object { $root.StartsWith($_, [StringComparison]::OrdinalIgnoreCase) }) {
+    $rootSlash = $root.TrimEnd('\') + '\'
+    function Test-Under($dirs) {
+        [bool](@($dirs) | Where-Object { $_ } | Where-Object { $rootSlash.StartsWith($_.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase) })
+    }
+    if (Test-Under @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:ProgramW6432)) {
         Warn "Tablet Deck liegt unter $root."
         Note "Dort darf der Hub nicht schreiben (Log, Einstellungen, Kopplung) und startet nicht. Bitte den Ordner"
         Note "z. B. nach C:\TabletDeck oder in die Dokumente verschieben und einrichten.bat von dort starten."
         exit 1
     }
-    $dl = Join-Path $env:USERPROFILE "Downloads"
-    if ($root.StartsWith($dl, [StringComparison]::OrdinalIgnoreCase) -or $root -match '\\OneDrive') {
+    if (Test-Under @((Join-Path $env:USERPROFILE "Downloads"), $env:OneDrive, $env:OneDriveConsumer, $env:OneDriveCommercial)) {
         Warn "Tablet Deck liegt unter $root."
         Note "Downloads/OneDrive sind kein guter Dauerort (wird aufgeräumt bzw. synchronisiert). Der Hub startet"
         Note "später aus genau diesem Ordner. Besser vorher verschieben, z. B. nach C:\TabletDeck."
@@ -268,14 +275,16 @@ if ($Interactive -and -not $SkipTablet) {
     $target = $null
     while (-not $target) {
         $all = @(Get-AdbDevices | Where-Object { $_.Seriennummer -notmatch ':|_adb-tls|^adb-' })
+        if ($Serial) { $all = @($all | Where-Object Seriennummer -eq $Serial) }
         $ready = @($all | Where-Object Zustand -eq "device")
         if ($ready.Count -eq 1) { $target = $ready[0]; break }
         if ($ready.Count -gt 1) {
             Write-Host "   Mehrere Geräte angesteckt:"
             Show-AdbDevices $ready
-            $pick = Wait-Enter "Welches einrichten? Nummer"
+            $pick = Wait-Enter "Welches einrichten? Nummer (s = ohne Tablet weiter)"
             $n = 0
-            if ([int]::TryParse("$pick".Trim(), [ref]$n) -and $n -ge 1 -and $n -le $ready.Count) { $target = $ready[$n - 1] }
+            if ([int]::TryParse("$pick".Trim(), [ref]$n) -and $n -ge 1 -and $n -le $ready.Count) { $target = $ready[$n - 1]; break }
+            if ("$pick".Trim() -match '^s') { $SkipTablet = $true; Warn "Tablet übersprungen - später: einrichten.bat erneut starten"; break }
             continue
         }
         if ($all | Where-Object Zustand -eq "unauthorized") {
@@ -285,6 +294,8 @@ if ($Interactive -and -not $SkipTablet) {
         } elseif ($all | Where-Object Zustand -eq "offline") {
             Warn "Das Tablet ist angesteckt, antwortet aber nicht (offline)."
             Note "Kabel abziehen und wieder anstecken; hilft das nicht: am Tablet USB-Debugging aus- und wieder einschalten."
+        } elseif ($Serial) {
+            Warn "Gerät $Serial ist nicht angesteckt (oder antwortet nicht)."
         } else {
             Warn "Kein Tablet gefunden."
             Note "1. Am Tablet: Einstellungen → Über das Tablet (Telefoninfo) → 7-mal auf 'Build-Nummer' tippen."
@@ -297,6 +308,7 @@ if ($Interactive -and -not $SkipTablet) {
     }
     if ($target) {
         $s1 = @("-s", $target.Seriennummer)
+        $wizardSerial = $target.Seriennummer   # nur für den Tablet-Schritt, nicht wie ein -Serial vom Aufrufer
         $Serial = $target.Seriennummer
         $andr = "$((Run $adb @s1 shell getprop ro.build.version.release).Out)".Trim()
         $memKb = 0
@@ -305,7 +317,7 @@ if ($Interactive -and -not $SkipTablet) {
         $gpu = ""
         if ((Run $adb @s1 shell dumpsys SurfaceFlinger).Out -match 'GLES:\s*([^\r\n]+)') { $gpu = $Matches[1].Trim() }
         $size = ("$((Run $adb @s1 shell wm size).Out)" -split "`n" | Select-Object -Last 1) -replace '.*:\s*', ''
-        $hasSu = [bool]"$((Run $adb @s1 shell "command -v su").Out)".Trim()
+        $hasSu = "$((Run $adb @s1 shell "command -v su").Out)".Trim() -match '^/'
         Ok "$($target.Modell) (Android $andr, $ramGb GB RAM, $($size.Trim()))"
         if ($gpu) { Note "Grafik: $gpu" }
         if ($target.Launcher -eq "ja") { Note "Die Launcher-App ist schon installiert - sie wird aktualisiert, die Kopplung erneuert." }
@@ -323,8 +335,11 @@ if ($Interactive -and -not $SkipTablet) {
         Step "Light-Modus"
         Note "Für schwache Tablets: Karten in geringerer Auflösung, verdeckte Seiten werden freigegeben, schwere"
         Note "3D-Karten nicht von selbst gewählt. Später jederzeit im Editor (Einstellungen → Geräte) umschaltbar."
-        $weak = ($ramGb -gt 0 -and $ramGb -le 3) -and ($gpu -notmatch 'Adreno')
-        if ($weak) { Note "Vorschlag: an ($ramGb GB RAM, Grafik $(if ($gpu) { ($gpu -split ',')[1].Trim() } else { 'unbekannt' }))." }
+        $parts = @($gpu -split ',')
+        $gpuName = if ($parts.Count -gt 1) { $parts[1].Trim() } else { $gpu.Trim() }
+        $weak = $gpu -and ($ramGb -gt 0 -and $ramGb -le 3) -and ($gpu -notmatch 'Adreno')
+        if ($weak) { Note "Vorschlag: an ($ramGb GB RAM, Grafik $gpuName)." }
+        elseif (-not $gpu) { Note "Grafik nicht lesbar - Vorschlag: aus. Hängt die Karten-Kachel später, im Editor einschalten." }
         else { Note "Vorschlag: aus (genug Leistung erkannt)." }
         if (-not $Light) { $Light = Ask-YesNo "Light-Modus einschalten?" $weak }
         if ($Light) { Ok "Light-Modus an" } else { Ok "Light-Modus aus" }
@@ -486,7 +501,7 @@ if (-not $SkipTablet) {
         $target = $null
     }
     # Erstes Gerät überhaupt: nur eins angesteckt, kein -Serial, Hub kennt noch keins (devices.json fehlt)
-    $soleFirst = $all.Count -eq 1 -and -not $Serial -and $firstDevice
+    $soleFirst = $all.Count -eq 1 -and (-not $Serial -or $Serial -eq $wizardSerial) -and $firstDevice
     $dev = if ($target) { "$($target.Seriennummer)`t$($target.Zustand)" } else { $null }
     $adbSel = if ($target) { @("-s", $target.Seriennummer) } else { @() }
     if (($Serial -and -not $target) -or ($all -and -not $target)) {
@@ -573,6 +588,7 @@ if (-not $SkipTablet) {
             for ($i = 0; $i -lt 30 -and -not $up; $i++) {
                 try { $c = [Net.Sockets.TcpClient]::new("127.0.0.1", 8765); $c.Close(); $up = $true } catch { Start-Sleep 1 }
             }
+            if ($logFile -and (Test-Path $logFile)) { $logStart = (Get-Item $logFile).Length }   # nur Meldungen danach
             if ($up) { Ok "Light-Modus für $($target.Seriennummer) eingeschaltet, Bridge neu gestartet" }
             else { Warn "Light-Modus eingetragen, aber die Bridge antwortet nach 30 s nicht - siehe bridge.log / supervise.log" }
         }
@@ -603,7 +619,10 @@ if ($Companion -and -not $SkipTablet -and -not $companionDone) {
 }
 
 # ---------------------------------------------------------------- 6b. Verbindungstest (geführt)
-if ($Interactive -and $target -and $logStart -ne $null -and -not $SkipTablet) {
+if ($Interactive -and $target -and $null -eq $logStart -and -not $SkipTablet) {
+    Warn "Verbindungstest übersprungen (Launcher nicht eingerichtet, siehe oben)"
+}
+if ($Interactive -and $target -and $null -ne $logStart -and -not $SkipTablet) {
     Step "Verbindung Tablet <-> PC"
     Note "Warte, bis sich die App am Tablet beim Hub meldet (bis 60 s) ..."
     Run $adb -s $target.Seriennummer shell monkey -p app.tabletdeck.launcher -c android.intent.category.LAUNCHER 1 | Out-Null
