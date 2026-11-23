@@ -218,7 +218,6 @@ public class MapPane extends FrameLayout {
         if (g != null && find(g) != null && !find(g).maps.isEmpty()) select(g, null);
     }
 
-    /** Karte eines Spiels laden (url null = zuletzt genutzter bzw. erster Anbieter). */
     /**
      * url != null: ausdrückliche Wahl (Menü, Editor „Zeigen“) - wird als "pick:<spiel>" gemerkt und gilt immer, auch
      * für schwere Karten. url == null: von selbst - gemerkte Wahl, sonst zuletzt gezeigte Karte, sonst die erste;
@@ -413,6 +412,11 @@ public class MapPane extends FrameLayout {
         light = on;
         if (on) hint.setVisibility(GONE);
         browser.setLowDpr(on);
+        // eingeschaltet, während eine schwere Karte läuft, die niemand bewusst gewählt hat: gleich auf eine leichte
+        Game g = find(gameId);
+        String[] cur = g != null ? byUrl(g, mapUrl) : null;
+        if (on && cur != null && "1".equals(cur[2]) && byUrl(g, prefs.getString("pick:" + gameId, null)) == null)
+            select(gameId, null);
     }
 
     void watch(boolean on) {

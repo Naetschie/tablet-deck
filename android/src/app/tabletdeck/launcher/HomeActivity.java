@@ -504,8 +504,8 @@ public class HomeActivity extends Activity {
     long lightAsked;   // Zeitpunkt der Bitte an den Hub (lehnt er ab, kommt gleich light:false zurück)
 
     void requestLight(boolean on) {
-        lightAsked = android.os.SystemClock.elapsedRealtime();
         setLight(on);
+        lightAsked = android.os.SystemClock.elapsedRealtime();   // nach setLight: die erste Hub-Antwort zählt
         if (ctlView != null) ctlView.evaluateJavascript("window.deckLight && deckLight(" + on + ")", null);
     }
 
