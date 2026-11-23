@@ -487,9 +487,10 @@ public class HomeActivity extends Activity {
 
     /** Vom Hub (devices.json light): Light-Modus an/aus. */
     void setLight(boolean on) {
-        if (!on && light && android.os.SystemClock.elapsedRealtime() - lightAsked < 5000)
+        if (!on && light && lightAsked > 0 && android.os.SystemClock.elapsedRealtime() - lightAsked < 5000)
             android.widget.Toast.makeText(this, "Light-Modus nicht gespeichert – Tablet einmal per USB mit dem PC koppeln",
                     android.widget.Toast.LENGTH_LONG).show();
+        lightAsked = 0;   // nur die erste Antwort nach der Bitte zählt
         if (on == light) return;
         light = on;
         getSharedPreferences("deck", MODE_PRIVATE).edit().putBoolean("light", on).apply();

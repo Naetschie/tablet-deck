@@ -215,26 +215,40 @@ public class MapPane extends FrameLayout {
         String g = prefs.getString("game", null);
         if (g == null || find(g) == null) g = current;
         if (g == null || find(g) == null) for (Game x : games) if (!x.maps.isEmpty()) { g = x.id; break; }
-        if (g != null && find(g) != null && !find(g).maps.isEmpty()) select(g, prefs.getString("url:" + g, null));
+        if (g != null && find(g) != null && !find(g).maps.isEmpty()) select(g, null);
     }
 
     /** Karte eines Spiels laden (url null = zuletzt genutzter bzw. erster Anbieter). */
+    /**
+     * url != null: ausdrückliche Wahl (Menü, Editor „Zeigen“) - wird als "pick:<spiel>" gemerkt und gilt immer, auch
+     * für schwere Karten. url == null: von selbst - gemerkte Wahl, sonst zuletzt gezeigte Karte, sonst die erste;
+     * im Light-Modus ohne gemerkte Wahl nur leichte Karten (zuletzt gezeigt zählt dann nur, wenn sie leicht ist).
+     */
     void select(String gid, String url) {
         Game g = find(gid);
         if (g == null || g.maps.isEmpty()) return;
-        String[] pick = g.maps.get(0);
-        String want = url != null ? url : prefs.getString("url:" + gid, null);
-        if (want == null && light) {   // Light-Modus, noch nichts gewählt: von selbst nur eine leichte Karte
-            for (String[] m : g.maps) if (!"1".equals(m[2])) { pick = m; break; }
+        String[] pick = url != null ? byUrl(g, url) : byUrl(g, prefs.getString("pick:" + gid, null));
+        if (pick == null) {
+            String[] last = byUrl(g, prefs.getString("url:" + gid, null));
+            if (light && (last == null || "1".equals(last[2]))) {
+                for (String[] m : g.maps) if (!"1".equals(m[2])) { last = m; break; }
+            }
+            pick = last != null ? last : g.maps.get(0);
         }
-        for (String[] m : g.maps) if (m[1].equals(want)) pick = m;   // eigene Wahl gilt immer, auch schwer
         gameId = gid;
         if (!pick[1].equals(mapUrl) || browser.empty()) {   // leer z. B. nach einem Renderer-Absturz
             mapUrl = pick[1];
             browser.load(mapUrl);
         }
-        prefs.edit().putString("game", gid).putString("url:" + gid, mapUrl).apply();
+        SharedPreferences.Editor ed = prefs.edit().putString("game", gid).putString("url:" + gid, mapUrl);
+        if (url != null && url.equals(mapUrl)) ed.putString("pick:" + gid, mapUrl);
+        ed.apply();
         render();
+    }
+
+    static String[] byUrl(Game g, String url) {
+        if (url != null) for (String[] m : g.maps) if (m[1].equals(url)) return m;
+        return null;
     }
 
     // ------------------------------------------------------------------ Oberfläche
@@ -419,7 +433,13 @@ public class MapPane extends FrameLayout {
                 + (STALL_WINDOW_MS / 1000) + " s)" + (light ? ", Light-Modus an" : ""));
         if (stalls >= STALL_COUNT && !light && !hintShown) {
             hintShown = true;
-            wakeOnUp = false;   // laufende Geste nicht weiter direkt an die Karte
+            if (wakeOnUp) {   // laufende Geste der Karte sauber beenden, sie geht nicht weiter direkt dorthin
+                long t = android.os.SystemClock.uptimeMillis();
+                MotionEvent c = MotionEvent.obtain(t, t, MotionEvent.ACTION_CANCEL, 0, 0, 0);
+                browser.dispatchTouchEvent(c);
+                c.recycle();
+                wakeOnUp = false;
+            }
             hint.setVisibility(VISIBLE);
             hint.bringToFront();
         }
