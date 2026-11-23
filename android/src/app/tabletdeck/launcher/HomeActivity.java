@@ -1070,16 +1070,20 @@ public class HomeActivity extends Activity {
     @Override
     public void onTrimMemory(int level) {
         super.onTrimMemory(level);
-        if (level == TRIM_MEMORY_RUNNING_CRITICAL || level >= TRIM_MEMORY_BACKGROUND) {
-            int n = freeHidden(true);
+        // BACKGROUND kommt schon beim bloßen Wechsel in eine andere App (spacedesk): dann nur die schweren fremden
+        // Seiten (Karte, Web-Kachel) - Panel und Touchpad behalten ihren Zustand. Alles Verdeckte erst bei echter Not.
+        boolean severe = level == TRIM_MEMORY_RUNNING_CRITICAL || level >= TRIM_MEMORY_COMPLETE;
+        if (severe || level >= TRIM_MEMORY_BACKGROUND) {
+            int n = freeHidden(true, severe);
             if (n > 0) Log.w(TAG, "Speicher knapp (Stufe " + level + "): " + n + " verdeckte Ansicht(en) freigegeben");
         }
     }
 
-    /** Verdeckte Web-Kacheln, Web-Kachel und (withMaps) Karten-Kachel freigeben; gibt die Anzahl zurück. */
-    int freeHidden(boolean withMaps) {
+    /** Verdeckte Web-Kachel, (withMaps) Karten-Kachel und (withHub) Web-Kacheln freigeben; gibt die Anzahl zurück. */
+    int freeHidden(boolean withMaps, boolean withHub) {
         int n = 0;
         for (Map.Entry<String, WebView> e : new ArrayList<>(webViews.entrySet())) {
+            if (!withHub) break;
             if (e.getValue().getVisibility() == View.VISIBLE) continue;
             removeWebView(e.getKey());
             n++;

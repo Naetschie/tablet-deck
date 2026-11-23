@@ -138,7 +138,7 @@ public class BrowserPane extends LinearLayout {
 
     static boolean isAdHost(String host) {
         if (host == null) return false;
-        String h = host.toLowerCase().replaceAll("[.]+$", "");
+        String h = host.toLowerCase(java.util.Locale.ROOT).replaceAll("[.]+$", "");
         for (String d : AD_HOSTS) if (h.equals(d) || h.endsWith("." + d)) return true;
         return false;
     }
