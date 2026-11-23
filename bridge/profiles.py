@@ -305,7 +305,12 @@ class Profiles:
         return gid in self._lib[2] and not any(g["id"] == gid for g in self.games)
 
     def set_extra_maps(self, gid, maps):
+        """Karten eines Bibliotheksspiels (Map Genie) setzen; True, wenn sich etwas geändert hat."""
+        maps = [dict(m) for m in maps or []]
+        if self.extra_maps.get(gid, []) == maps:
+            return False
         self.extra_maps = dict(self.extra_maps, **{gid: maps})
+        return True
 
     def map_games(self):
         """Spiele für die Karten-Kachel: alle aus games.json, dazu Bibliotheksspiele mit Karten."""

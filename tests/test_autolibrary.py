@@ -1,3 +1,4 @@
+import asyncio
 import io
 import json
 import tempfile
@@ -79,21 +80,50 @@ class LibraryProfilesTest(unittest.TestCase):
 
 
 class FakeResp:
-    def __init__(self, url):
+    def __init__(self, url, body=b""):
         self.url = url
+        self.body = body
 
     def geturl(self):
         return self.url
+
+    def read(self, n=-1):
+        return self.body
 
     def close(self):
         pass
 
 
+ER = [{"name": "Map Genie", "url": "https://mapgenie.io/elden-ring"}]
+
+
 class MapGenieTest(unittest.TestCase):
-    def test_slug(self):
+    def test_slug_and_title(self):
         self.assertEqual(mapgenie.slug("S.T.A.L.K.E.R. 2: Heart of Chornobyl"), "stalker-2-heart-of-chornobyl")
         self.assertEqual(mapgenie.slug("Marvel's Spider-Man™ Remastered"), "marvels-spider-man-remastered")
         self.assertEqual(mapgenie.slug("Elden Ring"), "elden-ring")
+        self.assertEqual(mapgenie.title("the-lands-between"), "The Lands Between")
+
+    def test_parse_maps(self):
+        html = ('<a href="/enshrouded/maps/embervale">x</a>'
+                '<a href="https://mapgenie.io/enshrouded/maps/embervale?x=1">'
+                "<a href='https://www.mapgenie.io/enshrouded/maps/the-cave/'><a href=\"/other/maps/nope\">"
+                '<a href="https://evil.example/enshrouded/maps/bad"><a href="/enshrouded/maps/../x">')
+        self.assertEqual(mapgenie.parse_maps("enshrouded", html), ["embervale", "the-cave"])
+        many = "".join('<a href="/g/maps/m%d">' % i for i in range(40))
+        self.assertEqual(len(mapgenie.parse_maps("g", many)), mapgenie.MAX_MAPS)
+
+    def test_lookup_direct_links(self):
+        with tempfile.TemporaryDirectory() as t:
+            cache = Path(t) / "c.json"
+            body = b'<a href="/enshrouded/maps/embervale">Embervale</a>'
+            got = mapgenie.lookup("Enshrouded", cache, lambda req, timeout: FakeResp(req.full_url, body), lambda: 1.0)
+            self.assertEqual(got, [{"name": "Embervale", "url": "https://mapgenie.io/enshrouded/maps/embervale"}])
+            self.assertEqual(mapgenie.cached("Enshrouded", cache, lambda: 2.0), got)
+            # Umleitung direkt auf eine Karte: die zählt mit
+            got = mapgenie.lookup("Zelda", Path(t) / "z.json",
+                                  lambda req, timeout: FakeResp("https://www.mapgenie.io/zelda/maps/hyrule"), lambda: 1.0)
+            self.assertEqual([m["url"] for m in got], ["https://mapgenie.io/zelda/maps/hyrule"])
 
     def test_lookup_and_cache(self):
         with tempfile.TemporaryDirectory() as t:
@@ -106,14 +136,29 @@ class MapGenieTest(unittest.TestCase):
 
             clock = [1000.0]
             now = lambda: clock[0]
-            self.assertEqual(mapgenie.lookup("Elden Ring", cache, ok, now), "https://mapgenie.io/elden-ring")
+            self.assertIsNone(mapgenie.cached("Elden Ring", cache, now))       # unbekannt
+            self.assertEqual(mapgenie.lookup("Elden Ring", cache, ok, now), ER)  # ohne Kartenlinks: Spielseite
             self.assertEqual(calls[0][1], 5)
             self.assertIn("Mozilla", calls[0][2])
-            self.assertEqual(mapgenie.lookup("Elden Ring", cache, ok, now), "https://mapgenie.io/elden-ring")
+            self.assertEqual(mapgenie.lookup("Elden Ring", cache, ok, now), ER)
             self.assertEqual(len(calls), 1)                         # aus dem Zwischenspeicher
             clock[0] += mapgenie.TTL_S + 1
+            self.assertIsNone(mapgenie.cached("Elden Ring", cache, now))
             mapgenie.lookup("Elden Ring", cache, ok, now)
             self.assertEqual(len(calls), 2)                         # abgelaufen
+
+    def test_old_and_bad_cache_entries(self):
+        with tempfile.TemporaryDirectory() as t:
+            cache = Path(t) / "c.json"
+            cache.write_text(json.dumps({
+                "elden-ring": {"url": "https://mapgenie.io/elden-ring", "t": 1.0},          # altes Format
+                "zelda": {"maps": [{"name": "X", "url": "https://evil.example/"}], "t": 1.0},
+                "anno": {"maps": [], "t": 1.0}}))
+            self.assertIsNone(mapgenie.cached("Elden Ring", cache, lambda: 2.0))
+            self.assertIsNone(mapgenie.cached("Zelda", cache, lambda: 2.0))
+            self.assertEqual(mapgenie.cached("Anno", cache, lambda: 2.0), [])
+            self.assertEqual(mapgenie.lookup("Elden Ring", cache, lambda req, timeout: FakeResp(req.full_url),
+                                             lambda: 2.0), ER)
 
     def test_miss_cached_and_errors(self):
         with tempfile.TemporaryDirectory() as t:
@@ -124,26 +169,108 @@ class MapGenieTest(unittest.TestCase):
                 n.append(1)
                 raise urllib.error.HTTPError(req.full_url, 404, "nf", {}, io.BytesIO())
 
-            self.assertIsNone(mapgenie.lookup("Anno 1800", cache, nf, lambda: 1.0))
-            self.assertIsNone(mapgenie.lookup("Anno 1800", cache, nf, lambda: 2.0))
+            self.assertEqual(mapgenie.lookup("Anno 1800", cache, nf, lambda: 1.0), [])
+            self.assertEqual(mapgenie.lookup("Anno 1800", cache, nf, lambda: 2.0), [])
             self.assertEqual(len(n), 1)                             # Fehlschlag wird gemerkt
 
             def redirect(req, timeout):
                 return FakeResp("https://mapgenie.io/")
-            self.assertIsNone(mapgenie.lookup("Other", cache, redirect, lambda: 1.0))
+            self.assertEqual(mapgenie.lookup("Other", cache, redirect, lambda: 1.0), [])
             for i, final in enumerate(["https://mapgenie.io/other-game", "https://evil.example/other",
                                        "https://mapgenie.io.evil.com/zelda", "https://mapgenie.io/zeldax"]):
-                self.assertIsNone(mapgenie.lookup("Zelda%s" % ("" if i < 2 else ""), Path(t) / ("c%d.json" % i),
-                                                  lambda req, timeout, f=final: FakeResp(f), lambda: 1.0))
-            self.assertEqual(mapgenie.lookup("Zelda", Path(t) / "ok.json",
-                                             lambda req, timeout: FakeResp("https://www.mapgenie.io/zelda/maps/x"),
-                                             lambda: 1.0), "https://mapgenie.io/zelda")
+                self.assertEqual(mapgenie.lookup("Zelda", Path(t) / ("c%d.json" % i),
+                                                 lambda req, timeout, f=final: FakeResp(f), lambda: 1.0), [], final)
 
             def boom(req, timeout):
                 raise urllib.error.URLError("offline")
             with self.assertRaises(urllib.error.URLError):
                 mapgenie.lookup("Neu", cache, boom, lambda: 1.0)
             self.assertNotIn("neu", json.loads(cache.read_text()))  # Netzfehler nicht gemerkt
+
+
+class FakeBridge:
+    def __init__(self, profiles):
+        self.profiles = profiles
+        self.sent = []
+
+    def maps_msg(self):
+        return {"t": "maps", "games": [g["id"] for g in self.profiles.map_games()]}
+
+    async def ctl_send(self, msg):
+        self.sent.append(msg)
+
+
+class MapFinderTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        d = Path(self.tmp.name)
+        gp = d / "games.json"
+        gp.write_text(json.dumps({"games": [{"id": "sc", "name": "Star Citizen", "exe": ["StarCitizen.exe"]}]}),
+                      encoding="utf-8")
+        self.p = Profiles(d / "profiles", gp)
+        self.p.load_games()
+        self.p.set_library([lib_entry("enshrouded", "Enshrouded", d / "e"), lib_entry("anno", "Anno", d / "a"),
+                            lib_entry("elden-ring", "Elden Ring", d / "r")])
+        self.b = FakeBridge(self.p)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_prefill_and_background_lookup(self):
+        from bridge.games import MapFinder
+        cache = {"Enshrouded": [{"name": "Embervale", "url": "https://mapgenie.io/enshrouded/maps/embervale"}],
+                 "Anno": []}
+        asked = []
+
+        def lookup(name):
+            asked.append(name)
+            return [{"name": "Map Genie", "url": "https://mapgenie.io/elden-ring"}]
+
+        f = MapFinder(self.b, lookup=lookup, cached=cache.get, pause=0)
+        known, unknown = f.prefill()
+        self.assertEqual(set(known), {"enshrouded", "anno"})
+        self.assertEqual(unknown, ["elden-ring"])
+        self.assertTrue(f.apply(known))
+        self.assertFalse(f.apply(known))                               # unverändert
+        self.assertIn("enshrouded", [g["id"] for g in self.p.map_games()])
+        self.assertNotIn("anno", [g["id"] for g in self.p.map_games()])   # keine Karten: nicht angeboten
+
+        async def go():
+            for gid in unknown:
+                f.want(gid)
+            f.want("elden-ring")                                       # doppelt: nur einmal
+            await f.task
+        asyncio.run(go())
+        self.assertEqual(asked, ["Elden Ring"])
+        self.assertEqual(self.p.game("elden-ring")["maps"][0]["url"], "https://mapgenie.io/elden-ring")
+        self.assertEqual(len(self.b.sent), 1)
+
+    def test_network_error_backs_off(self):
+        from bridge.games import MapFinder, RETRY_S
+        clock = [100.0]
+        asked = []
+
+        def lookup(name):
+            asked.append(name)
+            raise urllib.error.URLError("offline")
+
+        f = MapFinder(self.b, lookup=lookup, cached=lambda n: None, pause=0, clock=lambda: clock[0])
+
+        async def go():
+            f.want("enshrouded")
+            f.want("elden-ring")
+            await f.task
+            f.want("anno")                                             # während der Pause: nichts
+        asyncio.run(go())
+        self.assertEqual(asked, ["Enshrouded"])                        # nach dem ersten Fehler aufgehört
+        self.assertEqual(f.queue, [])
+        clock[0] += RETRY_S + 1
+
+        async def again():
+            f.want("elden-ring", front=True)
+            await f.task
+        asyncio.run(again())
+        self.assertEqual(asked[-1], "Elden Ring")
 
 
 if __name__ == "__main__":
