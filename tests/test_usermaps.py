@@ -28,6 +28,9 @@ class ValidateMapsTest(unittest.TestCase):
             [{"name": "A", "url": "https://a b"}],
             [{"name": "A", "url": "https://a.example\\x"}],
             [{"name": "A", "url": "https://a.example/\x00"}],
+            [{"name": "A", "url": "https://a.example/x y"}],
+            [{"name": "A", "url": "https://a.example/x "}],
+            [{"name": "A", "url": "https://K.example/"}],
             [{"name": "A", "url": "https://:80/"}],
             [{"name": "A", "url": "https://a.example", "heavy": "ja"}],
             [{"name": "A", "url": "https://a.example"}, {"name": "B", "url": "https://a.example"}],

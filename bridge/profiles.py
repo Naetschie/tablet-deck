@@ -26,7 +26,8 @@ from .layout import save_layout, validate_layout
 log = logging.getLogger("profiles")
 ID = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
 EXE = re.compile(r"[^\\/:*?\"<>|\r\n]{1,100}\.exe", re.I)
-MAP_URL = re.compile(r"(?ai)https://[a-z0-9.-]+(?::[0-9]{1,5})?(?:[/?#][^\s\\\x00-\x1f\x7f]*)?")
+# ASCII-Modus (sonst träfe [a-z] unter re.I auch das Kelvin-Zeichen); Unicode-Leerraum im Pfad ausdrücklich aus
+MAP_URL = re.compile(r"(?ai)https://[a-z0-9.-]+(?::[0-9]{1,5})?(?:[/?#][^\s\\\x00-\x1f\x7f\x85\xa0\u1680\u2000-\u200b\u2028\u2029\u202f\u205f\u3000\ufeff]*)?")
 MIGRATE_GAME, MIGRATE_PANEL = "star-citizen", "main"
 BUNDLED_PREFIX = "std--"
 COVER_ID = re.compile(r"[a-z0-9-]{1,40}")

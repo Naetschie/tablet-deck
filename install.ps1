@@ -433,9 +433,11 @@ if (-not $SkipTablet) {
             # hat), dann neu starten. Aufgabe beenden/starten setzt auch die Pause des Wächters zurück.
             $task = Get-ScheduledTask -TaskName "Tablet Deck Bridge" -ErrorAction SilentlyContinue
             if ($task) { Stop-ScheduledTask -TaskName "Tablet Deck Bridge" }
-            Get-CimInstance Win32_Process -Filter "Name like 'python%'" |
-                Where-Object CommandLine -match '-m bridge(\.supervise)?( |$)' |
-                ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+            # erst den Wächter (startet die Bridge sonst neu), dann die Bridge
+            foreach ($pat in '-m bridge\.supervise( |$)', '-m bridge( |$)') {
+                Get-CimInstance Win32_Process -Filter "Name like 'python%'" | Where-Object CommandLine -match $pat |
+                    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+            }
             for ($i = 0; $i -lt 10 -and (& $bridgeRunning); $i++) { Start-Sleep 1 }
             $r = Run $python (Join-Path $root "scripts\set_config.py") $cfgPath "device" $target.Seriennummer "light" "on"
             if ($task) { Start-ScheduledTask -TaskName "Tablet Deck Bridge" }
@@ -443,10 +445,12 @@ if (-not $SkipTablet) {
             if ($r.Code -ne 0) { throw "config.json nicht änderbar: $($r.Out)" }
             $lightDone = $true
             # warten, bis der Hub wieder antwortet (der Smoke-Test folgt)
-            for ($i = 0; $i -lt 30; $i++) {
-                try { $c = [Net.Sockets.TcpClient]::new("127.0.0.1", 8765); $c.Close(); break } catch { Start-Sleep 1 }
+            $up = $false
+            for ($i = 0; $i -lt 30 -and -not $up; $i++) {
+                try { $c = [Net.Sockets.TcpClient]::new("127.0.0.1", 8765); $c.Close(); $up = $true } catch { Start-Sleep 1 }
             }
-            Ok "Light-Modus für $($target.Seriennummer) eingeschaltet, Bridge neu gestartet"
+            if ($up) { Ok "Light-Modus für $($target.Seriennummer) eingeschaltet, Bridge neu gestartet" }
+            else { Warn "Light-Modus eingetragen, aber die Bridge antwortet nach 30 s nicht - siehe bridge.log / supervise.log" }
         }
         if (-not $SkipSpacedesk) {
             $has = (Run $adb @adbSel shell pm list packages ph.spacedesk.beta).Out

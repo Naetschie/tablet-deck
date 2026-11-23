@@ -163,7 +163,8 @@ public class MapPane extends FrameLayout {
         hb.addView(no);
         hb.addView(yes);
         hint.addView(hb);
-        LayoutParams hp = new LayoutParams(a.dp(440), -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        LayoutParams hp = new LayoutParams(Math.min(a.dp(440), a.getResources().getDisplayMetrics().widthPixels - a.dp(32)),
+                -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
         hp.bottomMargin = a.dp(24);
         addView(hint, hp);
 
@@ -222,11 +223,11 @@ public class MapPane extends FrameLayout {
         Game g = find(gid);
         if (g == null || g.maps.isEmpty()) return;
         String[] pick = g.maps.get(0);
-        if (url == null && light) {   // Light-Modus: von selbst nur leichte Karten (gewählt werden kann jede)
+        String want = url != null ? url : prefs.getString("url:" + gid, null);
+        if (want == null && light) {   // Light-Modus, noch nichts gewählt: von selbst nur eine leichte Karte
             for (String[] m : g.maps) if (!"1".equals(m[2])) { pick = m; break; }
         }
-        String want = url != null ? url : prefs.getString("url:" + gid, null);
-        for (String[] m : g.maps) if (m[1].equals(want) && (url != null || !light || !"1".equals(m[2]))) pick = m;
+        for (String[] m : g.maps) if (m[1].equals(want)) pick = m;   // eigene Wahl gilt immer, auch schwer
         gameId = gid;
         if (!pick[1].equals(mapUrl) || browser.empty()) {   // leer z. B. nach einem Renderer-Absturz
             mapUrl = pick[1];
@@ -329,6 +330,7 @@ public class MapPane extends FrameLayout {
         if (full) setFull(false);
         scrim.setVisibility(GONE);
         drawer.setVisibility(GONE);
+        hint.setVisibility(GONE);
         onHidden();
     }
 
@@ -381,7 +383,7 @@ public class MapPane extends FrameLayout {
     void onShown() {
         if (browser.web != null) browser.web.onResume();
         poke();
-        watch(true);
+        if (!a.paused) watch(true);   // pausiert (andere App vorn): erst onResume misst
     }
 
     void onHidden() {
@@ -417,6 +419,7 @@ public class MapPane extends FrameLayout {
                 + (STALL_WINDOW_MS / 1000) + " s)" + (light ? ", Light-Modus an" : ""));
         if (stalls >= STALL_COUNT && !light && !hintShown) {
             hintShown = true;
+            wakeOnUp = false;   // laufende Geste nicht weiter direkt an die Karte
             hint.setVisibility(VISIBLE);
             hint.bringToFront();
         }

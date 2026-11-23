@@ -487,6 +487,9 @@ public class HomeActivity extends Activity {
 
     /** Vom Hub (devices.json light): Light-Modus an/aus. */
     void setLight(boolean on) {
+        if (!on && light && android.os.SystemClock.elapsedRealtime() - lightAsked < 5000)
+            android.widget.Toast.makeText(this, "Light-Modus nicht gespeichert – Tablet einmal per USB mit dem PC koppeln",
+                    android.widget.Toast.LENGTH_LONG).show();
         if (on == light) return;
         light = on;
         getSharedPreferences("deck", MODE_PRIVATE).edit().putBoolean("light", on).apply();
@@ -497,7 +500,10 @@ public class HomeActivity extends Activity {
     }
 
     /** Hinweis in der Karten-Kachel: sofort einschalten und den Hub bitten, es für dieses Gerät zu merken. */
+    long lightAsked;   // Zeitpunkt der Bitte an den Hub (lehnt er ab, kommt gleich light:false zurück)
+
     void requestLight(boolean on) {
+        lightAsked = android.os.SystemClock.elapsedRealtime();
         setLight(on);
         if (ctlView != null) ctlView.evaluateJavascript("window.deckLight && deckLight(" + on + ")", null);
     }
@@ -1050,7 +1056,10 @@ public class HomeActivity extends Activity {
         hideSystemBars();
         holdRotation();
         paused = false;
-        if (maps != null && maps.getVisibility() == View.VISIBLE) maps.watch(true);
+        if (maps != null && maps.getVisibility() == View.VISIBLE) {
+            maps.watch(false);   // neu beginnen: die Zeit im Hintergrund ist kein Hänger
+            maps.watch(true);
+        }
         ui.removeCallbacks(showHandle);   // noch nicht gestarteten Griff verwerfen
         stopService(new Intent(this, OverlayService.class));
         appState = null;
