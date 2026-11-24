@@ -982,8 +982,10 @@ public class HomeActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 if (onlyPath == null && light) lightClass(view);
-                if (isSound(view))
+                if (isSound(view) && sound.openedAt > 0) {
                     Log.i(TAG, "Ton-Feld geladen, " + (android.os.SystemClock.uptimeMillis() - sound.openedAt) + " ms nach dem Öffnen");
+                    sound.openedAt = 0;   // nur einmal je Öffnen (ohne Hub lädt die Seite alle 2 s neu)
+                }
             }
 
             @Override
