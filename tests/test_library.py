@@ -100,6 +100,25 @@ class LibraryTests(unittest.TestCase):
         res = L.scan_xbox([str(self.root)])
         self.assertEqual(res[0]["name"], "Forza Test")
 
+    def test_xbox_gaming_root(self):
+        for folder, name in (("Fallout76", "Gears"), ("XboxGames", "Forza")):
+            c = self.root / folder / name / "Content"
+            c.mkdir(parents=True)
+            (c / "f.exe").write_text("")
+
+        def scan(folder, magic=b"RGBX"):
+            (self.root / ".GamingRoot").write_bytes(
+                magic + b"\x01\x00\x00\x00" + (folder + "\0").encode("utf-16-le"))
+            return [g["name"] for g in L.scan_xbox([str(self.root)])]
+
+        self.assertEqual(scan("Fallout76"), ["Gears", "Forza"])
+        self.assertEqual(scan("XboxGames"), ["Forza"])          # nicht doppelt
+        for bad in ("", "\\", ".", "..", "..\\x", "C:\\x", "fehlt"):
+            self.assertEqual(scan(bad), ["Forza"], bad)
+        self.assertEqual(scan("Fallout76", b"XXXX"), ["Forza"])
+        (self.root / ".GamingRoot").write_bytes(b"RGBX\x01")     # abgeschnitten
+        self.assertEqual(len(L.scan_xbox([str(self.root)])), 1)
+
     def test_registry_sources(self):
         gd = self.root / "gog"
         gd.mkdir()

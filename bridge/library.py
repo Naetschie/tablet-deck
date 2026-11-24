@@ -247,20 +247,39 @@ def _xbox_name(content, fallback):
     return fallback
 
 
+def _xbox_roots(drive):
+    """Xbox-Spielordner eines Laufwerks: laut .GamingRoot (RGBX, uint32, Ordnername UTF-16 mit Nullende),
+    dazu immer der Standardordner XboxGames."""
+    roots = [os.path.join(drive, "XboxGames")]
+    try:
+        with open(os.path.join(drive, ".GamingRoot"), "rb") as f:
+            raw = f.read(4096)
+    except OSError:
+        return roots
+    if raw[:4] == b"RGBX":
+        rel = raw[8:].decode("utf-16-le", "ignore").split("\0")[0].replace("/", "\\").strip("\\ ")
+        # nur ein Ordner unterhalb des Laufwerks, nie das ganze Laufwerk
+        if rel and ":" not in rel and not {".", ".."} & set(rel.split("\\")):
+            d = os.path.join(drive, rel)
+            if _key(d) != _key(roots[0]):
+                roots.insert(0, d)
+    return roots
+
+
 def scan_xbox(drives=None):
     if drives is None:
         drives = [f"{c}:\\" for c in string.ascii_uppercase if os.path.isdir(f"{c}:\\")]
     out = []
     for dr in drives:
-        xg = os.path.join(dr, "XboxGames")
-        try:
-            subs = sorted(os.listdir(xg))
-        except OSError:
-            continue
-        for s in subs:
-            content = os.path.join(xg, s, "Content")
-            if os.path.isdir(content) and _has_exe(content, 2):
-                out.append(_entry(_xbox_name(content, s), "xbox", content))
+        for xg in _xbox_roots(dr):
+            try:
+                subs = sorted(os.listdir(xg))
+            except OSError:
+                continue
+            for s in subs:
+                content = os.path.join(xg, s, "Content")
+                if os.path.isdir(content) and _has_exe(content, 2):
+                    out.append(_entry(_xbox_name(content, s), "xbox", content))
     return out
 
 
