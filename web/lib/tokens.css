@@ -9,7 +9,7 @@
 @font-face { font-family: "Space Grotesk"; font-style: normal; font-weight: 300 700; font-display: swap;
   src: url("fonts/space-grotesk-latin-var.woff2") format("woff2"); }
 :root {
-  /* Flächen */
+  /* Flächen (Farbschemas überschreiben Flächen, Text und Akzent: bridge/themes.py) */
   --bg: #0E1114; --s1: #161A1F; --s2: #1E242B; --s3: #28313B; --line: #2B343E;
   /* Text */
   --tx: #E8ECF0; --dim: #9AA6B2;
@@ -20,6 +20,8 @@
   --bad: #E5484D; --badSoft: rgba(229, 72, 77, .16);
   /* Form */
   --r: 14px; --r-lg: 18px; --r-sm: 8px; --r-pill: 999px;
+  /* durchscheinende Flächen */
+  --s1Veil: rgba(22, 26, 31, .5); --bgVeil: rgba(14, 17, 20, .85);
   --shadow: 0 8px 24px rgba(0, 0, 0, .35);
   --inset: 0 1px 0 rgba(255, 255, 255, .03) inset;
   /* Abstände */

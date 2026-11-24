@@ -1,4 +1,6 @@
 @import url("tokens.css");
+/* Farbschema des Geräts (vom Hub, bridge/themes.py) */
+@import url("theme.css");
 /* Grundlage aller Tablet-Seiten: Reset, Schrift, Touch-Verhalten, Verbindungsanzeige. Komponenten: ui.css */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; background: var(--bg); color: var(--tx); overflow: hidden;

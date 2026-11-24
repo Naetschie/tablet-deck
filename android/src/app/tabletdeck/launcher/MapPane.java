@@ -453,7 +453,7 @@ public class MapPane extends FrameLayout {
 
     GradientDrawable glass(int radiusDp) {
         GradientDrawable d = new GradientDrawable();
-        d.setColor(0xE6161A1F);
+        d.setColor(HomeActivity.alpha(HomeActivity.PANEL, 0xE6));
         d.setCornerRadius(a.dp(radiusDp));
         d.setStroke(1, HomeActivity.LINE);
         return d;
@@ -472,7 +472,7 @@ public class MapPane extends FrameLayout {
         LinearLayout row = new LinearLayout(a);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(a.dp(10), a.dp(6), a.dp(12), a.dp(6));
-        GradientDrawable d = box(on ? 0x244FB3FF : HomeActivity.S2, false);
+        GradientDrawable d = box(on ? HomeActivity.alpha(HomeActivity.ACCENT, 0x24) : HomeActivity.S2, false);
         if (on) d.setStroke(1, HomeActivity.ACCENT);
         row.setBackground(d);
         return row;
@@ -504,7 +504,7 @@ public class MapPane extends FrameLayout {
         TextView c = text(sizeDp > 36 ? 13 : 12, HomeActivity.ACCENT, true);
         c.setGravity(Gravity.CENTER);
         GradientDrawable d = new GradientDrawable();
-        d.setColor(0xFF28313B);
+        d.setColor(HomeActivity.S3);
         d.setCornerRadius(a.dp(10));
         c.setBackground(d);
         return c;

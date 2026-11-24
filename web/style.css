@@ -102,7 +102,7 @@ main.fill { overflow: hidden; }
 /* Bereich mit Rahmen und Titel (liegt hinter den Tasten; Titel belegt oben etwa 24 px) */
 .frame { position: relative; z-index: 0; min-height: 0; overflow: hidden; pointer-events: none;
   border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--inset);
-  background: linear-gradient(180deg, var(--s1), rgba(22, 26, 31, .5)); }
+  background: linear-gradient(180deg, var(--s1), var(--s1Veil)); }
 .ftitle { position: absolute; top: 7px; left: 12px; right: 12px; padding-left: 10px; overflow: hidden;
   white-space: nowrap; text-overflow: ellipsis; font: 700 var(--fs-xs)/1.5 var(--fh); color: var(--dim);
   text-transform: uppercase; letter-spacing: .14em; }
@@ -201,6 +201,6 @@ main.fill { overflow: hidden; }
 .grid .seg { min-height: 84px; }
 
 #overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: none; align-items: center;
-  justify-content: center; background: rgba(14, 17, 20, .85); color: var(--bad); font-size: var(--fs-xl);
+  justify-content: center; background: var(--bgVeil); color: var(--bad); font-size: var(--fs-xl);
   font-weight: 600; pointer-events: none; }
 .offline #overlay { display: flex; }

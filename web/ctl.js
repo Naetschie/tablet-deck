@@ -30,6 +30,7 @@
       else if (m.t === "rotation" && typeof m.r === "number" && Deck.setRotation) Deck.setRotation(m.r);
       else if (m.t === "light" && typeof m.on === "boolean" && Deck.setLight) Deck.setLight(m.on);
       else if (m.t === "volume" && typeof m.v === "number" && Deck.setVolume) Deck.setVolume(m.v, !!m.mute);
+      else if (m.t === "theme" && m.colors && Deck.setTheme) Deck.setTheme(JSON.stringify(m.colors));
       else if (m.t === "reload") Deck.reload();
       else if (m.t === "home") Deck.home();
     };

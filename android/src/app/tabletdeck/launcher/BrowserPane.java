@@ -33,6 +33,7 @@ public class BrowserPane extends LinearLayout {
     static final String TAG = "TabletDeck";
     final HomeActivity a;
     final EditText address;
+    final LinearLayout bar;
     WebView web;
     WebView home;          // Startseite (Hub-Seite /start/: Lesezeichen, gesendet, Verlauf) - nur mit chrome
     final boolean chrome;  // false = Karten-Kachel: keine Adresszeile, keine Startseite, kein Verlauf
@@ -65,11 +66,9 @@ public class BrowserPane extends LinearLayout {
                     }
                 });
         setOrientation(VERTICAL);
-        setBackgroundColor(HomeActivity.BG);
 
-        LinearLayout bar = new LinearLayout(a);
+        bar = new LinearLayout(a);
         bar.setOrientation(HORIZONTAL);
-        bar.setBackgroundColor(HomeActivity.PANEL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.addView(button("‹", v -> { if (!homeShown() && web != null && web.canGoBack()) web.goBack(); }),
                 new LayoutParams(a.dp(56), -1));
@@ -78,8 +77,6 @@ public class BrowserPane extends LinearLayout {
         address = new EditText(a);
         address.setSingleLine(true);
         address.setHint("Adresse eingeben oder vom PC senden");
-        address.setTextColor(0xFFE6E9EC);
-        address.setHintTextColor(HomeActivity.DIM);
         address.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         address.setInputType(android.text.InputType.TYPE_TEXT_VARIATION_URI);
         address.setImeOptions(EditorInfo.IME_ACTION_GO);
@@ -97,8 +94,20 @@ public class BrowserPane extends LinearLayout {
         bar.addView(address, new LayoutParams(0, -1, 1f));
         bar.addView(button("✕", v -> clear()), new LayoutParams(a.dp(56), -1));
         if (chrome) addView(bar, new LayoutParams(-1, a.dp(48)));
+        restyle();
         createWeb();
         if (chrome) showHome();
+    }
+
+    /** Farben der Leiste und der Startseite nach dem Farbschema. */
+    void restyle() {
+        setBackgroundColor(HomeActivity.BG);
+        bar.setBackgroundColor(HomeActivity.PANEL);
+        address.setTextColor(HomeActivity.TEXT);
+        address.setHintTextColor(HomeActivity.DIM);
+        for (int i = 0; i < bar.getChildCount(); i++)
+            if (bar.getChildAt(i) != address) ((TextView) bar.getChildAt(i)).setTextColor(HomeActivity.ACCENT);
+        if (home != null) a.themePage(home);
     }
 
     TextView button(String label, View.OnClickListener l) {

@@ -48,6 +48,7 @@ Hubs (Origin-Prüfung, CSP) dürfen Eingaben senden.
 | `tablet_autostart` | beim Anstecken den Launcher in den Vordergrund holen |
 | `tablet_mode` | `home` (Standard: Launcher ist der Startbildschirm, Root) oder `companion` (normale App ohne Root, `install.ps1 -Companion`; siehe [docs/install.md](docs/install.md#begleit-modus-ohne-root)) |
 | `tablet_lights` | Light-Modus für schwache Tablets je Seriennummer (`install.ps1 -Light` oder Editor → Einstellungen; siehe [docs/install.md](docs/install.md#light-modus-schwache-tablets)) |
+| `tablet_theme` | Farbschema für alle Geräte ohne eigene Wahl, z. B. `{"surface": "schwarz", "accent": "violett"}` (Flächen `standard`, `schwarz`, `kontrast`; Akzente `blau`, `cyan`, `violett`, `pink`, `weiss`; pro Gerät: Editor → Einstellungen) |
 | `tablet_timezone` | Zeitzone für das Tablet (z. B. `Europe/Berlin`) |
 | `tray` | Taskleisten-Symbol an/aus |
 | `auto_modes` / `auto_default` | z. B. `[{"process": "StarCitizen.exe", "mode": "panel"}]` |

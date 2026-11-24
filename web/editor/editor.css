@@ -248,7 +248,7 @@ button.recording { border-color: var(--danger); color: var(--danger); }
 .mview button { padding: 5px 10px; }
 /* Cockpit-Bausteine in der Vorschau (wie web/style.css am Tablet) */
 .tv .free .frame { position: relative; z-index: 0; min-height: 0; overflow: hidden; cursor: grab;
-  border: 1px solid var(--line); border-radius: var(--r-lg); background: linear-gradient(180deg, var(--s1), rgba(22, 26, 31, .5)); }
+  border: 1px solid var(--line); border-radius: var(--r-lg); background: linear-gradient(180deg, var(--s1), var(--s1Veil)); }
 .tv .free .ftitle { position: absolute; top: 7px; left: 12px; right: 12px; padding-left: 10px; overflow: hidden; white-space: nowrap;
   text-overflow: ellipsis; font: 700 var(--fs-xs)/1.5 var(--fh); color: var(--dim); text-transform: uppercase; letter-spacing: .14em; }
 .tv .free .ftitle::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 2px; background: var(--ac); }
@@ -290,3 +290,15 @@ button.recording { border-color: var(--danger); color: var(--danger); }
 #mapsFound .hint { margin: 0; }
 #viewMaps .gap { margin-top: 12px; }
 #mapsEdit .row.end { justify-content: flex-end; } #mapsEdit .row.end > * { flex: none; }
+
+/* Einstellungen: Farbschema je Gerät (Fläche als Auswahl, Akzent als Farbpunkte auf der gewählten Fläche) */
+#devList li { flex-wrap: wrap; }
+#devList .theme { flex: 1 0 100%; display: flex; align-items: center; gap: var(--sp-2); padding-top: var(--sp-1); }
+#devList .theme select { width: auto; margin: 0; font-size: var(--fs-sm); }
+#devList .accents { display: flex; gap: 2px; padding: 2px 6px; border: 1px solid var(--line); border-radius: var(--r-pill); }
+#devList .accent { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin: 0; cursor: pointer; }
+#devList .accent input { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
+#devList .accent span { width: 18px; height: 18px; border-radius: 50%; }
+#devList .accent input:checked + span { outline: 2px solid currentColor; outline-offset: 3px; }
+#devList .accent input:focus-visible + span { outline: 2px dashed currentColor; outline-offset: 3px; }
+#devList .accent input:disabled + span { opacity: .5; }

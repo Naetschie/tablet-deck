@@ -73,6 +73,12 @@ In der Vollbild-Karte und über anderen Apps (spacedesk) gibt es den Knopf nicht
 - **Ausgabe:** Wiedergabegerät wählen.
 - **Wiedergabe:** Leiser / Zurück / Abspielen oder Pause / Weiter / Lauter.
 
+### Farbschema
+Am PC im Editor unter **⚙ Einstellungen → Geräte** wählst du je Gerät die **Fläche** (Standard, Schwarz, Hoher Kontrast)
+und den **Akzent** (Blau, Cyan, Violett, Pink, Weiß). Das wirkt sofort: Leiste, Panel, Touchpad, Ton-Feld, Startseite
+und das mitgelieferte PC-Werte-Dashboard. Warn-, Gefahr- und OK-Farben bleiben in jedem Schema gleich; eigene
+Dashboards behalten ihre Farben.
+
 ## 4. PC-Werte
 ![PC-Werte: CPU, GPU, Speicher, Mainboard](bilder/tablet-pc-werte.png)
 

@@ -74,9 +74,9 @@
         if (isNew) { isNew = false; send({ t: "games" }); }   // neues Panel in der Auswahl zeigen
         if (isDirty()) changed(); else status("Gespeichert – Tablet aktualisiert sich", "ok");
       } else if (m.t === "devices") {
-        devicesShow(m.devices || []);
-      } else if (m.t === "error" && m.req === "device_light") {
-        status(m.msg, "err"); send({ t: "devices" });   // Haken wieder auf den echten Stand
+        devicesShow(m.devices || [], m.themes);
+      } else if (m.t === "error" && (m.req === "device_light" || m.req === "device_theme")) {
+        status(m.msg, "err"); send({ t: "devices" });   // Auswahl wieder auf den echten Stand
       } else if (m.t === "ai_key") {
         aiKeyShow(m);
       } else if (m.t === "bind_status") {
@@ -316,8 +316,39 @@
     else if (m.msg) aiKeyMsg(base + " (" + m.msg + ")", aiKeySet ? "ok" : "");
     else aiKeyMsg(base, aiKeySet ? "ok" : "");
   }
-  // ---------------------------------------------------------------- Einstellungen: Geräte (Light-Modus)
-  function devicesShow(list) {
+  // ---------------------------------------------------------------- Einstellungen: Geräte (Light-Modus, Farbschema)
+  // Farbschema: Fläche als Auswahl, Akzent als Farbpunkte; wirkt sofort am Gerät
+  function themeRow(d, themes) {
+    var row = el("div", { cls: "theme" }), th = d.theme || {};
+    function set(k, v) {
+      var t = { surface: th.surface, accent: th.accent }; t[k] = v;
+      row.querySelectorAll("select, input").forEach(function (x) { x.disabled = true; });
+      send({ t: "device_theme", id: d.id, theme: t });
+    }
+    var sel = document.createElement("select");
+    sel.setAttribute("aria-label", "Fläche");
+    themes.surfaces.forEach(function (s) {
+      var o = document.createElement("option"); o.value = s.id; o.textContent = s.label; o.selected = s.id === th.surface;
+      sel.appendChild(o);
+    });
+    sel.onchange = function () { set("surface", sel.value); };
+    row.appendChild(sel);
+    var surf = themes.surfaces.filter(function (s) { return s.id === th.surface; })[0] || themes.surfaces[0];
+    var dots = el("div", { cls: "accents" });
+    dots.style.background = surf.bg; dots.style.borderColor = surf.line;
+    themes.accents.forEach(function (a) {
+      var lab = document.createElement("label"); lab.title = a.label; lab.className = "accent";
+      var r = document.createElement("input"); r.type = "radio"; r.name = "accent-" + d.id; r.checked = a.id === th.accent;
+      r.setAttribute("aria-label", "Akzent " + a.label);
+      r.onchange = function () { set("accent", a.id); };
+      var dot = document.createElement("span"); dot.style.background = a.color;
+      lab.appendChild(r); lab.appendChild(dot); dots.appendChild(lab);
+    });
+    row.appendChild(dots);
+    return row;
+  }
+
+  function devicesShow(list, themes) {
     var ul = $("devList"); while (ul.firstChild) ul.removeChild(ul.firstChild);
     list.forEach(function (d) {
       var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!d.light;
@@ -329,6 +360,7 @@
       var meta = document.createElement("span"); meta.className = "meta";
       meta.textContent = (d.main ? "Hauptgerät · " : "") + (d.connected ? "verbunden" : "nicht verbunden");
       var li = document.createElement("li"); li.appendChild(name); li.appendChild(meta); li.appendChild(lab);
+      if (themes) li.appendChild(themeRow(d, themes));
       ul.appendChild(li);
     });
     if (!list.length) {

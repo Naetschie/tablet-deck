@@ -70,6 +70,12 @@ public class DeckJs {
         a.ui.post(() -> a.setVolume(v, mute));
     }
 
+    /** Farbschema des Geräts (bridge/themes.py): {"bg": "#0E1114", …}. */
+    @JavascriptInterface
+    public void setTheme(String json) {
+        a.ui.post(() -> a.setTheme(json));
+    }
+
     /** WLAN-Adressen des Hubs (kommt nur über USB, siehe Bridge ctl_handler). */
     @JavascriptInterface
     public void setWlan(String json) {

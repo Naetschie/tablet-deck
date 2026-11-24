@@ -3,8 +3,8 @@
 Nichts ist fest verdrahtet: Der Hub trägt ein Gerät beim ersten Koppeln selbst ein (Seriennummer + Modell),
 das erste wird Hauptgerät. Das Hauptgerät bekommt „An Tablet senden“; umstellen per set_main (Taskleiste).
 Pro Gerät optional: name, mode (home/companion), rotation (0-3 oder null), panel ("spiel/panel"),
-light (true/false: Light-Modus für schwache Geräte). Fehlt ein Feld, gilt der Wert aus config.json
-(tablet_modes/tablet_mode, tablet_rotation, tablet_lights).
+light (true/false: Light-Modus für schwache Geräte), theme (Farbschema, siehe themes.py). Fehlt ein Feld, gilt der Wert aus config.json
+(tablet_modes/tablet_mode, tablet_rotation, tablet_lights, tablet_theme).
 
 Die Kennung (Seriennummer) schickt der Hub per ADB an den Launcher; der setzt sie als Cookie "deckdev",
 damit der Hub auch WLAN-Verbindungen dem Gerät zuordnen kann. Sie ist nur eine Bezeichnung, keine
@@ -16,6 +16,8 @@ import os
 import re
 import tempfile
 from pathlib import Path
+
+from . import themes
 
 log = logging.getLogger("bridge")
 
@@ -119,6 +121,15 @@ class Devices:
         log.error("devices.json %s: light=%r ungültig (true oder false) - nehme %r", dev, d["light"], default)
         return default
 
+    def theme(self, dev, default):
+        d = self.get(dev) or {}
+        if "theme" not in d:
+            return default
+        if themes.valid(d["theme"]):
+            return d["theme"]
+        log.error("devices.json %s: theme=%r ungültig - nehme %r", dev, d["theme"], default)
+        return default
+
     def tiles(self, dev):
         """Kachel-IDs, die dieses Gerät zeigt (Reihenfolge aus launcher.json), oder None = alle."""
         t = (self.get(dev) or {}).get("tiles")
@@ -153,6 +164,16 @@ class Devices:
             self.data[dev]["light"] = on
             self.save()
             log.info("Light-Modus %s: %s", self.name(dev), "an" if on else "aus")
+        return True
+
+    def set_theme(self, dev, theme):
+        """Farbschema eines bekannten Geräts setzen (Editor). True bei Erfolg."""
+        if dev not in self.data or not themes.valid(theme) or self.broken:
+            return False
+        if self.data[dev].get("theme") != theme:
+            self.data[dev]["theme"] = dict(theme)
+            self.save()
+            log.info("Farbschema %s: %s/%s", self.name(dev), theme["surface"], theme["accent"])
         return True
 
     def set_main(self, dev):

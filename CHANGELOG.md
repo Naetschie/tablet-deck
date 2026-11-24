@@ -10,6 +10,11 @@
 - Regler (Ton und Panel): Beschriftung jetzt gut lesbar (Kontrast über 6:1 statt 1,9:1). Stumm-Knöpfe zeigen den Zustand,
   Abspielen/Pause ist ein gemeinsames Symbol.
 
+### Farbschemas
+- Pro Gerät wählbar (Editor → Einstellungen → Geräte): Fläche (Standard, Schwarz, Hoher Kontrast) und Akzent (Blau,
+  Cyan, Violett, Pink, Weiß). Wirkt sofort; alle Kombinationen sind auf Lesbarkeit geprüft. Warn-, Gefahr- und
+  OK-Farben bleiben gleich, eigene Dashboards unverändert.
+
 ### Aktualisieren
 - Die Launcher-App (APK) mit aktualisieren. Mit einer älteren App fehlt der Lautsprecher; dann zeigt die
   Touchpad-Seite stattdessen einen Knopf zur Ton-Seite.

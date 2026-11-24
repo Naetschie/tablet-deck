@@ -41,6 +41,7 @@ from .webhome import WebHome
 from .pcinput import PcInput
 from .stats import Stats
 from . import dashboard
+from . import themes
 from .tray import Tray
 from .devices import Devices, valid_id
 from .usermaps import UserMaps
@@ -522,6 +523,12 @@ class Bridge:
                             raise ValueError("Gerät unbekannt oder Datei devices.json fehlerhaft")
                         await self.send_light(dev)
                         await ws.send(json.dumps(self.devices_info(), ensure_ascii=False))
+                    elif t == "device_theme":
+                        dev = msg.get("id")
+                        if not (valid_id(dev) and self.devices.set_theme(dev, msg.get("theme"))):
+                            raise ValueError("Gerät oder Farbschema unbekannt oder Datei devices.json fehlerhaft")
+                        await self.send_theme(dev)
+                        await ws.send(json.dumps(self.devices_info(), ensure_ascii=False))
                     elif t in ("maps_list", "maps_save", "maps_reset", "maps_lookup", "maps_show"):
                         await ws.send(json.dumps(await self.maps_edit(msg), ensure_ascii=False))
                     elif isinstance(t, str) and t.startswith("dash_"):
@@ -664,12 +671,30 @@ class Bridge:
                 except Exception:  # noqa: BLE001
                     pass
 
+    def theme_msg(self, dev=None):
+        return {"t": "theme", "colors": themes.colors(device_theme(self.cfg, dev, getattr(self, "devices", None)))}
+
+    async def send_theme(self, dev):
+        """Farbschema an alle verbundenen Launcher dieses Geräts."""
+        for ws, d in list(self.ctl_device.items()):
+            if d == dev:
+                try:
+                    await ws.send(json.dumps(self.theme_msg(dev)))
+                except Exception:  # noqa: BLE001
+                    pass
+
+    def request_theme(self, request):
+        """Farbschema zur Gerätekennung einer Anfrage (ohne Kennung, z. B. Editor am PC: Standard)."""
+        dev = cookie_value(request.headers.get("Cookie", ""), "deckdev")
+        return device_theme(self.cfg, dev, self.devices) if valid_id(dev) else themes.DEFAULT
+
     def devices_info(self):
-        """Editor, Einstellungen → Geräte: gekoppelte Geräte mit Light-Modus und Verbindung."""
+        """Editor, Einstellungen → Geräte: gekoppelte Geräte mit Light-Modus, Farbschema und Verbindung."""
         online = set(self.ctl_device.values())
-        return {"t": "devices", "devices": [
+        return {"t": "devices", "themes": themes.choices(), "devices": [
             {"id": d, "name": self.devices.name(d), "model": v.get("model") or "", "main": bool(v.get("main")),
-             "light": device_light(self.cfg, d, self.devices), "connected": d in online}
+             "light": device_light(self.cfg, d, self.devices), "theme": device_theme(self.cfg, d, self.devices),
+             "connected": d in online}
             for d, v in self.devices.data.items()]}
 
     def wlan_msg(self):
@@ -735,6 +760,7 @@ class Bridge:
             await ws.send(json.dumps(self.tablet_mode_msg(dev)))
             # Light-Modus für schwache Geräte (Standard aus)
             await ws.send(json.dumps(self.light_msg(dev)))
+            await ws.send(json.dumps(self.theme_msg(dev)))
             if self.volume_state:
                 await ws.send(json.dumps(self.volume_msg()))
             # WLAN-Adressen für den Launcher (nur über USB/loopback mitteilen - dort ist die Kopplung physisch)
@@ -1018,7 +1044,9 @@ class Bridge:
                 else:
                     if name == "default":       # gewählter Standard (Editor), sonst deck
                         name = self.dashboards.get_default()
-                    data = self.dashboards.load(name)[0]
+                    data, origin = self.dashboards.load(name)
+                    if origin == dashboard.BUNDLED and name == "deck":   # eigene und MoBro-Dashboards bleiben, wie sie sind
+                        data = json.loads(themes.recolor(json.dumps(data), self.request_theme(request)))
             except FileNotFoundError:
                 return connection.respond(404, "not found\n")
             except ValueError as e:
@@ -1043,6 +1071,9 @@ class Bridge:
                     return connection.respond(404, "not found\n")
                 body = json.dumps(dict(prof["layout"], unmapped=self.unmapped(f"{m.group(1)}/{m.group(2)}"))).encode()
             ctype = "application/json"
+        elif path == "/lib/theme.css":
+            body = themes.css(self.request_theme(request)).encode()
+            ctype = "text/css; charset=utf-8"
         else:
             rel = "index.html" if path in ("", "/") else path.lstrip("/")
             if rel.endswith("/"):
@@ -1434,6 +1465,15 @@ def device_rotation(cfg, serial, devices=None):
     """Ausrichtung eines Geräts: devices.json rotation, sonst tablet_rotation aus config.json."""
     rot = tablet_rotation(cfg)
     return devices.rotation(serial, rot) if devices is not None and serial else rot
+
+
+def device_theme(cfg, serial, devices=None):
+    """Farbschema eines Geräts: devices.json theme, sonst tablet_theme aus config.json, sonst Standard."""
+    base = cfg.get("tablet_theme", themes.DEFAULT)
+    if not themes.valid(base):
+        log.error("config tablet_theme=%r ungültig - nehme Standard", base)
+        base = themes.DEFAULT
+    return devices.theme(serial, base) if devices is not None and serial else base
 
 
 def device_light(cfg, serial, devices=None):

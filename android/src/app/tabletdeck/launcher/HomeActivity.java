@@ -52,9 +52,15 @@ public class HomeActivity extends Activity {
     static final String CTL_PATH = "/ctl.html";
     static final int HUB_PORT = 8765;
     static final Pattern PATH_OK = Pattern.compile("^/[A-Za-z0-9/._-]*(\\?[A-Za-z0-9=&._-]*)?$");
-    // Farben wie web/lib/tokens.css ("Clean Dark")
-    static final int BG = 0xFF0E1114, PANEL = 0xFF161A1F, S2 = 0xFF1E242B, LINE = 0xFF2B343E, TEXT = 0xFFE8ECF0,
-            ACCENT = 0xFF4FB3FF, DIM = 0xFF9AA6B2, OK = 0xFF3DDC84, BAD = 0xFFE5484D;
+    // Farben wie web/lib/tokens.css ("Clean Dark"); Flächen, Text und Akzent ändert das Farbschema (setTheme)
+    static int BG = 0xFF0E1114, PANEL = 0xFF161A1F, S2 = 0xFF1E242B, S3 = 0xFF28313B, LINE = 0xFF2B343E,
+            TEXT = 0xFFE8ECF0, ACCENT = 0xFF4FB3FF, ACCENT_TX = 0xFF04121D, DIM = 0xFF9AA6B2;
+    // Zustände bleiben in jedem Schema gleich
+    static final int OK = 0xFF3DDC84, BAD = 0xFFE5484D, WLAN = 0xFF4FB3FF;
+    static final Pattern THEME_KEY = Pattern.compile("[a-zA-Z0-9]{1,10}"),
+            THEME_VALUE = Pattern.compile("#[0-9A-Fa-f]{6}|rgba\\([0-9., ]{5,30}\\)");
+    String theme = "";       // zuletzt angewandtes Farbschema (JSON vom Hub)
+    boolean mapsStale;       // Karten-Kachel trägt noch das alte Schema: beim Verlassen neu bauen
 
     static HomeActivity current;   // für den PairingReceiver
     final Handler ui = new Handler(Looper.getMainLooper());
@@ -177,6 +183,7 @@ public class HomeActivity extends Activity {
         WindowManager.LayoutParams wa = getWindow().getAttributes();
         wa.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         getWindow().setAttributes(wa);
+        loadTheme(getSharedPreferences("deck", MODE_PRIVATE).getString("theme", ""));
         root = new LinearLayout(this);
         root.setBackgroundColor(BG);
         // Leiste mit den Modi: quer links, hochkant unten (layoutRail); daneben bzw. darüber der Inhalt
@@ -488,7 +495,78 @@ public class HomeActivity extends Activity {
         if (maps == null) return;
         maps.leave();
         maps.setVisibility(View.GONE);
-        if (light) dropMaps();   // Light-Modus: Karte beim Verlassen freigeben (Auswahl bleibt gemerkt)
+        if (light || mapsStale) dropMaps();   // Light-Modus: Karte beim Verlassen freigeben (Auswahl bleibt gemerkt)
+    }
+
+    /** Farben aus dem JSON des Hubs übernehmen; ungültige Werte werden übergangen. false = nichts Brauchbares. */
+    boolean loadTheme(String json) {
+        try {
+            JSONObject o = new JSONObject(json);
+            BG = themeColor(o, "bg", BG);
+            PANEL = themeColor(o, "s1", PANEL);
+            S2 = themeColor(o, "s2", S2);
+            S3 = themeColor(o, "s3", S3);
+            LINE = themeColor(o, "line", LINE);
+            TEXT = themeColor(o, "tx", TEXT);
+            DIM = themeColor(o, "dim", DIM);
+            ACCENT = themeColor(o, "ac", ACCENT);
+            ACCENT_TX = themeColor(o, "acTx", ACCENT_TX);
+            theme = json;
+            return true;
+        } catch (org.json.JSONException e) {
+            return false;
+        }
+    }
+
+    static int themeColor(JSONObject o, String k, int old) {
+        String v = o.optString(k);
+        return v.matches("#[0-9A-Fa-f]{6}") ? 0xFF000000 | Integer.parseInt(v.substring(1), 16) : old;
+    }
+
+    static int alpha(int color, int a) {
+        return color & 0xFFFFFF | a << 24;
+    }
+
+    /** Vom Hub (devices.json theme): Farbschema sofort anwenden und für den nächsten Start merken. */
+    void setTheme(String json) {
+        if (json.equals(theme) || !loadTheme(json)) return;
+        getSharedPreferences("deck", MODE_PRIVATE).edit().putString("theme", json).apply();
+        Log.i(TAG, "Farbschema übernommen");
+        root.setBackgroundColor(BG);
+        bar.setBackgroundColor(PANEL);
+        railEdge.setBackgroundColor(LINE);
+        boolean soundOpen = sound != null && sound.isOpen();
+        if (sound != null) {
+            sound.drop();
+            content.removeView(sound);
+            sound = null;
+        }
+        buildBar();
+        for (WebView w : webViews.values()) themePage(w);
+        if (browser != null) browser.restyle();
+        if (maps != null) {
+            mapsStale = true;
+            if (maps.getVisibility() != View.VISIBLE) dropMaps();
+        }
+        if (soundOpen) toggleSound();
+    }
+
+    /** Offene Hub-Seite umfärben, ohne sie neu zu laden (neue Seiten bekommen /lib/theme.css). */
+    void themePage(WebView w) {
+        w.setBackgroundColor(BG);
+        try {
+            JSONObject o = new JSONObject(theme);
+            StringBuilder js = new StringBuilder("(function(s){");
+            for (java.util.Iterator<String> it = o.keys(); it.hasNext(); ) {
+                String k = it.next(), v = o.optString(k);
+                if (!THEME_KEY.matcher(k).matches() || !THEME_VALUE.matcher(v).matches()) continue;
+                js.append("s.setProperty('--").append(k).append("','").append(v).append("');");
+            }
+            js.append("})(document.documentElement.style);window.deckTheme&&deckTheme();");
+            w.evaluateJavascript(js.toString(), null);
+        } catch (org.json.JSONException e) {
+            Log.w(TAG, "Farbschema ungültig: " + e);
+        }
     }
 
     /** Vom Hub (devices.json light): Light-Modus an/aus. */
@@ -713,7 +791,7 @@ public class HomeActivity extends Activity {
         GradientDrawable d = new GradientDrawable();
         d.setShape(GradientDrawable.OVAL);
         // grün = USB, blau = WLAN, rot = getrennt
-        int c = !ok ? BAD : link != null && link.isWlan() ? ACCENT : OK;
+        int c = !ok ? BAD : link != null && link.isWlan() ? WLAN : OK;
         d.setColor(c);
         statusDot.setBackground(d);
         if (statusText != null) statusText.setText(!ok ? "getrennt" : link != null && link.isWlan() ? "WLAN" : "USB");
@@ -1079,7 +1157,7 @@ public class HomeActivity extends Activity {
         TextView keep = new TextView(this);
         keep.setText("Offen lassen");
         keep.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
-        keep.setTextColor(BG);
+        keep.setTextColor(ACCENT_TX);
         keep.setGravity(Gravity.CENTER);
         keep.setPadding(dp(24), dp(10), dp(24), dp(10));
         GradientDrawable kb = new GradientDrawable();
@@ -1276,6 +1354,7 @@ public class HomeActivity extends Activity {
         content.removeView(maps);
         maps.destroy();
         maps = null;
+        mapsStale = false;
     }
 
     @Override

@@ -44,4 +44,6 @@
       });
   }
   load();
+  // Launcher: Farbschema geändert - das Dashboard steckt mit festen Farben im Bild
+  window.deckTheme = function () { location.reload(); };
 })();

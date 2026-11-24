@@ -45,7 +45,7 @@ public class OverlayService extends Service {
         }
         handle = new View(this);
         GradientDrawable d = new GradientDrawable();
-        d.setColor(0xCC4FB3FF);
+        d.setColor(HomeActivity.alpha(HomeActivity.ACCENT, 0xCC));
         float r = dp(12);
         d.setCornerRadii(new float[]{0, 0, r, r, r, r, 0, 0});
         handle.setBackground(d);

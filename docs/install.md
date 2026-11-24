@@ -232,6 +232,12 @@ Einschalten:
 - von Hand: `devices.json` → `"light": true` beim Gerät, oder in `config.json`
   `"tablet_lights": { "<Seriennummer>": true }` (`devices.json` geht vor).
 
+## Farbschema
+Pro Gerät im Editor (**⚙ Einstellungen** → Geräte) oder von Hand in `devices.json`:
+`"theme": { "surface": "schwarz", "accent": "violett" }`. Vorgabe für alle: `"tablet_theme"` in `config.json`
+(Werte: README). Eine ältere Launcher-App färbt nur die Seiten, nicht die Leiste. Nach Änderungen von Hand den Hub
+neu starten.
+
 ## Tablet als Startbildschirm / Root (optional)
 Nur für den Startbildschirm-Modus (`tablet_mode` = `home`, Standard ohne `-Companion`). Das Tablet (Lenovo
 TB-X505F) bekommt LineageOS als GSI mit Magisk; die Firewall- und Akku-Module (`install.ps1 -Modules`) gibt es
