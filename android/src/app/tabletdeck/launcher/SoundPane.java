@@ -69,7 +69,6 @@ class SoundPane extends FrameLayout {
     }
 
     void open() {
-        openedAt = android.os.SystemClock.uptimeMillis();
         ensureWeb();
         setAlpha(a.light ? 1f : 0f);
         if (a.light) return;
@@ -78,6 +77,7 @@ class SoundPane extends FrameLayout {
 
     void ensureWeb() {
         if (web != null) return;
+        openedAt = android.os.SystemClock.uptimeMillis();   // nur beim Laden messen
         web = a.newHubWebView(null, HomeActivity.HUB_PORT);
         web.setBackgroundColor(HomeActivity.PANEL);
         web.setFocusable(false);

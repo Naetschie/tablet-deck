@@ -365,8 +365,10 @@
       var row = themes ? themeRow(d, themes) : null;
       if (row) li.appendChild(row);
       ul.appendChild(li);
-      if (row && themeFocus && themeFocus.id === d.id) { row.querySelector(themeFocus.sel).focus(); themeFocus = null; }
+      var foc = row && themeFocus && themeFocus.id === d.id && row.querySelector(themeFocus.sel);
+      if (foc) foc.focus();
     });
+    themeFocus = null;
     if (!list.length) {
       var e = document.createElement("li"); e.className = "dim";
       e.textContent = "Noch kein Gerät gekoppelt (Tablet per USB anstecken)."; ul.appendChild(e);

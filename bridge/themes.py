@@ -41,10 +41,10 @@ def valid(t):
 
 def warn_once(where, value):
     """Ungültiges Schema nur einmal je Wert melden (wird bei jedem Seitenaufruf gelesen)."""
-    key = (where, repr(value))
-    if key not in _warned:
-        _warned.add(key)
-        log.error("%s: Farbschema %r ungültig - nehme die Vorgabe", where, value)
+    text = repr(value)[:80]
+    if (where, text) not in _warned and len(_warned) < 50:
+        _warned.add((where, text))
+        log.error("%s: Farbschema %s ungültig - nehme die Vorgabe", where, text)
 
 
 def rgb(hex_):
