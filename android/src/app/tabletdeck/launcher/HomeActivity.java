@@ -480,10 +480,17 @@ public class HomeActivity extends Activity {
     public void onConfigurationChanged(android.content.res.Configuration c) {
         super.onConfigurationChanged(c);
         boolean b = isPortrait();
-        if (b == bottomBar) return;
-        bottomBar = b;
-        layoutRail();
-        if (railTiles != null) buildBar();
+        if (b != bottomBar) {
+            bottomBar = b;
+            layoutRail();
+        }
+        // auch bei gleicher Ausrichtung: Höhe und Aufteilung der Leiste hängen an der Bildschirmgröße
+        if (railTiles == null || c.screenWidthDp == barW && c.screenHeightDp == barH) return;
+        android.view.ViewGroup.LayoutParams lp = bar.getLayoutParams();   // Anzeigegröße geändert: dp neu umrechnen
+        if (bottomBar) lp.height = dp(76);
+        else lp.width = dp(96);
+        bar.setLayoutParams(lp);
+        buildBar();
     }
 
     /** Leiste ein-/ausblenden (Vollbild der Karte). */
@@ -718,12 +725,11 @@ public class HomeActivity extends Activity {
         if (soundHub) return;
         soundHub = true;
         getSharedPreferences("deck", MODE_PRIVATE).edit().putBoolean("sound_hub", true).apply();
-        updateSound();
+        if (railTiles != null) buildBar();   // Knopf kommt dazu
     }
 
     void updateSound() {
         if (soundButton == null) return;
-        soundButton.setVisibility(soundHub ? View.VISIBLE : View.GONE);
         boolean open = sound != null && sound.isOpen();
         soundIcon.setImageResource(muted ? R.drawable.ic_volume_off : R.drawable.ic_volume);
         soundIcon.setImageTintList(android.content.res.ColorStateList.valueOf(muted ? BAD : open ? ACCENT : DIM));
@@ -835,7 +841,11 @@ public class HomeActivity extends Activity {
     final List<View> tileViews = new ArrayList<>();   // große Kacheln und kleine Symbole, Tag = Kachel-ID
     static final int SMALL = 48;                      // kleine Symbole (dp): Tippfläche, sichtbar hervorgehoben 40
 
+    int barW, barH;   // Bildschirmgröße (dp), für die die Leiste gebaut ist
+
     void buildBar() {
+        barW = getResources().getConfiguration().screenWidthDp;
+        barH = getResources().getConfiguration().screenHeightDp;
         bar.removeAllViews();
         tileViews.clear();
         List<Tile> big = new ArrayList<>(), small = new ArrayList<>();
@@ -865,7 +875,8 @@ public class HomeActivity extends Activity {
         List<View> tools = new ArrayList<>();
         for (Tile t : small) tools.add(smallTile(t));
         // Ton gehört neben das erste Symbol (Touchpad): beides bedient den PC
-        tools.add(Math.min(1, tools.size()), buildSoundButton());
+        soundButton = null;
+        if (soundHub) tools.add(Math.min(1, tools.size()), buildSoundButton());
         View status = buildStatus();
         int tileH = 68;
         if (bottomBar) {
