@@ -1,0 +1,36 @@
+{
+  "title": "S.T.A.L.K.E.R. 2",
+  "holdMs": 1000,
+  "pages": [
+    {"id": "zone", "title": "Zone", "section": "Zone", "type": "free", "cols": 24, "rows": 16, "buttons": [
+      {"kind": "frame", "id": "f-zone-waffen", "label": "Waffen", "x": 0, "y": 0, "w": 6, "h": 16},
+      {"label": "Messer", "action": "knife", "id": "zone-knife", "x": 1, "y": 1, "w": 2, "h": 4, "key": "1"},
+      {"label": "Pistole", "action": "pistol", "id": "zone-pistol", "x": 3, "y": 1, "w": 2, "h": 4, "key": "2"},
+      {"label": "Hauptwaffe", "action": "primary", "style": "accent", "id": "zone-primary", "x": 1, "y": 5, "w": 4, "h": 3, "key": "3"},
+      {"label": "Zweitwaffe", "action": "secondary", "id": "zone-secondary", "x": 1, "y": 8, "w": 4, "h": 3, "key": "4"},
+      {"label": "Granate", "action": "grenade", "id": "zone-grenade", "x": 1, "y": 11, "w": 2, "h": 4, "key": "5"},
+      {"label": "Waffe wegstecken", "action": "holster", "id": "zone-holster", "x": 3, "y": 11, "w": 2, "h": 4, "key": "H"},
+      {"kind": "frame", "id": "f-zone-kampf", "label": "Kampf", "x": 6, "y": 0, "w": 10, "h": 6},
+      {"label": "Nachladen", "action": "reload", "style": "accent", "look": "big", "id": "zone-reload", "x": 7, "y": 1, "w": 4, "h": 4, "key": "R"},
+      {"label": "Munitionsart", "action": "ammo", "id": "zone-ammo", "x": 11, "y": 1, "w": 2, "h": 4, "key": "N"},
+      {"label": "Feuermodus", "action": "firemode", "id": "zone-firemode", "x": 13, "y": 1, "w": 2, "h": 4, "key": "B"},
+      {"kind": "frame", "id": "f-zone-ausruestung", "label": "Ausrüstung", "x": 6, "y": 6, "w": 18, "h": 10},
+      {"label": "Detektor", "action": "detector", "style": "accent", "id": "zone-detector", "x": 7, "y": 9, "w": 8, "h": 4, "key": "7"},
+      {"label": "Bolzen", "action": "bolt", "id": "zone-bolt", "x": 15, "y": 9, "w": 4, "h": 4, "key": "6"},
+      {"label": "Taschenlampe", "action": "flashlight", "id": "zone-flashlight", "x": 19, "y": 9, "w": 4, "h": 4, "key": "L"},
+      {"kind": "frame", "id": "f-zone-spielstand", "label": "Spielstand", "x": 16, "y": 0, "w": 8, "h": 6},
+      {"label": "Schnellspeichern", "action": "quicksave", "look": "pill", "id": "zone-quicksave", "x": 17, "y": 2, "w": 6, "h": 1, "key": "F5"},
+      {"label": "Schnellladen", "action": "quickload", "style": "danger", "mode": "hold-confirm", "look": "pill", "id": "zone-quickload", "x": 17, "y": 3, "w": 6, "h": 1, "key": "F8"}
+    ]},
+    {"id": "menues", "title": "Menüs", "section": "Menüs", "type": "free", "cols": 24, "rows": 16, "buttons": [
+      {"kind": "frame", "id": "f-menues-pda", "label": "PDA", "x": 0, "y": 0, "w": 14, "h": 16},
+      {"label": "PDA", "action": "pda", "style": "accent", "look": "big", "id": "menues-pda", "x": 1, "y": 4, "w": 4, "h": 8, "key": "P"},
+      {"label": "Karte", "action": "map", "id": "menues-map", "x": 5, "y": 4, "w": 4, "h": 8, "key": "M"},
+      {"label": "Tagebuch", "action": "journal", "id": "menues-journal", "x": 9, "y": 4, "w": 2, "h": 8, "key": "J"},
+      {"label": "Notizen", "action": "notes", "id": "menues-notes", "x": 11, "y": 4, "w": 2, "h": 8, "key": "K"},
+      {"kind": "frame", "id": "f-menues-charakter", "label": "Charakter", "x": 14, "y": 0, "w": 10, "h": 16},
+      {"label": "Inventar", "action": "inventory", "style": "accent", "id": "menues-inventory", "x": 15, "y": 4, "w": 8, "h": 4, "key": "I"},
+      {"label": "Verbesserungen", "action": "upgrades", "id": "menues-upgrades", "x": 17, "y": 8, "w": 4, "h": 4, "key": "U"}
+    ]}
+  ]
+}
