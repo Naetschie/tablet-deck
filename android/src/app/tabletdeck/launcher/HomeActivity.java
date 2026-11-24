@@ -75,6 +75,8 @@ public class HomeActivity extends Activity {
     View soundButton;
     int volume = -1;       // Lautstärke des PCs in Prozent (-1 = unbekannt)
     boolean muted;
+    boolean soundHub;      // der Hub kennt /ton/ (meldet volume oder theme); bei einem älteren bleibt der Knopf weg
+    long soundGone;        // letzter Renderer-Absturz der Ton-Seite
     String mapsData;   // letzte Karten-Daten vom Hub (für eine später erzeugte MapPane)
     View statusDot;
     boolean everConnected, autoOffArmed;
@@ -184,6 +186,7 @@ public class HomeActivity extends Activity {
         wa.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         getWindow().setAttributes(wa);
         loadTheme(getSharedPreferences("deck", MODE_PRIVATE).getString("theme", ""));
+        soundHub = getSharedPreferences("deck", MODE_PRIVATE).getBoolean("sound_hub", false);
         root = new LinearLayout(this);
         root.setBackgroundColor(BG);
         // Leiste mit den Modi: quer links, hochkant unten (layoutRail); daneben bzw. darüber der Inhalt
@@ -529,6 +532,7 @@ public class HomeActivity extends Activity {
 
     /** Vom Hub (devices.json theme): Farbschema sofort anwenden und für den nächsten Start merken. */
     void setTheme(String json) {
+        hubHasSound();
         if (json.equals(theme) || !loadTheme(json)) return;
         getSharedPreferences("deck", MODE_PRIVATE).edit().putString("theme", json).apply();
         Log.i(TAG, "Farbschema übernommen");
@@ -652,7 +656,7 @@ public class HomeActivity extends Activity {
     /** Ansicht steht: andere Kachel -> Ton-Feld zu; dieselbe (neu gebaut) -> es bleibt obenauf. */
     void entered(Tile t) {
         if (sound != null && sound.isOpen()) {
-            if (t.id.equals(mode)) sound.bringToFront();
+            if (t.id.equals(mode)) raiseSound();
             else closeSound();
         }
         mode = t.id;
@@ -669,10 +673,16 @@ public class HomeActivity extends Activity {
             content.addView(sound, new FrameLayout.LayoutParams(-1, -1));
         }
         ui.removeCallbacks(dropSound);
-        sound.bringToFront();
+        raiseSound();
         sound.setVisibility(View.VISIBLE);
         sound.open();
         updateSound();
+    }
+
+    /** Ton-Feld nach vorn - der Hinweis „Keine Verbindung“ (Begleit-Modus) bleibt darüber. */
+    void raiseSound() {
+        sound.bringToFront();
+        if (noHubBanner != null) noHubBanner.bringToFront();
     }
 
     void closeSound() {
@@ -701,11 +711,20 @@ public class HomeActivity extends Activity {
     void setVolume(double v, boolean mute) {
         volume = (int) Math.round(Math.max(0, Math.min(1, v)) * 100);
         muted = mute;
+        hubHasSound();
+        updateSound();
+    }
+
+    void hubHasSound() {
+        if (soundHub) return;
+        soundHub = true;
+        getSharedPreferences("deck", MODE_PRIVATE).edit().putBoolean("sound_hub", true).apply();
         updateSound();
     }
 
     void updateSound() {
         if (soundButton == null) return;
+        soundButton.setVisibility(soundHub ? View.VISIBLE : View.GONE);
         boolean open = sound != null && sound.isOpen();
         soundIcon.setImageResource(muted ? R.drawable.ic_volume_off : R.drawable.ic_volume);
         soundIcon.setImageTintList(android.content.res.ColorStateList.valueOf(muted ? BAD : open ? ACCENT : DIM));
@@ -784,6 +803,11 @@ public class HomeActivity extends Activity {
             AutoOffReceiver.arm(this);
         }
         autoOffArmed = !ok && everConnected && !companion;
+        if (!ok && (volume >= 0 || muted)) {   // Stand des PCs unbekannt
+            volume = -1;
+            muted = false;
+            updateSound();
+        }
         updateNoHub();
         if (ok) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -1014,6 +1038,10 @@ public class HomeActivity extends Activity {
                 } else if (browser != null && view == browser.home) {
                     browser.homeGone();
                 } else if (isSound(view)) {
+                    long now = android.os.SystemClock.elapsedRealtime();
+                    // zum zweiten Mal kurz nacheinander (Speicher knapp): schließen statt endlos neu laden
+                    if (now - soundGone < 10_000) closeSound();
+                    soundGone = now;
                     resetSound();
                 } else {
                     for (Map.Entry<String, WebView> e : new ArrayList<>(webViews.entrySet())) {
@@ -1250,6 +1278,7 @@ public class HomeActivity extends Activity {
         // Ausschalten des Tablets verliert dann frische Logins.
         android.webkit.CookieManager.getInstance().flush();
         if (maps != null) maps.watch(false);
+        closeSound();
         // Andere App im Vordergrund - über die Kachel ODER von selbst (z. B. spacedesk beim Anstecken
         // per USB-Zubehör): Rücksprung-Griff einblenden und dem Hub melden, damit er gehaltene Tasten
         // freigibt. Die WebViews laufen bewusst weiter (WebSocket bleibt verbunden).

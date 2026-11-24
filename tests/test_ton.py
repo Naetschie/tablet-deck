@@ -27,6 +27,13 @@ class SpriteTest(unittest.TestCase):
             for i in re.findall(r"/lib/icons\.svg#([\w-]+)", f.read_text("utf-8")):
                 self.assertIn(i, ids, f"{f.relative_to(WEB)}: Symbol {i} fehlt in icons.svg")
 
+    def test_wechselnde_symbole(self):
+        sprite = (WEB / "lib/icons.svg").read_text("utf-8")
+        for n in ("media.js", "mixer.js"):
+            for i in re.findall(r'\? "([\w-]+)" : "([\w-]+)"', (WEB / "ton" / n).read_text("utf-8")):
+                for k in i:
+                    self.assertIn(f'id="{k}"', sprite)
+
     def test_seite_vollstaendig(self):
         html = (WEB / "ton/index.html").read_text("utf-8")
         js = "".join((WEB / "ton" / n).read_text("utf-8") for n in ("media.js", "mixer.js"))

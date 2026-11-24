@@ -45,6 +45,10 @@ class SoundPane extends FrameLayout {
         });
         box.setClipToOutline(true);
         addView(box);
+        // klickbar hieße sonst fokussierbar (Tastatur, Tastendruck per ADB) - das Panel bekäme „blur“
+        setFocusable(false);
+        box.setFocusable(false);
+        setDescendantFocusability(FOCUS_BLOCK_DESCENDANTS);
     }
 
     /** Größe und Lage des Felds bei jedem Messen neu (Drehen, geänderte Bildschirmgröße bei offenem Feld). */
