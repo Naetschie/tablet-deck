@@ -1,6 +1,8 @@
 # Änderungen
 
-## 5.3 – in Arbeit
+## 5.3 – 24.11.2026
+
+Ton aus jeder Ansicht erreichbar, ein größeres Touchpad, eine ruhigere Leiste und wählbare **Farbschemas**.
 
 ### Ton und Touchpad
 - **Ton-Feld:** Lautstärke, Mixer, Ausgabegerät und Wiedergabe sitzen nicht mehr auf der Touchpad-Seite, sondern hinter
@@ -21,7 +23,7 @@
   OK-Farben bleiben gleich, eigene Dashboards unverändert.
 
 ### Aktualisieren
-- Die Launcher-App (APK) mit aktualisieren. Mit einer älteren App fehlt der Lautsprecher; dann zeigt die
+- `.\install.ps1` lädt die APK aus dem Release v5.3. Die Launcher-App mit aktualisieren: Mit einer älteren App fehlt der Lautsprecher; dann zeigt die
   Touchpad-Seite stattdessen einen Knopf zur Ton-Seite.
 
 ## 5.2 – 23.11.2026
