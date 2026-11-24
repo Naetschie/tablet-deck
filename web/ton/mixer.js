@@ -14,11 +14,13 @@
     r.pct.textContent = pct(v) + " %";
     r.slider.classList.toggle("muted", r.muted);
     r.mute.classList.toggle("on", r.muted);
+    r.mute.setAttribute("aria-pressed", r.muted);
+    r.icon.setAttribute("href", "/lib/icons.svg#" + (r.muted ? "mute" : "vol-up"));   // zeigt den Zustand
   }
 
   function makeRow(k) {
     var el = document.createElement("div");
-    el.className = "app";
+    el.className = "row";
     var slider = document.createElement("div");
     slider.className = "slider";
     var fill = document.createElement("div");
@@ -32,10 +34,12 @@
     slider.appendChild(fill); slider.appendChild(nm); slider.appendChild(val);
     var mute = document.createElement("div");
     mute.className = "key";
+    mute.setAttribute("role", "button");
     mute.setAttribute("aria-label", "Stumm");
-    mute.innerHTML = '<svg class="ic"><use href="/lib/icons.svg#mute"/></svg>';
+    mute.innerHTML = '<svg class="ic"><use href="/lib/icons.svg#vol-up"/></svg>';
     el.appendChild(slider); el.appendChild(mute);
     var r = { el: el, name: name, slider: slider, fill: fill, pct: val, mute: mute,
+              icon: mute.querySelector("use"),
               level: 0, muted: false, dragging: null, lastSent: 0, hold: 0 };
 
     function fromX(e) {

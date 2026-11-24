@@ -10,6 +10,10 @@
   var accX = 0, accY = 0, accW = 0, accH = 0, frame = 0;
   var lastTap = { t: 0, x: 0, y: 0 };
 
+  // Der Ton-Knopf sitzt in der Leiste (Launcher ab 5.3, Kennung 0.2); ohne ihn hier zur Ton-Seite verlinken
+  var app = /TabletDeck\/(\d+)\.(\d+)/.exec(navigator.userAgent);
+  if (!app || (+app[1] === 0 && +app[2] < 2)) document.body.classList.add("nosound");
+
   function count() { return Object.keys(pts).length; }
 
   function flush() {
@@ -24,6 +28,7 @@
   pad.addEventListener("pointerdown", function (e) {
     e.preventDefault();
     pad.setPointerCapture(e.pointerId);
+    pad.classList.add("used");   // Gesten-Hinweise ausblenden
     pts[e.pointerId] = { x: e.clientX, y: e.clientY, t: e.timeStamp };
     if (!g) {
       g = { t0: e.timeStamp, maxN: 1, moved: 0, drag: false };

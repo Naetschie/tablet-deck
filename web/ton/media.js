@@ -1,7 +1,11 @@
 "use strict";
 (function () {
+  // Nur von der Touchpad-Seite einer älteren Launcher-App verlinkt: Rückweg anbieten
+  if (location.search === "?back") document.body.classList.add("back");
+
   var vol = document.getElementById("vol"), fill = document.getElementById("fill"),
-      pct = document.getElementById("pct"), muteBtn = document.getElementById("mute");
+      pct = document.getElementById("pct"), muteBtn = document.getElementById("mute"),
+      muteIcon = muteBtn.querySelector("use");
   var level = 0, muted = false, dragging = null, lastSent = 0, pending = null;
 
   function show(v) {
@@ -9,6 +13,8 @@
     pct.textContent = Math.round(v * 100) + " %";
     vol.classList.toggle("muted", muted);
     muteBtn.classList.toggle("on", muted);
+    muteBtn.setAttribute("aria-pressed", muted);
+    muteIcon.setAttribute("href", "/lib/icons.svg#" + (muted ? "mute" : "vol-up"));   // zeigt den Zustand
   }
 
   // Lautstärke vom PC (auch wenn sie am PC geändert wird); während des Ziehens nicht überschreiben

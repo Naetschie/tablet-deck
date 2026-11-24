@@ -64,6 +64,12 @@ public class DeckJs {
         a.ui.post(() -> a.setLight(on));
     }
 
+    /** Lautstärke des PCs (0..1) und stumm: Zustand des Ton-Knopfs. */
+    @JavascriptInterface
+    public void setVolume(double v, boolean mute) {
+        a.ui.post(() -> a.setVolume(v, mute));
+    }
+
     /** WLAN-Adressen des Hubs (kommt nur über USB, siehe Bridge ctl_handler). */
     @JavascriptInterface
     public void setWlan(String json) {

@@ -200,7 +200,8 @@ class Bridge:
             st = self.audio.get()
             if st and st != self.volume_state:
                 self.volume_state = st
-                await self.broadcast({"t": "volume", "v": st[0], "mute": st[1]})
+                await self.broadcast(self.volume_msg())
+                await self.ctl_send(self.volume_msg())   # Ton-Knopf der Launcher (stumm/nicht stumm)
             if tick % 2 == 0:   # Mixer etwa jede Sekunde; nur bei Änderung senden
                 try:
                     # hängt ein COM-Aufruf (Treiber, Gerät angesteckt): Lautstärke und Wächter laufen weiter
@@ -247,6 +248,9 @@ class Bridge:
         if key is not None:
             self._audio_pending[key] = f
         f.add_done_callback(done)
+
+    def volume_msg(self):
+        return {"t": "volume", "v": self.volume_state[0], "mute": self.volume_state[1]}
 
     def mixer_msg(self):
         return {"t": "mixer", **self.mixer_state}
@@ -731,6 +735,8 @@ class Bridge:
             await ws.send(json.dumps(self.tablet_mode_msg(dev)))
             # Light-Modus für schwache Geräte (Standard aus)
             await ws.send(json.dumps(self.light_msg(dev)))
+            if self.volume_state:
+                await ws.send(json.dumps(self.volume_msg()))
             # WLAN-Adressen für den Launcher (nur über USB/loopback mitteilen - dort ist die Kopplung physisch)
             if self.wlan_tls and is_loopback(ws.remote_address):
                 await ws.send(json.dumps(self.wlan_msg()))
@@ -1073,7 +1079,7 @@ class Bridge:
             await ws.send(json.dumps({"t": "hello", "mode": self.out.name, "web": web_version(),
                                       "game": self.profiles.summary(self.game) if self.game else None}))
             if self.volume_state:
-                await ws.send(json.dumps({"t": "volume", "v": self.volume_state[0], "mute": self.volume_state[1]}))
+                await ws.send(json.dumps(self.volume_msg()))
             if self.mixer_state:
                 await ws.send(json.dumps(self.mixer_msg()))
             async for raw in ws:

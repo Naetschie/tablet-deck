@@ -46,11 +46,14 @@
 /* Regler (waagerecht, eigene Darstellung statt input[type=range]) */
 .slider { position: relative; height: var(--hit); border-radius: var(--r); background: var(--s3);
   overflow: hidden; touch-action: none; }
-.slider .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--ac); }
-.slider.muted .fill { background: var(--dim); }
+/* Füllung nur getönt (30 % Akzent auf --s3: Text darauf 6.3:1), die Kante trägt die volle Farbe */
+.slider .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; }
+.slider .fill::before { content: ""; position: absolute; inset: 0; background: var(--ac); opacity: .3; }
+.slider .fill::after { content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: 3px; background: var(--ac); }
+.slider.muted .fill::before { background: var(--dim); opacity: .2; }
+.slider.muted .fill::after { background: var(--dim); }
 .slider .val { position: absolute; right: var(--sp-3); top: 0; bottom: 0; display: flex; align-items: center;
-  font: 600 var(--fs-sm) var(--fb); color: var(--tx); font-variant-numeric: tabular-nums; pointer-events: none;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
+  font: 600 var(--fs-sm) var(--fb); color: var(--tx); font-variant-numeric: tabular-nums; pointer-events: none; }
 
 /* Status-Punkt */
 .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); }

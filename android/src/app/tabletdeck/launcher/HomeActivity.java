@@ -64,6 +64,11 @@ public class HomeActivity extends Activity {
     LinearLayout bar, root, railTiles;
     View railEdge;
     MapPane maps;
+    SoundPane sound;       // Ton-Feld über der aktuellen Ansicht (beim ersten Öffnen gebaut)
+    android.widget.ImageView soundIcon;
+    View soundButton;
+    int volume = -1;       // Lautstärke des PCs in Prozent (-1 = unbekannt)
+    boolean muted;
     String mapsData;   // letzte Karten-Daten vom Hub (für eine später erzeugte MapPane)
     View statusDot;
     boolean everConnected, autoOffArmed;
@@ -250,6 +255,7 @@ public class HomeActivity extends Activity {
             createCtlView();
             for (String id : new ArrayList<>(webViews.keySet())) removeWebView(id);   // alle: neue Adressen
             if (browser != null) browser.hubChanged();
+            resetSound();
             Tile cur = mode == null ? null : find(mode);
             if (cur != null && cur.type.equals("web")) showWeb(cur);
             setStatus(connected);
@@ -412,8 +418,7 @@ public class HomeActivity extends Activity {
             int n = freeHidden(true);   // Karte offen: Panel, Touchpad usw. brauchen dann keinen Speicher
             if (n > 0) Log.i(TAG, "Light-Modus: " + n + " verdeckte Ansicht(en) freigegeben");
         }
-        mode = t.id;
-        updateBar();
+        entered(t);
         ui.post(this::report);
     }
 
@@ -476,6 +481,7 @@ public class HomeActivity extends Activity {
     void setRailVisible(boolean on) {
         bar.setVisibility(on ? View.VISIBLE : View.GONE);
         railEdge.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (!on) closeSound();   // ohne Leiste kein Ton-Knopf
     }
 
     void hideMaps() {
@@ -497,6 +503,8 @@ public class HomeActivity extends Activity {
         Log.i(TAG, "Light-Modus " + (on ? "an" : "aus"));
         if (maps != null) maps.setLight(on);
         for (WebView w : webViews.values()) lightClass(w);
+        if (sound != null && sound.web != null) lightClass(sound.web);
+        if (on && sound != null && !sound.isOpen()) sound.drop();
         if (on && maps != null && maps.getVisibility() == View.VISIBLE) freeHidden(true);
     }
 
@@ -529,8 +537,7 @@ public class HomeActivity extends Activity {
         for (WebView w : webViews.values()) w.setVisibility(View.GONE);
         hideMaps();
         browser.setVisibility(View.VISIBLE);
-        mode = t.id;
-        updateBar();
+        entered(t);
         ui.post(this::report);
     }
 
@@ -559,10 +566,77 @@ public class HomeActivity extends Activity {
             e.getValue().setVisibility(e.getKey().equals(t.id) ? View.VISIBLE : View.GONE);
         if (browser != null) browser.setVisibility(View.GONE);
         hideMaps();
-        mode = t.id;
-        updateBar();
+        entered(t);
         // verzögert: nach einem Renderer-Absturz erst die übrigen Callbacks laufen lassen (tote ctlView)
         ui.post(this::report);
+    }
+
+    /** Ansicht steht: andere Kachel -> Ton-Feld zu; dieselbe (neu gebaut) -> es bleibt obenauf. */
+    void entered(Tile t) {
+        if (sound != null && sound.isOpen()) {
+            if (t.id.equals(mode)) sound.bringToFront();
+            else closeSound();
+        }
+        mode = t.id;
+        updateBar();
+    }
+
+    void toggleSound() {
+        if (sound != null && sound.isOpen()) {
+            closeSound();
+            return;
+        }
+        if (sound == null) {
+            sound = new SoundPane(this);
+            content.addView(sound, new FrameLayout.LayoutParams(-1, -1));
+        }
+        ui.removeCallbacks(dropSound);
+        sound.bringToFront();
+        sound.setVisibility(View.VISIBLE);
+        sound.open();
+        updateSound();
+    }
+
+    void closeSound() {
+        if (sound == null || !sound.isOpen()) return;
+        sound.animate().cancel();
+        sound.setVisibility(View.GONE);
+        ui.removeCallbacks(dropSound);
+        // Die Seite kostet rund 28 MB und ist in 250 ms neu geladen: nach dem Schließen nicht behalten
+        if (light) sound.drop();
+        else ui.postDelayed(dropSound, 30_000);
+        updateSound();
+    }
+
+    final Runnable dropSound = () -> {
+        if (sound != null && !sound.isOpen()) sound.drop();
+    };
+
+    /** Seite des Ton-Felds verwerfen; ist es offen, gleich neu laden (neue Hub-Adresse, Renderer ersetzt). */
+    void resetSound() {
+        if (sound == null) return;
+        sound.drop();
+        if (sound.isOpen()) sound.ensureWeb();
+    }
+
+    /** Vom Hub: Lautstärke des PCs. Der Knopf zeigt stumm/nicht stumm. */
+    void setVolume(double v, boolean mute) {
+        volume = (int) Math.round(Math.max(0, Math.min(1, v)) * 100);
+        muted = mute;
+        updateSound();
+    }
+
+    void updateSound() {
+        if (soundButton == null) return;
+        boolean open = sound != null && sound.isOpen();
+        soundIcon.setImageResource(muted ? R.drawable.ic_volume_off : R.drawable.ic_volume);
+        soundIcon.setImageTintList(android.content.res.ColorStateList.valueOf(muted ? BAD : open ? ACCENT : DIM));
+        soundButton.setContentDescription("Ton" + (volume < 0 ? "" : muted ? ", stumm" : ", " + volume + " %"));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(open ? S2 : 0);
+        bg.setCornerRadius(dp(14));
+        bg.setStroke(1, LINE);
+        soundButton.setBackground(bg);
     }
 
     void removeWebView(String id) {
@@ -579,6 +653,7 @@ public class HomeActivity extends Activity {
             return;
         }
         launchedExternal = true;
+        closeSound();
         if (maps != null && maps.full) maps.setFull(false);   // Leiste nach der Rückkehr wieder da
         startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         // Hub informieren: Ansicht verlassen -> er gibt gehaltene Tasten/Maustasten frei
@@ -603,6 +678,7 @@ public class HomeActivity extends Activity {
 
     void reloadAll() {
         for (WebView w : webViews.values()) w.reload();
+        if (sound != null && sound.web != null) sound.web.reload();
         if (maps != null && maps.browser.web != null) maps.browser.web.reload();
     }
 
@@ -702,11 +778,23 @@ public class HomeActivity extends Activity {
                 bp = new LinearLayout.LayoutParams(dp(84), -1);
                 bp.rightMargin = dp(4);
             } else {
-                bp = new LinearLayout.LayoutParams(-1, dp(68));
+                bp = new LinearLayout.LayoutParams(-1, dp(62));   // 7 Kacheln + Ton + Anzeige ohne Scrollen
                 bp.bottomMargin = dp(4);
             }
             railTiles.addView(b, bp);
         }
+        // Ton: kleiner Knopf statt Kachel, öffnet das Feld über der aktuellen Ansicht
+        FrameLayout sb = new FrameLayout(this);
+        soundIcon = new android.widget.ImageView(this);
+        sb.addView(soundIcon, new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER));
+        sb.setOnClickListener(v -> toggleSound());
+        soundButton = sb;
+        LinearLayout.LayoutParams sbp = new LinearLayout.LayoutParams(dp(48), dp(48));
+        sbp.gravity = bottomBar ? Gravity.CENTER_VERTICAL : Gravity.CENTER_HORIZONTAL;
+        if (bottomBar) sbp.leftMargin = dp(8);
+        else sbp.topMargin = dp(4);
+        bar.addView(sb, sbp);
+        updateSound();
         LinearLayout st = new LinearLayout(this);
         st.setOrientation(LinearLayout.VERTICAL);
         st.setGravity(Gravity.CENTER);
@@ -771,7 +859,7 @@ public class HomeActivity extends Activity {
         s.setAllowContentAccess(false);
         s.setSupportZoom(false);
         s.setSupportMultipleWindows(false);
-        s.setUserAgentString(s.getUserAgentString() + " TabletDeck/0.1");
+        s.setUserAgentString(s.getUserAgentString() + " TabletDeck/0.2");
         w.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
@@ -792,6 +880,8 @@ public class HomeActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 if (onlyPath == null && light) lightClass(view);
+                if (isSound(view))
+                    Log.i(TAG, "Ton-Feld geladen, " + (android.os.SystemClock.uptimeMillis() - sound.openedAt) + " ms nach dem Öffnen");
             }
 
             @Override
@@ -806,7 +896,7 @@ public class HomeActivity extends Activity {
                         view.setTag(R.id.retry_pending, Boolean.TRUE);
                         ui.postDelayed(() -> {
                             view.setTag(R.id.retry_pending, null);
-                            if (view == ctlView || webViews.containsValue(view)) view.reload();
+                            if (view == ctlView || webViews.containsValue(view) || isSound(view)) view.reload();
                         }, 2000);
                     }
                     return;
@@ -815,7 +905,7 @@ public class HomeActivity extends Activity {
                 Uri u = req.getUrl();
                 ui.postDelayed(() -> {
                     boolean home = browser != null && view == browser.home;   // Startseite der Web-Kachel
-                    if ((view == ctlView || webViews.containsValue(view) || home) && allowed(u, port))
+                    if ((view == ctlView || webViews.containsValue(view) || isSound(view) || home) && allowed(u, port))
                         view.loadUrl(u.toString());
                 }, 2000);
             }
@@ -845,6 +935,8 @@ public class HomeActivity extends Activity {
                     createCtlView();
                 } else if (browser != null && view == browser.home) {
                     browser.homeGone();
+                } else if (isSound(view)) {
+                    resetSound();
                 } else {
                     for (Map.Entry<String, WebView> e : new ArrayList<>(webViews.entrySet())) {
                         if (e.getValue() != view) continue;
@@ -857,6 +949,10 @@ public class HomeActivity extends Activity {
             }
         });
         return w;
+    }
+
+    boolean isSound(WebView w) {
+        return sound != null && sound.web != null && sound.web == w;
     }
 
     /** Host weiterer PC-Dienste: localhost (USB) oder die LAN-Adresse des Hubs (WLAN). */
@@ -1156,6 +1252,10 @@ public class HomeActivity extends Activity {
             removeWebView(e.getKey());
             n++;
         }
+        if (withHub && sound != null && sound.web != null && !sound.isOpen()) {
+            sound.drop();
+            n++;
+        }
         if (browser != null && browser.getVisibility() != View.VISIBLE) {
             content.removeView(browser);
             browser.destroy();
@@ -1183,7 +1283,8 @@ public class HomeActivity extends Activity {
     public void onBackPressed() {
         // Startbildschirm-Modus: Zurück-Taste ohne Wirkung. Begleit-Modus (normale App): in den Hintergrund,
         // wie bei jeder App - sonst kommt man ohne Startbildschirm-Geste nicht mehr heraus.
-        if (companion) moveTaskToBack(true);
+        if (sound != null && sound.isOpen()) closeSound();
+        else if (companion) moveTaskToBack(true);
     }
 
     @Override
@@ -1195,6 +1296,7 @@ public class HomeActivity extends Activity {
         for (String id : new ArrayList<>(webViews.keySet())) removeWebView(id);
         if (browser != null) browser.destroy();
         if (maps != null) maps.destroy();
+        if (sound != null) sound.drop();
         if (ctlView != null) {
             root.removeView(ctlView);
             ctlView.destroy();
