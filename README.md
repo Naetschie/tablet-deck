@@ -12,7 +12,7 @@ Tablet-Einrichtung: [docs/tablet-setup.md](docs/tablet-setup.md).
 
 ```
 Tablet: LineageOS-GSI + Magisk ── Launcher-App "Tablet Deck" (Startbildschirm)
-          │  WebViews: Panel /, Touchpad + Medien /touchpad/  ·  Steuerseite /ctl.html
+          │  WebViews: Panel /, Touchpad /touchpad/, Ton /ton/  ·  Steuerseite /ctl.html
           │  USB-Kabel: adb reverse tcp:8765 → PC (kein WLAN nötig)
 PC:     Hub (python -m bridge)  ── SendInput: Tasten, Maus, Text, Medientasten · Lautstärke (pycaw)
                                 ── Taskleisten-Symbol · Automatik nach laufenden Programmen
@@ -77,8 +77,11 @@ im Editor und am Tablet mit Schloss neben den eigenen (`profiles/`), nichts wird
 Updates ändern daher nie etwas Eigenes. Hat ein Spiel eigene Panels, bleibt das erste eigene das Standard-Panel;
 ein mitgeliefertes ist nur der Rückfall. Tasten mit `sc` bekommen beim Laden die echte Star-Citizen-Belegung.
 
-## Touchpad-Seite: Lautstärke und Mixer
-Unter dem Master-Regler zeigt die Karte „Mixer“ je App einen Regler mit Stumm-Knopf (Apps mit mehreren
+## Ton-Feld: Lautstärke, Mixer, Wiedergabe
+Der kleine Lautsprecher-Knopf in der Leiste klappt die Seite `/ton/` über der aktuellen Ansicht auf (kein
+Moduswechsel, gehaltene Tasten bleiben; `SoundPane.java`). Wer lieber eine Kachel möchte: in `launcher.json`
+`{"id": "sound", "title": "Ton", "type": "web", "path": "/ton/"}`.
+Unter dem Gesamt-Regler zeigt die Seite je App einen Regler mit Stumm-Knopf (Apps mit mehreren
 Audio-Sitzungen erscheinen einmal, Systemklänge als „Systemklänge“) und darunter die Wiedergabegeräte; ein Tipp
 stellt die Standard-Ausgabe um. Nachrichten (`/ws`, Details in `bridge/pcinput.py`):
 - Tablet → PC: `{"t":"app_volume","k":"1234","v":0.4}`, `{"t":"app_mute","k":"1234","on":true}`,

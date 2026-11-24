@@ -308,7 +308,7 @@ SHA-256 `69572e37…aa8c48`. Beim ersten Verbinden fragt Android einmal nach der
 Weitere Felder stehen in der [README](../README.md#konfiguration).
 
 ## WLAN-Betrieb (ohne Kabel)
-Touchpad mit Medien, Panel, PC-Werte und die Web-Kachel laufen auch über WLAN. PC-Werte laufen über den Hub (Seite `/stats/`). spacedesk hat ein
+Touchpad, Ton-Feld, Panel, PC-Werte und die Web-Kachel laufen auch über WLAN. PC-Werte laufen über den Hub (Seite `/stats/`). spacedesk hat ein
 eigenes WLAN in seiner App.
 
 **Einrichten**

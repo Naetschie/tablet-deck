@@ -1,5 +1,19 @@
 # Änderungen
 
+## 5.3 – in Arbeit
+
+### Ton und Touchpad
+- **Ton-Feld:** Lautstärke, Mixer, Ausgabegerät und Wiedergabe sitzen nicht mehr auf der Touchpad-Seite, sondern hinter
+  einem kleinen Lautsprecher in der Leiste. Das Feld klappt über jeder Ansicht auf (Panel, Karte, Web …); daneben tippen
+  schließt es, ohne eine Taste auszulösen. Der Lautsprecher zeigt, ob der PC stumm ist.
+- **Touchpad** über die volle Breite; die Gesten-Hinweise verschwinden nach der ersten Berührung.
+- Regler (Ton und Panel): Beschriftung jetzt gut lesbar (Kontrast über 6:1 statt 1,9:1). Stumm-Knöpfe zeigen den Zustand,
+  Abspielen/Pause ist ein gemeinsames Symbol.
+
+### Aktualisieren
+- Die Launcher-App (APK) mit aktualisieren. Mit einer älteren App fehlt der Lautsprecher; dann zeigt die
+  Touchpad-Seite stattdessen einen Knopf zur Ton-Seite.
+
 ## 5.2 – 23.11.2026
 
 **Geführte Einrichtung** für Leute, die Tablet Deck zum ersten Mal einrichten.

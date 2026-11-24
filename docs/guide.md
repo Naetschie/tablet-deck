@@ -1,13 +1,13 @@
 # Guide: Tablet Deck benutzen
 
 Tablet Deck macht aus einem Android-Tablet eine Erweiterung für den Windows-PC: Spiel-Panels mit großen
-Tasten, Touchpad mit Medien und Lautstärke, PC-Messwerte, Karten und Webseiten. Dieser Guide zeigt den
+Tasten, Touchpad, Ton und Mixer, PC-Messwerte, Karten und Webseiten. Dieser Guide zeigt den
 Alltag; Einrichtung und Fehlersuche stehen in [install.md](install.md).
 
 ## Inhalt
 1. [Die Leiste am Tablet](#1-die-leiste-am-tablet)
 2. [Spiel-Panels](#2-spiel-panels)
-3. [Touchpad, Medien und Lautstärke](#3-touchpad-medien-und-lautstärke)
+3. [Touchpad und Ton](#3-touchpad-und-ton)
 4. [PC-Werte](#4-pc-werte)
 5. [Panels bearbeiten (Editor)](#5-panels-bearbeiten-editor)
 6. [Panel automatisch erzeugen](#6-panel-automatisch-erzeugen)
@@ -24,13 +24,13 @@ Links am Tablet sitzt die Leiste mit den Kacheln (einstellbar in `launcher.json`
 |---|---|
 | **Bildschirm** | Tablet als Zweitbildschirm (spacedesk per USB) |
 | **Web** | Webseiten im Tablet-Browser; Seiten lassen sich vom PC ans Tablet schicken |
-| **Touchpad** | Maus, Tastatur-Kürzel, Medien, Lautstärke und Mixer |
+| **Touchpad** | Maus, Text und Tastatur-Kürzel |
 | **Panel** | Spiel-Panel des laufenden Spiels |
 | **Karten** | Spielkarten (Map Genie zuerst, wo vorhanden), siehe [Karten](#9-karten) |
 | **PC-Werte** | CPU, GPU, Speicher, Lüfter, FPS |
 | **Android** | Android-Einstellungen |
 
-Der Punkt unten zeigt die Verbindung (**USB** oder **WLAN**). Läuft ein bekanntes Spiel, wechselt das
+Der kleine **Lautsprecher** darunter öffnet das [Ton-Feld](#ton-feld). Der Punkt unten zeigt die Verbindung (**USB** oder **WLAN**). Läuft ein bekanntes Spiel, wechselt das
 Tablet von selbst auf dessen Panel (Spiele und Programmnamen in `games.json`).
 
 ## 2. Spiel-Panels
@@ -54,14 +54,24 @@ Tablet von selbst auf dessen Panel (Spiele und Programmnamen in `games.json`).
 Manche Spiele werten eine Taste erst nach einer Mindest-Haltezeit (Star Citizen z. B. Autolandung); das
 Panel hält sie dann von selbst lange genug. Mehr zur Star-Citizen-Belegung: [star-citizen.md](star-citizen.md).
 
-## 3. Touchpad, Medien und Lautstärke
-![Touchpad mit Medien, Lautstärke und Mixer](bilder/tablet-touchpad.png)
+## 3. Touchpad und Ton
+![Touchpad](bilder/tablet-touchpad.png)
 
 - **Fläche:** 1 Finger bewegt, Tipp = Klick; 2 Finger Tipp = Rechtsklick, ziehen = scrollen;
-  3 Finger = Mittelklick; Doppeltipp halten = ziehen.
+  3 Finger = Mittelklick; Doppeltipp halten = ziehen. Die Hinweise dazu verschwinden nach der ersten Berührung.
 - **Textfeld:** tippt Text am PC ein; darunter häufige Kürzel und Pfeiltasten.
-- **Wiedergabe:** Zurück / Abspielen / Weiter für den laufenden Player.
-- **Lautstärke** des PCs, **Mixer** je Programm (mit Stumm-Knopf) und **Ausgabe**: Wiedergabegerät wählen.
+
+### Ton-Feld
+![Ton-Feld über dem Panel](bilder/tablet-ton.png)
+
+Der **Lautsprecher** unten in der Leiste klappt das Ton-Feld über der aktuellen Ansicht auf (Panel, Karte, Web …).
+Noch einmal tippen oder daneben tippen schließt es; dieser Tipp löst nichts aus, gehaltene Tasten bleiben gehalten.
+In der Vollbild-Karte und über anderen Apps (spacedesk) gibt es den Knopf nicht.
+
+- **Lautstärke** des PCs und **Mixer** je Programm, jeweils mit Stumm-Knopf. Ist der PC stumm, ist der Lautsprecher
+  in der Leiste rot durchgestrichen.
+- **Ausgabe:** Wiedergabegerät wählen.
+- **Wiedergabe:** Leiser / Zurück / Abspielen oder Pause / Weiter / Lauter.
 
 ## 4. PC-Werte
 ![PC-Werte: CPU, GPU, Speicher, Mainboard](bilder/tablet-pc-werte.png)
