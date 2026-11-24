@@ -1,5 +1,14 @@
 # Änderungen
 
+## 5.3.1 – 24.11.2026
+
+### Spielerkennung
+- Xbox-Spiele (Game Pass) werden auch gefunden, wenn der Xbox-Ordner eines Laufwerks nicht `XboxGames` heißt. Der Hub
+  liest den Namen aus `.GamingRoot`; `XboxGames` wird weiterhin durchsucht.
+
+### Aktualisieren
+- Nur der Hub ist geändert (neu starten). Die Launcher-App ist bis auf die Versionsnummer gleich.
+
 ## 5.3 – 24.11.2026
 
 Ton aus jeder Ansicht erreichbar, ein größeres Touchpad, eine ruhigere Leiste und wählbare **Farbschemas**.
