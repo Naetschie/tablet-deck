@@ -56,7 +56,8 @@ Hubs (Origin-Prüfung, CSP) dürfen Eingaben senden.
 
 `launcher.json`: Kacheln des Launchers. `web` mit `path` (optional `port` für einen anderen Dienst am PC,
 z. B. ein Dashboard; die Bridge leitet ihn per adb weiter), `app` mit Paketname, `browser` für
-fremde Webseiten. `"start": true` wählt die Kachel beim Start.
+fremde Webseiten. `"start": true` wählt die Kachel beim Start, `"small": true` zeigt sie nur als
+Symbol unten in der Leiste neben dem Ton-Knopf (hochkant nur, wenn es sonst eng wird).
 Änderungen werden live übernommen.
 
 `games.json`: Spiele mit Programmnamen (`exe`, für die Erkennung), Steam-AppID, Reihenfolge der Panels

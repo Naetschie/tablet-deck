@@ -24,13 +24,19 @@ Links am Tablet sitzt die Leiste mit den Kacheln (einstellbar in `launcher.json`
 |---|---|
 | **Bildschirm** | Tablet als Zweitbildschirm (spacedesk per USB) |
 | **Web** | Webseiten im Tablet-Browser; Seiten lassen sich vom PC ans Tablet schicken |
-| **Touchpad** | Maus, Text und Tastatur-Kürzel |
 | **Panel** | Spiel-Panel des laufenden Spiels |
 | **Karten** | Spielkarten (Map Genie zuerst, wo vorhanden), siehe [Karten](#9-karten) |
 | **PC-Werte** | CPU, GPU, Speicher, Lüfter, FPS |
-| **Android** | Android-Einstellungen |
 
-Der kleine **Lautsprecher** darunter öffnet das [Ton-Feld](#ton-feld). Der Punkt unten zeigt die Verbindung (**USB** oder **WLAN**). Läuft ein bekanntes Spiel, wechselt das
+Darunter sitzen kleine Symbole (langes Drücken zeigt den Namen):
+
+| Symbol | Wozu |
+|---|---|
+| **Touchpad** | Maus, Text und Tastatur-Kürzel |
+| **Lautsprecher** | öffnet das [Ton-Feld](#ton-feld) |
+| **Zahnrad** | Android-Einstellungen |
+
+Welche Kacheln klein sind, legt `"small": true` in `launcher.json` fest. Der Punkt unten zeigt die Verbindung (**USB** oder **WLAN**). Läuft ein bekanntes Spiel, wechselt das
 Tablet von selbst auf dessen Panel (Spiele und Programmnamen in `games.json`).
 
 ## 2. Spiel-Panels

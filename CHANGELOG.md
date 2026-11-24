@@ -10,6 +10,11 @@
 - Regler (Ton und Panel): Beschriftung jetzt gut lesbar (Kontrast über 6:1 statt 1,9:1). Stumm-Knöpfe zeigen den Zustand,
   Abspielen/Pause ist ein gemeinsames Symbol.
 
+### Leiste
+- Zwei Gruppen: oben die Ansichten als Kacheln, unten kleine Symbole für Touchpad, Ton und Android-Einstellungen.
+  Einstellbar je Kachel mit `"small": true` in `launcher.json`; vorhandene Dateien bleiben unverändert (Touchpad und
+  Android dort bei Bedarf ergänzen). Hochkant mit wenigen Kacheln bleibt alles groß.
+
 ### Farbschemas
 - Pro Gerät wählbar (Editor → Einstellungen → Geräte): Fläche (Standard, Schwarz, Hoher Kontrast) und Akzent (Blau,
   Cyan, Violett, Pink, Weiß). Wirkt sofort; alle Kombinationen sind auf Lesbarkeit geprüft. Warn-, Gefahr- und

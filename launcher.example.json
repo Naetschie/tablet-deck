@@ -2,10 +2,10 @@
   "tiles": [
     { "id": "screen",   "title": "Bildschirm", "type": "app", "pkg": "ph.spacedesk.beta" },
     { "id": "web",      "title": "Web",        "type": "browser" },
-    { "id": "touchpad", "title": "Touchpad",   "type": "web", "path": "/touchpad/" },
+    { "id": "touchpad", "title": "Touchpad",   "type": "web", "path": "/touchpad/", "small": true },
     { "id": "panel",    "title": "Panel",      "type": "web", "path": "/" },
     { "id": "maps",     "title": "Karten",     "type": "maps" },
     { "id": "pcstats",  "title": "PC-Werte",   "type": "web", "path": "/stats/", "start": true },
-    { "id": "settings", "title": "Android",    "type": "app", "pkg": "com.android.settings" }
+    { "id": "settings", "title": "Android",    "type": "app", "pkg": "com.android.settings", "small": true }
   ]
 }

@@ -133,7 +133,7 @@ public class HomeActivity extends Activity {
     static class Tile {
         String id, title, type, path, pkg, icon;
         int port;
-        boolean start;
+        boolean start, small;
 
         /**
          * null, wenn ungültig. Web-Kacheln: Port eines Dienstes am PC (Standard Hub) und Pfad, keine
@@ -149,6 +149,7 @@ public class HomeActivity extends Activity {
             t.icon = o.optString("icon", "");
             t.port = o.optInt("port", HUB_PORT);
             t.start = o.optBoolean("start", false);
+            t.small = o.optBoolean("small", false);   // nur Symbol, unten in der Leiste
             if (t.id.isEmpty()) return null;
             if (t.type.equals("web"))
                 return PATH_OK.matcher(t.path).matches() && !t.path.contains("..") && t.port >= 1024
@@ -463,14 +464,12 @@ public class HomeActivity extends Activity {
         if (bottomBar) {
             root.setOrientation(LinearLayout.VERTICAL);
             bar.setOrientation(LinearLayout.HORIZONTAL);
-            bar.setPadding(dp(8), dp(6), dp(8), dp(6));
             root.addView(content, new LinearLayout.LayoutParams(-1, 0, 1f));
             root.addView(railEdge, new LinearLayout.LayoutParams(-1, 1));
             root.addView(bar, new LinearLayout.LayoutParams(-1, dp(76)));
         } else {
             root.setOrientation(LinearLayout.HORIZONTAL);
             bar.setOrientation(LinearLayout.VERTICAL);
-            bar.setPadding(dp(8), dp(14), dp(8), dp(12));
             root.addView(bar, new LinearLayout.LayoutParams(dp(96), -1));
             root.addView(railEdge, new LinearLayout.LayoutParams(1, -1));
             root.addView(content, new LinearLayout.LayoutParams(0, -1, 1f));
@@ -729,11 +728,7 @@ public class HomeActivity extends Activity {
         soundIcon.setImageResource(muted ? R.drawable.ic_volume_off : R.drawable.ic_volume);
         soundIcon.setImageTintList(android.content.res.ColorStateList.valueOf(muted ? BAD : open ? ACCENT : DIM));
         soundButton.setContentDescription("Ton" + (volume < 0 ? "" : muted ? ", stumm" : ", " + volume + " %"));
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(open ? S2 : 0);
-        bg.setCornerRadius(dp(14));
-        bg.setStroke(1, LINE);
-        soundButton.setBackground(bg);
+        soundButton.setBackground(open ? activeBg(true) : null);
     }
 
     void removeWebView(String id) {
@@ -837,11 +832,20 @@ public class HomeActivity extends Activity {
         }
     }
 
+    final List<View> tileViews = new ArrayList<>();   // große Kacheln und kleine Symbole, Tag = Kachel-ID
+    static final int SMALL = 48;                      // kleine Symbole (dp): Tippfläche, sichtbar hervorgehoben 40
+
     void buildBar() {
         bar.removeAllViews();
-        // Kacheln scrollbar (viele Kacheln), Verbindungsanzeige bleibt unten bzw. rechts sichtbar
+        tileViews.clear();
+        List<Tile> big = new ArrayList<>(), small = new ArrayList<>();
+        boolean shrink = !bottomBar || !allFitBelow();
+        for (Tile t : tiles) (t.small && shrink ? small : big).add(t);
+
+        // Große Kacheln (scrollbar), darunter bzw. rechts die kleinen Symbole, Ton und Verbindungsanzeige
         railTiles = new LinearLayout(this);
         if (bottomBar) {
+            bar.setPadding(dp(8), dp(6), dp(8), dp(6));
             android.widget.HorizontalScrollView sv = new android.widget.HorizontalScrollView(this);
             sv.setHorizontalScrollBarEnabled(false);
             sv.setFillViewport(true);
@@ -849,54 +853,128 @@ public class HomeActivity extends Activity {
             sv.addView(railTiles, new FrameLayout.LayoutParams(-2, -1));
             bar.addView(sv, new LinearLayout.LayoutParams(0, -1, 1f));
         } else {
+            bar.setPadding(0, dp(14), 0, dp(8));   // unten volle Breite: zwei Symbole zu je 48 dp
             android.widget.ScrollView sv = new android.widget.ScrollView(this);
             sv.setVerticalScrollBarEnabled(false);
             railTiles.setOrientation(LinearLayout.VERTICAL);
+            railTiles.setPadding(dp(8), 0, dp(8), 0);
             sv.addView(railTiles, new FrameLayout.LayoutParams(-1, -2));
             bar.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1f));
         }
-        for (Tile t : tiles) {
-            LinearLayout b = new LinearLayout(this);
-            b.setOrientation(LinearLayout.VERTICAL);
-            b.setGravity(Gravity.CENTER);
-            b.setTag(t.id);
-            b.setContentDescription(t.title);
-            android.widget.ImageView ic = new android.widget.ImageView(this);
-            ic.setImageResource(iconFor(t));
-            b.addView(ic, new LinearLayout.LayoutParams(dp(24), dp(24)));
-            TextView l = new TextView(this);
-            l.setText(t.title);
-            l.setGravity(Gravity.CENTER);
-            l.setSingleLine(true);
-            l.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            l.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
-            l.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-            lp.topMargin = dp(5);
-            b.addView(l, lp);
-            b.setOnClickListener(v -> setMode(t.id));
-            LinearLayout.LayoutParams bp;
-            if (bottomBar) {
-                bp = new LinearLayout.LayoutParams(dp(84), -1);
-                bp.rightMargin = dp(4);
-            } else {
-                bp = new LinearLayout.LayoutParams(-1, dp(62));   // 7 Kacheln + Ton + Anzeige ohne Scrollen
-                bp.bottomMargin = dp(4);
+
+        List<View> tools = new ArrayList<>();
+        for (Tile t : small) tools.add(smallTile(t));
+        // Ton gehört neben das erste Symbol (Touchpad): beides bedient den PC
+        tools.add(Math.min(1, tools.size()), buildSoundButton());
+        View status = buildStatus();
+        int tileH = 68;
+        if (bottomBar) {
+            for (View v : tools) {
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(SMALL), dp(SMALL));
+                lp.gravity = Gravity.CENTER_VERTICAL;
+                bar.addView(v, lp);
             }
-            railTiles.addView(b, bp);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(64), -1);
+            lp.leftMargin = dp(4);
+            bar.addView(status, lp);
+        } else {
+            tools.add(status);
+            View line = new View(this);
+            line.setBackgroundColor(LINE);
+            LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(-1, 1);
+            dl.topMargin = dp(4);
+            dl.bottomMargin = dp(8);
+            bar.addView(line, dl);
+            LinearLayout row = null;
+            for (int i = 0; i < tools.size(); i++) {
+                if (i % 2 == 0) {
+                    row = new LinearLayout(this);
+                    row.setGravity(Gravity.CENTER_HORIZONTAL);
+                    bar.addView(row, new LinearLayout.LayoutParams(-1, -2));
+                }
+                row.addView(tools.get(i), new LinearLayout.LayoutParams(dp(SMALL), dp(SMALL)));
+            }
+            // Platz für alle großen Kacheln ohne Scrollen: bei vielen etwas niedriger, nie unter 62 dp
+            int rows = (tools.size() + 1) / 2;
+            int free = getResources().getConfiguration().screenHeightDp - 14 - 8 - 13 - rows * SMALL;
+            tileH = Math.max(62, Math.min(68, free / Math.max(1, big.size()) - 4));
         }
-        // Ton: kleiner Knopf statt Kachel, öffnet das Feld über der aktuellen Ansicht
-        FrameLayout sb = new FrameLayout(this);
-        soundIcon = new android.widget.ImageView(this);
-        sb.addView(soundIcon, new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER));
-        sb.setOnClickListener(v -> toggleSound());
-        soundButton = sb;
-        LinearLayout.LayoutParams sbp = new LinearLayout.LayoutParams(dp(48), dp(48));
-        sbp.gravity = bottomBar ? Gravity.CENTER_VERTICAL : Gravity.CENTER_HORIZONTAL;
-        if (bottomBar) sbp.leftMargin = dp(8);
-        else sbp.topMargin = dp(4);
-        bar.addView(sb, sbp);
+        for (Tile t : big) railTiles.addView(bigTile(t), bigParams(tileH));
+        setStatus(connected);
+        updateBar();
+    }
+
+    /** Hochkant: passen alle Kacheln groß nebeneinander (wenige Kacheln), bleibt alles groß. */
+    boolean allFitBelow() {
+        int w = getResources().getConfiguration().screenWidthDp - 16 - SMALL - 68;
+        return tiles.size() * 88 <= w;
+    }
+
+    LinearLayout bigTile(Tile t) {
+        LinearLayout b = new LinearLayout(this);
+        b.setOrientation(LinearLayout.VERTICAL);
+        b.setGravity(Gravity.CENTER);
+        b.setTag(t.id);
+        b.setContentDescription(t.title);
+        android.widget.ImageView ic = new android.widget.ImageView(this);
+        ic.setImageResource(iconFor(t));
+        b.addView(ic, new LinearLayout.LayoutParams(dp(24), dp(24)));
+        TextView l = new TextView(this);
+        l.setText(t.title);
+        l.setGravity(Gravity.CENTER);
+        l.setSingleLine(true);
+        l.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        l.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        l.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.topMargin = dp(5);
+        b.addView(l, lp);
+        b.setOnClickListener(v -> setMode(t.id));
+        tileViews.add(b);
+        return b;
+    }
+
+    LinearLayout.LayoutParams bigParams(int height) {
+        LinearLayout.LayoutParams p;
+        if (bottomBar) {
+            p = new LinearLayout.LayoutParams(dp(84), -1);
+            p.rightMargin = dp(4);
+        } else {
+            p = new LinearLayout.LayoutParams(-1, dp(height));
+            p.bottomMargin = dp(4);
+        }
+        return p;
+    }
+
+    /** Symbol ohne Beschriftung; langes Drücken zeigt den Namen. */
+    FrameLayout smallButton(String name, View.OnClickListener l) {
+        FrameLayout b = new FrameLayout(this);
+        b.setContentDescription(name);
+        b.setTooltipText(name);
+        b.addView(new android.widget.ImageView(this), new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER));
+        b.setOnClickListener(l);
+        return b;
+    }
+
+    /** Kachel als kleines Symbol (launcher.json "small": true). */
+    FrameLayout smallTile(Tile t) {
+        FrameLayout b = smallButton(t.title, v -> setMode(t.id));
+        b.setTag(t.id);
+        ((android.widget.ImageView) b.getChildAt(0)).setImageResource(iconFor(t));
+        tileViews.add(b);
+        return b;
+    }
+
+    /** Ton: kleiner Knopf statt Kachel, öffnet das Feld über der aktuellen Ansicht. */
+    View buildSoundButton() {
+        FrameLayout b = smallButton("Ton", v -> toggleSound());
+        soundIcon = (android.widget.ImageView) b.getChildAt(0);
+        soundButton = b;
         updateSound();
+        return b;
+    }
+
+    View buildStatus() {
         LinearLayout st = new LinearLayout(this);
         st.setOrientation(LinearLayout.VERTICAL);
         st.setGravity(Gravity.CENTER);
@@ -906,41 +984,30 @@ public class HomeActivity extends Activity {
         statusText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
         statusText.setTextColor(DIM);
         statusText.setGravity(Gravity.CENTER);
+        statusText.setSingleLine(true);
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-2, -2);
-        sp.topMargin = dp(6);
+        sp.topMargin = dp(5);
         st.addView(statusText, sp);
-        LinearLayout.LayoutParams stp;
-        if (bottomBar) {
-            stp = new LinearLayout.LayoutParams(dp(64), -1);
-            stp.leftMargin = dp(8);
-        } else {
-            stp = new LinearLayout.LayoutParams(-1, -2);
-            stp.topMargin = dp(8);
-        }
-        bar.addView(st, stp);
-        setStatus(connected);
-        updateBar();
+        return st;
+    }
+
+    /** Hervorhebung der aktiven Kachel; kleine Symbole nur 40 dp groß (Tippfläche bleibt 48). */
+    android.graphics.drawable.Drawable activeBg(boolean small) {
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(S2);
+        bg.setCornerRadius(dp(small ? 12 : 14));
+        bg.setStroke(1, LINE);
+        return small ? new android.graphics.drawable.InsetDrawable(bg, dp(4)) : bg;
     }
 
     void updateBar() {
-        if (railTiles == null) return;
-        for (int i = 0; i < railTiles.getChildCount(); i++) {
-            View v = railTiles.getChildAt(i);
-            if (v.getTag() == null) continue;
-            boolean on = v.getTag().equals(mode);
-            int c = on ? ACCENT : DIM;
-            LinearLayout b = (LinearLayout) v;
-            ((android.widget.ImageView) b.getChildAt(0)).setImageTintList(android.content.res.ColorStateList.valueOf(c));
-            ((TextView) b.getChildAt(1)).setTextColor(on ? TEXT : DIM);
-            if (on) {
-                GradientDrawable bg = new GradientDrawable();
-                bg.setColor(S2);
-                bg.setCornerRadius(dp(14));
-                bg.setStroke(1, LINE);
-                v.setBackground(bg);
-            } else {
-                v.setBackground(null);
-            }
+        for (View v : tileViews) {
+            boolean on = v.getTag().equals(mode), small = v instanceof FrameLayout;
+            android.view.ViewGroup b = (android.view.ViewGroup) v;
+            ((android.widget.ImageView) b.getChildAt(0)).setImageTintList(
+                    android.content.res.ColorStateList.valueOf(on ? ACCENT : DIM));
+            if (!small) ((TextView) b.getChildAt(1)).setTextColor(on ? TEXT : DIM);
+            v.setBackground(on ? activeBg(small) : null);
         }
     }
 
