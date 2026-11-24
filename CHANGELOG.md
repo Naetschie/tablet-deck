@@ -23,8 +23,10 @@ Ton aus jeder Ansicht erreichbar, ein größeres Touchpad, eine ruhigere Leiste 
   OK-Farben bleiben gleich, eigene Dashboards unverändert.
 
 ### Aktualisieren
-- `.\install.ps1` lädt die APK aus dem Release v5.3. Die Launcher-App mit aktualisieren: Mit einer älteren App fehlt der Lautsprecher; dann zeigt die
-  Touchpad-Seite stattdessen einen Knopf zur Ton-Seite.
+- `.\install.ps1` lädt die APK aus dem Release v5.3. Mit einer älteren App fehlt der Lautsprecher; die Touchpad-Seite
+  zeigt dann stattdessen einen Knopf zur Ton-Seite.
+- Stalker 2: `profiles/stalker2/zone.json` ist durch ein neu angeordnetes Panel ersetzt (gleiche Tasten; die
+  Schnellzugriffe ohne Belegung entfallen, die Taschenlampe ist ein einfacher Tipp statt eines Schalters).
 
 ## 5.2 – 23.11.2026
 
