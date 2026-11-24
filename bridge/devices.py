@@ -127,7 +127,7 @@ class Devices:
             return default
         if themes.valid(d["theme"]):
             return d["theme"]
-        log.error("devices.json %s: theme=%r ungültig - nehme %r", dev, d["theme"], default)
+        themes.warn_once(f"devices.json {dev}", d["theme"])
         return default
 
     def tiles(self, dev):

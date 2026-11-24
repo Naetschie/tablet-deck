@@ -77,7 +77,7 @@ In der Vollbild-Karte und über anderen Apps (spacedesk) gibt es den Knopf nicht
 Am PC im Editor unter **⚙ Einstellungen → Geräte** wählst du je Gerät die **Fläche** (Standard, Schwarz, Hoher Kontrast)
 und den **Akzent** (Blau, Cyan, Violett, Pink, Weiß). Das wirkt sofort: Leiste, Panel, Touchpad, Ton-Feld, Startseite
 und das mitgelieferte PC-Werte-Dashboard. Warn-, Gefahr- und OK-Farben bleiben in jedem Schema gleich; eigene
-Dashboards behalten ihre Farben.
+Dashboards behalten ihre Farben. Eine offene Karte zeigt die neuen Farben nach dem nächsten Wechsel der Kachel.
 
 ## 4. PC-Werte
 ![PC-Werte: CPU, GPU, Speicher, Mainboard](bilder/tablet-pc-werte.png)

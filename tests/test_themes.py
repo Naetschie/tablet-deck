@@ -102,7 +102,38 @@ class FormatTest(unittest.TestCase):
         self.assertIn("#A99BFF", new)
         for s in ("#3DDC84", "#F0923A", "#E5484D"):   # Zustandsfarben unverändert
             self.assertEqual(new.count(s), text.count(s))
+        self.assertNotIn("79,179,255", new.replace(" ", ""))   # auch getönte Flächen
         self.assertEqual(len(json.loads(new)["widgets"]), len(json.loads(text)["widgets"]))
+
+
+    def test_dashboard_nur_bekannte_farben(self):
+        # neue Farbe in deck.json? Dann in themes.recolor aufnehmen oder eine Zustandsfarbe nehmen
+        text = (ROOT / "dashboards/deck.json").read_text("utf-8")
+        known = {v.upper() for v in themes.colors(themes.DEFAULT).values()} | set(STATES.values()) | {"#8AC9FF"}
+        for c in re.findall(r'"(#[0-9A-Fa-f]+)"', text):
+            self.assertIn(c.upper(), known)
+
+    def test_einmal_melden(self):
+        with self.assertLogs("bridge", "ERROR") as cm:
+            for _ in range(3):
+                device_theme({"tablet_theme": "einmal-melden"}, None)
+        self.assertEqual(len(cm.output), 1)
+
+
+class HttpTest(unittest.TestCase):
+    def css(self, cookie):
+        b = SimpleNamespace(cfg={"tablet_theme": {"surface": "schwarz", "accent": "cyan"}},
+                            devices=SimpleNamespace(theme=lambda dev, default: default))
+        return themes.css(Bridge.request_theme(b, SimpleNamespace(headers={"Cookie": cookie} if cookie else {})))
+
+    def test_nur_mit_geraetekennung(self):
+        self.assertIn("--ac: #2FD3D8;", self.css("deckdev=TAB1"))
+        self.assertNotIn("--ac", self.css(None))            # Editor am PC
+        self.assertNotIn("--ac", self.css("deckdev=../x"))
+
+    def test_launcher_ohne_kennung_wie_seiten(self):
+        b = SimpleNamespace(cfg={"tablet_theme": {"surface": "schwarz", "accent": "cyan"}})
+        self.assertEqual(Bridge.theme_msg(b, None)["colors"], themes.colors(themes.DEFAULT))
 
 
 class DeviceTest(unittest.TestCase):

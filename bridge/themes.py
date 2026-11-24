@@ -8,6 +8,11 @@ Gespeichert pro Gerät in devices.json ("theme": {"surface": "schwarz", "accent"
 config.json ("tablet_theme"). Die Seiten bekommen /lib/theme.css (nur mit Gerätekennung, der Editor am PC bleibt beim
 Standard), der Launcher die Farben über /ctl.
 """
+import logging
+import re
+
+log = logging.getLogger("bridge")
+_warned = set()
 
 SURFACES = {
     "standard": ("Standard", {"bg": "#0E1114", "s1": "#161A1F", "s2": "#1E242B", "s3": "#28313B", "line": "#2B343E",
@@ -32,6 +37,14 @@ def valid(t):
     return (isinstance(t, dict) and set(t) == {"surface", "accent"}
             and isinstance(t["surface"], str) and t["surface"] in SURFACES
             and isinstance(t["accent"], str) and t["accent"] in ACCENTS)
+
+
+def warn_once(where, value):
+    """Ungültiges Schema nur einmal je Wert melden (wird bei jedem Seitenaufruf gelesen)."""
+    key = (where, repr(value))
+    if key not in _warned:
+        _warned.add(key)
+        log.error("%s: Farbschema %r ungültig - nehme die Vorgabe", where, value)
 
 
 def rgb(hex_):
@@ -73,8 +86,10 @@ def recolor(text, theme):
     old, new = colors(DEFAULT), colors(theme)
     table = {old[k].upper(): new[k] for k in ("bg", "s1", "s2", "s3", "line", "tx", "dim", "ac")}
     table["#8AC9FF"] = mix(new["ac"], "#FFFFFF", .67)   # hellere Stufe des Akzents (E-Kerne)
-    import re
-    return re.sub(r'"(#[0-9A-Fa-f]{6})"', lambda m: '"%s"' % table.get(m.group(1).upper(), m.group(1)), text)
+    text = re.sub(r'"(#[0-9A-Fa-f]{6})"', lambda m: '"%s"' % table.get(m.group(1).upper(), m.group(1)), text)
+    # getönte Flächen im Akzent (z. B. unter der Kurve), Deckkraft bleibt
+    r, g, b = rgb(old["ac"])
+    return re.sub(r"rgba\(\s*%d\s*,\s*%d\s*,\s*%d\s*," % (r, g, b), "rgba(%d,%d,%d," % rgb(new["ac"]), text)
 
 
 def choices():

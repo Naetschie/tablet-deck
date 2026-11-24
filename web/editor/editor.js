@@ -318,10 +318,12 @@
   }
   // ---------------------------------------------------------------- Einstellungen: Geräte (Light-Modus, Farbschema)
   // Farbschema: Fläche als Auswahl, Akzent als Farbpunkte; wirkt sofort am Gerät
+  var themeFocus = null;   // die Liste wird nach jeder Änderung neu gebaut: Tastaturfokus wiederherstellen
   function themeRow(d, themes) {
     var row = el("div", { cls: "theme" }), th = d.theme || {};
     function set(k, v) {
       var t = { surface: th.surface, accent: th.accent }; t[k] = v;
+      themeFocus = { id: d.id, sel: k === "surface" ? "select" : "input:checked" };
       row.querySelectorAll("select, input").forEach(function (x) { x.disabled = true; });
       send({ t: "device_theme", id: d.id, theme: t });
     }
@@ -360,8 +362,10 @@
       var meta = document.createElement("span"); meta.className = "meta";
       meta.textContent = (d.main ? "Hauptgerät · " : "") + (d.connected ? "verbunden" : "nicht verbunden");
       var li = document.createElement("li"); li.appendChild(name); li.appendChild(meta); li.appendChild(lab);
-      if (themes) li.appendChild(themeRow(d, themes));
+      var row = themes ? themeRow(d, themes) : null;
+      if (row) li.appendChild(row);
       ul.appendChild(li);
+      if (row && themeFocus && themeFocus.id === d.id) { row.querySelector(themeFocus.sel).focus(); themeFocus = null; }
     });
     if (!list.length) {
       var e = document.createElement("li"); e.className = "dim";

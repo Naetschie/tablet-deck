@@ -672,7 +672,9 @@ class Bridge:
                     pass
 
     def theme_msg(self, dev=None):
-        return {"t": "theme", "colors": themes.colors(device_theme(self.cfg, dev, getattr(self, "devices", None)))}
+        # ohne Gerätekennung Standard, wie die Seiten (request_theme) - sonst passten Leiste und Seiten nicht zusammen
+        t = device_theme(self.cfg, dev, getattr(self, "devices", None)) if dev else themes.DEFAULT
+        return {"t": "theme", "colors": themes.colors(t)}
 
     async def send_theme(self, dev):
         """Farbschema an alle verbundenen Launcher dieses Geräts."""
@@ -1471,7 +1473,7 @@ def device_theme(cfg, serial, devices=None):
     """Farbschema eines Geräts: devices.json theme, sonst tablet_theme aus config.json, sonst Standard."""
     base = cfg.get("tablet_theme", themes.DEFAULT)
     if not themes.valid(base):
-        log.error("config tablet_theme=%r ungültig - nehme Standard", base)
+        themes.warn_once("config.json tablet_theme", base)
         base = themes.DEFAULT
     return devices.theme(serial, base) if devices is not None and serial else base
 
